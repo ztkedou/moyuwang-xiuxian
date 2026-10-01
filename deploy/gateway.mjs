@@ -40,7 +40,11 @@ const API_NODE_BIN = process.env.API_NODE_BIN || process.execPath;
 // 需要反代到 API 的路径前缀（按长度降序匹配，长前缀优先）
 const API_PREFIXES = ['/yl/api/', '/myxxz/api/', '/api/'];
 // 静态资源的「别名前缀」：前端硬编码了 /myxxz/CHANGELOG*.md 与 /myxxz/assets/*，落到静态根
-const STATIC_ALIASES = ['/myxxz/'];
+// ★ 2026-10-01 加 /yl/：bundle 里除 /myxxz/ 外还**硬编码**了
+//   `/yl/assets/logo-BInDl5Di.png`（Fb 常量）⇒ 不加别名这条 logo 恒 404（实机验证踩到）。
+//   /yl/api/* 由上面的 API_PREFIXES 先拦截，不会落到静态。
+//   别名额外兜底到仓库根的那条只放行 .md，故 /yl/ 不会泄漏源码。
+const STATIC_ALIASES = ['/myxxz/', '/yl/'];
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',

@@ -31,8 +31,19 @@ RUN apt-get update \
 
 ARG NPM_REGISTRY=https://registry.npmmirror.com
 COPY deploy/server-package.json ./package.json
+# ★★ --build-from-source 是**必须**的，不是优化项（2026-10-01 实机验证踩到）：
+#   sqlite3 / bcrypt 的**预编译包**是在更新发行版（glibc ≥ 2.38）上构建的，
+#   而本镜像是 Debian 12 bookworm（glibc 2.36）⇒ 运行时报
+#     Error: /lib/x86_64-linux-gnu/libm.so.6: version `GLIBC_2.38' not found
+#            (required by .../sqlite3/build/Release/node_sqlite3.node)  [ERR_DLOPEN_FAILED]
+#   且**构建阶段不会报错**（deps 阶段不 load 原生模块）⇒ 容器起不来、重启循环。
+#   强制源码编译后，二进制用本镜像的 glibc 现场生成，跨发行版才稳（代价：多几分钟编译）。
 RUN npm config set registry "${NPM_REGISTRY}" \
- && npm install --omit=dev --no-audit --no-fund
+ && npm install --omit=dev --no-audit --no-fund --build-from-source
+
+# ★ 构建期门禁：原生模块必须**在本镜像里真的能 load**。
+#   把上面那种「构建成功、运行崩溃」的 glibc 不匹配挡在 build 阶段。
+RUN node -e "require('sqlite3'); require('bcrypt'); console.log('[deps] native modules OK:', process.version)"
 
 # -----------------------------------------------------------------------------
 # 阶段 2：运行
@@ -58,6 +69,12 @@ COPY srv/game-dicts.json ./srv/game-dicts.json
 COPY build/ ./build/
 COPY CHANGELOG.md        ./build/CHANGELOG.md
 COPY CHANGELOG_PLAYER.md ./build/CHANGELOG_PLAYER.md
+
+# ★ 构建期门禁：index.html 里引用的 assets/* 必须真的在 build/assets/ 里。
+#   2026-10-01 实机验证踩到：仓库的 build/assets/ 少了两个 favicon svg
+#   （favicon-Cx_3as10.svg / favicon-white-DgWBu-OV.svg，线上是有的），
+#   全新部署必然 404 —— 本机测试脚本把它当「环境既有项」白名单了，所以一直没暴露。
+RUN node -e "const fs=require('fs');const h=fs.readFileSync('/app/build/index.html','utf8');const m=[...h.matchAll(/(?:src|href)=\"[^\"]*assets\\/([^\"]+)\"/g)].map(x=>x[1]);const miss=[...new Set(m)].filter(f=>!fs.existsSync('/app/build/assets/'+f));if(miss.length){console.error('[gate][FATAL] index.html 引用了不存在的静态资源:',miss);process.exit(1)}console.log('[gate] index.html 资源引用齐全:',[...new Set(m)].join(', '))"
 
 # 网关（静态托管 + API 反代）
 COPY deploy/gateway.mjs ./deploy/gateway.mjs

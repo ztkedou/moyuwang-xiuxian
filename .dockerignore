@@ -69,7 +69,9 @@ CHANGELOG.md.bak*
 *.png
 *.jpg
 *.jpeg
+*.svg
 !build/assets/*.png
+!build/assets/*.svg
 .DS_Store
 Thumbs.db
 desktop.ini

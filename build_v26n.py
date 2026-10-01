@@ -1,0 +1,1241 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+build_v26n.py — yl 客户端 v26n：移植上游 0.3.8「九天通天塔」
+
+上游来源：JeasonLoop/react-xiuxian-game @1ec1b63
+  - constants/tower.ts          (getTowerFloorConfig / calculateTowerDailySweep / 两个 item 工厂)
+  - services/towerService.ts    (challengeTowerFloor / sweepTower)
+  - components/TowerModal.tsx   (UI 结构参照)
+
+我方适配（bundle 锚点注入）：
+  - 数值公式 1:1 保留（境界分段、realmFactor、boss ×1.4、25 回合模拟、每日扫荡 35% 累计）
+  - 玩家总属性改用我方 xt(player)（含心法/金丹法；player.attack 已含装备+称号）
+  - 物品落库改用 YlxwTowerAddItem（Material 按 name 叠加；isEquippable 每次新建实例，id 用 St()）
+  - UI 用仙务枢纽既有展示组件（YlxwPanel/YlxwRow/YlxwBtn/YlxwTitle/YlxwKv）重写
+  - 挂载：YLXW_COMP.tower + YLXW_TABS.push + YLXW_ICONS.tower + 抽屉入口 YlxwOpen("tower")
+"""
+import os
+import sys
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, HERE)
+from yl_patch import Patcher, zh  # noqa: E402
+from yl_v26n_ext import (  # noqa: E402
+    CORE_JS, REFORGE_JS, SPELL_JS, BATTLE_PATCHES,
+    DRAWER_ITEM_REF, DRAWER_ITEM_SPELL,
+    PAYOUT_API_JS, PAYOUT_API_ANCHOR, PAYOUT_JS, DRAWER_ITEM_PAYOUT,
+)
+from yl_sellui_ext import (  # noqa: E402
+    SELL_UI_HELPER_ANCHOR, SELL_UI_HELPER_JS, SELL_UI_PATCHES, SELL_UI_GATES,
+)
+from yl_rename_ext import RENAME_PATCHES, RENAME_GATES  # noqa: E402
+# ---- v28 模块（按调用顺序导入；num-balance 必须最后跑，才能看到别人注入的块）----
+from yl_saveretry_ext import apply as v28_saveretry_apply  # noqa: E402
+from yl_version_ext import apply as v28_version_apply
+from yl_changelog_ext import apply as v28_changelog_apply  # noqa: E402  # 游戏内更新日志：玩家向 + 不截断  # noqa: E402
+from yl_mail_ext import apply as v28_mail_apply  # noqa: E402
+from yl_entry_ext import apply as v28_entry_apply  # noqa: E402
+from yl_sectgf_ext import apply as v28_sectgf_apply  # noqa: E402
+from yl_char_ext import apply as v28_char_apply  # noqa: E402
+# ---- 0.8.2 新增三模块（lead 接线；顺序见下方 V28_MODULES 注释）----
+from yl_bond_ext import apply as v28_bond_apply  # noqa: E402
+from yl_ui_ext import apply as v28_ui_apply  # noqa: E402
+from yl_arb_ext import apply as v28_arb_apply  # noqa: E402
+# ---- 0.8.12 新增一模块（offline2：R-021 离线窗口锚点 + R-020 灵石日志文案）----
+#      ★ **必须紧跟 arb 之后** —— 它锚定的 `function YLArbTrace(msg) {` 是 arb 注入的。
+#      ① R-021（真 bug）：客户端每 10s 自动存档 → 服务端每次 /api/save 刷新 updated_at →
+#         而离线窗口锚点就是 updated_at ⇒ 页面开着时 windowMs 恒 ≈10s < 5min ⇒ 面板恒 0。
+#         修法：服务端 saves 加 last_seen_at/last_resume_at + 新增 offlineAnchor() +
+#         POST /api/session/presence（客户端在 visibilitychange(hidden)/beforeunload 上报）。
+#         ★ 机制上真断开：away 落的是「上报那一刻本行的 updated_at」，客户端无法带时间戳伪造时长；
+#         心跳 /api/save 只刷 updated_at、不碰 last_seen_at。
+#      ② R-020（非 bug，仅文案）：那 5 条日志是玩家自己花掉的（加速/远征/秘径），
+#         原 `addLog(..., 'danger')` + 「服务端权威变更，已留痕」误导 ⇒ 降级 + 带来源。
+#      ★ 收益公式一行未动（服务端 6 条硬断言 + 改前改后计数相等）；恒在 numbal 之前。
+from yl_offline2_ext import apply as v28_offline2_apply  # noqa: E402
+# ---- 0.8.12 新增一模块（farm2）----
+#      R-019 灵田：照料 2h 冷却 + 种子成品属性/售价 + 变卖/服用价格（依赖 farm087+farm089+v2810c）
+from yl_farm2_ext import apply as v28_farm2_apply  # noqa: E402
+# ---- 0.8.12 新增一模块（medlog）----
+#      R-023 打坐停止日志：时长/修为/灵石 + 顿悟次数 + 平均每跳（依赖 toast083 + 基座打坐本体）
+from yl_medlog_ext import apply as v28_medlog_apply  # noqa: E402
+# ---- 0.8.12 新增一模块（daily）----
+#      R-027 日常任务：每项写入「获取方式」（依赖 v2810c）
+from yl_daily_ext import apply as v28_daily_apply  # noqa: E402
+# ---- 0.8.12 新增一模块（fun2）----
+#      R-029 每日行乐：茶馆结果三态展示 + 茶馆记录折叠块（依赖 v2810c）
+from yl_fun2_ext import apply as v28_fun2_apply  # noqa: E402
+# ---- 0.8.12 新增一模块（lottery）----
+#      R-031 抽奖：精简面板自定义数量 + 完整面板返回精简（依赖 v2810c）
+from yl_lottery_ext import apply as v28_lottery_apply  # noqa: E402
+# ---- 0.8.12 新增一模块（dungeon2）----
+#      R-032 秘境：冷却 30s→5min + 每日上限 [10,12,14,15,17,18,20] 随境界（依赖 dungeon085+v2811a）
+from yl_dungeon2_ext import apply as v28_dungeon2_apply  # noqa: E402
+from yl_numbal_ext import apply as v28_numbal_apply  # noqa: E402
+# ---- 0.8.3 新增四模块（lead 接线；顺序见下方 V28_MODULES 注释）----
+from yl_chargift083_ext import apply as v28_chargift083_apply  # noqa: E402
+from yl_intro083_ext import apply as v28_intro083_apply  # noqa: E402
+from yl_flow083_ext import apply as v28_flow083_apply  # noqa: E402
+from yl_toast083_ext import apply as v28_toast083_apply  # noqa: E402
+# ---- 0.8.5 新增两模块（cli-eco 灵石经济 / cli-dg 秘境每日限制；顺序见下方 V28_MODULES 注释）----
+from yl_eco085_ext import apply as v28_eco085_apply  # noqa: E402
+from yl_dungeon085_ext import apply as v28_dungeon085_apply  # noqa: E402
+# ---- 0.8.6 新增一模块（fun086：洞府加速提示 / 日常任务灵石×5 / 每日行乐四玩法 /
+#      奇遇区间化展示 / 妖灵日志折叠 / 远征 2W / 仙务面板两列）----
+from yl_fun086_ext import apply as v28_fun086_apply  # noqa: E402
+# ---- 0.8.7 新增八模块（implEventsUi 唯一接线；各模块由十一人分工交付）----
+#      grotto087(T4+T9) / farm087(T10) / xinfa087(T3) / t6chardex(T6) / adv087(T11)
+#      act087(T5 活动中心) / t7sect(T7) / t8mentor(T8)；装配序见下方 V28_MODULES 注释
+from yl_grotto087_ext import apply as v28_grotto087_apply  # noqa: E402
+from yl_farm087_ext import apply as v28_farm087_apply  # noqa: E402
+from yl_xinfa087_ext import apply as v28_xinfa087_apply  # noqa: E402
+from yl_t6chardex_ext import apply as v28_t6chardex_apply  # noqa: E402
+from yl_adv087_ext import apply as v28_adv087_apply  # noqa: E402
+from yl_act087_ext import apply as v28_act087_apply  # noqa: E402
+from yl_t7sect_ext import apply as v28_t7sect_apply  # noqa: E402
+from yl_t8mentor_ext import apply as v28_t8mentor_apply  # noqa: E402
+# ---- 0.8.8 新增一模块（forge088：item19 炼器产出补 [境界] 前缀；不改基座，包装 zg 两工厂）
+from yl_forge088_ext import apply as v28_forge088_apply  # noqa: E402
+# ---- 0.8.9 新增两模块（T2 灵宠玩法扩展 / T5 灵田品种重构；客户端部分）
+#      pet089（秘径消耗重构 / 出战助战加成 / 融合 / 妖灵归位）
+#      farm089（灵田双出口「变卖 / 服用」面板；覆盖 farm087 的 YLXW_COMP.farm 注册）
+from yl_pet089_ext import apply as v28_pet089_apply  # noqa: E402
+from yl_farm089_ext import apply as v28_farm089_apply  # noqa: E402
+# ---- 0.8.9 新增一模块（i4-reward：灵石奖励口径统一；抽 YLReward 纯函数供显示端/入账端同调）
+#      排位理由：只改「显示端」的两处面板文案 + 注入纯函数，与 forge088 面不重叠，
+#      且必须在 numbal 之前（numbal 恒最后）。注入锚是 YLRF 块结束标记，早于所有 v28 模块，
+#      故本模块只看得到基座形态，与其它模块的注入互不干扰。
+from yl_reward089_ext import apply as v28_reward089_apply  # noqa: E402
+# ---- 0.8.9 新增两模块（T16 演武场 / T17 丹炉重构；i3-cli 交付，恒在 numbal 之前）----
+#      t17alchemy：重写 YlxwTAlchemy 面板（丹道挂机线）+ 丹房弹窗 item18 布局修复
+#      t16arena：重写 YlxwTArena 面板（PVE 试炼 + 异步 PVP 论剑）
+from yl_t17alchemy_ext import apply as v28_t17alchemy_apply  # noqa: E402
+from yl_t16arena_ext import apply as v28_t16arena_apply  # noqa: E402
+#      t9quest：仙途任务·活跃度客户端显示层（18 项分组 / 6 档宝箱 / 周里程碑 / 一键领取）
+from yl_t9quest_ext import apply as v28_t9quest_apply  # noqa: E402
+# ---- 0.8.9 新增一模块（T7 传承系统重构；i3-cli 交付，恒在 numbal 之前）----
+#      t7legacy：逐点使用 + 分境界效果（低境界跳 1 层 / 元婴+ 注入 25% 修为）
+#                + 传承石分层定价（100 万起 / 长生 2000 万）+ 声望商店每周限 1
+from yl_t7legacy_ext import apply as v28_t7legacy_apply  # noqa: E402
+# ---- 0.8.10 新增五模块（三步工作流：修 bug + 0.8.10 待办池 + 需求查漏补缺）----
+#      v2810a：称号列表展示装备后加成数值 + 角色面板补属性作用说明与命中/暴击/闪避/吸血
+#      v2810b：悟道并入功法（删独立入口 ×3 + 功法面板左栏心法下方挂悟道区块 + 玩法提示）
+#      v2810c：灵田作物「变卖/服用」收获内容标注 + 洞府灵草加速改「只缩短小时数」
+#      v2810d：奇遇抽奖与抽奖合并为一个入口（左奇遇/右抽奖）+ 抽奖高阶折算「灵石+修为」
+#      v2810e：信箱删除邮件（DELETE /api/mail/:id）+ 灵宠左栏「仙务·妖灵」补作用/融合入口
+from yl_v2810a_ext import apply as v28_v2810a_apply  # noqa: E402
+from yl_v2810b_ext import apply as v28_v2810b_apply  # noqa: E402
+from yl_v2810c_ext import apply as v28_v2810c_apply  # noqa: E402
+from yl_v2810d_ext import apply as v28_v2810d_apply  # noqa: E402
+from yl_v2810e_ext import apply as v28_v2810e_apply  # noqa: E402
+#      v2810f：洞府灵草「配置信息缺失」兜底修复（旧名 灵紫猴草 → 现名 紫猴花 别名表）
+from yl_v2810f_ext import apply as v28_v2810f_apply  # noqa: E402
+#      v2810g：演武场周榜面板（论剑区追加「我的名次 + 本周场次 + TOP10」；
+#              配套服务端第 22 环 srv_patch_arenaweek.py 的 GET /arena/week）
+from yl_v2810g_ext import apply as v28_v2810g_apply  # noqa: E402
+#      v2810h：仙务「时光回溯」面板（玩家侧存档快照列表 + 自助回溯；
+#              配套服务端第 23 环 srv_patch_snapself.py 的 GET /api/snapshots
+#              与 POST /api/snapshots/:id/restore）
+#              ★ 同时给 applyRemoteSave 的灵石仲裁加一次性放行开关 ——
+#                回溯会让数值整体变小，YLArbDecide 会误判为服务端钳制而 flush/skip，
+#                把回溯结果冲掉；放行开关用完即清，不动 YLArbDecide 本体。
+from yl_v2810h_ext import apply as v28_v2810h_apply  # noqa: E402
+# ---- 0.8.11 新增一模块（v2811a：秘境弹窗显示服务端权威每日次数）----
+#      0.8.5（dg085）已把秘境每日 3 次接到服务端账本，但只在**地宫 Roguelike 弹窗**
+#      打开时同步；「秘境探索」弹窗（组件 cM）从未拉过 ⇒ 玩家看不到剩余次数与冷却。
+#      本模块在 cM 打开时复用 dg085 的 YlxwDungeonStatusSync() 拉一次，并在内容区顶部
+#      常驻一条「今日秘境次数 x/3 + 剩余 + 冷却」信息栏；刷新按钮顺带刷新次数。
+#      ★ 零新增网络调用、零服务端改动；恒在 numbal 之前。
+from yl_v2811a_ext import apply as v28_v2811a_apply  # noqa: E402
+# ---- 0.8.12 新增一模块（gongfa：R-016 功法按技能类型分类 + 展示战斗技能效果）----
+#      侦察结论：本体**早已实现**功法→技能的映射 —— 手写技能表 og（9 部有专属技能）
+#      + 生成器 GS(art)（其余 73 部按 type/grade 生成），战斗入口 QS(player) 里
+#      `t.cultivationArts.forEach` 逐部取用 ⇒ 每部已习得功法在战斗里就是一个技能。
+#      缺的只是「卡片没展示」。故本模块**只读复用** og/GS/is，把 82 部功法的战斗技能
+#      展示进卡片，并把失真的「心法/体术」二分改为真实技能类型（攻击 54 / 辅助 27 / 治疗 1）。
+#      ★ 战斗侧（og/GS/QS/X0/uM）零改动；恒在 numbal 之前。
+from yl_gongfa_ext import apply as v28_gongfa_apply  # noqa: E402
+# ---- 0.8.12 新增一模块（char2：R-012 角色属性补说明+隐藏属性 / R-014 称号系统移到左列 /
+#      R-015 天赋默认折叠 + 描述标注属性）----
+#      三条改同一个「角色系统」弹窗，必须同一模块交付（否则撞锚点）。
+#      ① R-012：声望/幸运补影响说明；补 5 项隐藏属性（暴击/暴伤/闪避/吸血/减伤，
+#         取自本体 YlxwBattleBonus(player)）。★「命中」玩家侧不存在（hit 只在敌人数据里）
+#         ⇒ 按「不自己发明数值」不渲染，面板里写明「玩家无命中属性」。
+#      ② R-014：称号系统搬到左列「仙务·修行统计」上方（**JSX 层搬移，不碰 DOM**）。
+#      ③ R-015：天赋默认折叠 + 展开/收起按钮 + 描述加属性数值（读本体天赋表 Un 的 effects）。
+#      ★ 基线依赖 0.8.11 已装配（v2810a）；恒在 numbal 之前。
+from yl_char2_ext import apply as v28_char2_apply  # noqa: E402
+# ---- 0.8.13 一模块（M-1/M-2 上游 bug 摘取；恒在 numbal 之前）----
+from yl_merge01_ext import apply as v28_merge01_apply  # noqa: E402
+# ---- 0.8.13 二模块（R-034/035/036 人物志任务化；R-013 传承石可交易）----
+from yl_renwu_ext import apply as v28_renwu_apply  # noqa: E402
+from yl_r013_ext import apply as v28_r013_apply  # noqa: E402
+# ---- 0.8.13 三模块（R-017/022/024/025/028 数值统一 / R-018 妖灵培养重设计）----
+#   · econ2：R-025 修炼效率 6 桶「相乘→相加 + 降幅系数 K（无总帽）」/ R-022 打坐
+#     自动+手动冷却 1s→2s、顿悟 1%→0.2% / R-024 每跳灵石 `×5` →
+#     `floor(max(1,q)·4.25·(1+(层−1)·0.03))`（新增 YlxwMedStone2 中转）/ R-017 灵宠喂养
+#     收益÷3、亲密÷2.333、消耗×5 / R-028 周里程碑 3 档→5 档。
+#     ★ 其锚点实测于「已含 medlog / toast083 / flow083 / eco085 / reward089」的产物
+#       ⇒ 必须排在它们之后（本处即链尾，满足）。8 条跨模块冻结串已由 lead 依
+#       dungeon085「约束权移交」先例改名/换断言（见各 ext 文件内 2026-09-30 注释）。
+#   · r018：妖灵出口 PP 纯函数 + `player.petSpirit` + `xt()` 末尾加算（X0/QS 双战斗）
+#     + D1 三档进食 / D2 三选互动+买额度 / D3 点化 / D4 秘径 / D6 归位。
+#     ★ 锚点形态 = 已含 fun086 / v2810e / pet089 的产物；不删 v2810e 冻结的「喂养/嬉戏」行。
+#   · 两者恒在 numbal 之前（numbal 恒最后，需看到所有注入块）。
+from yl_econ2_ext import apply as v28_econ2_apply  # noqa: E402
+from yl_r018_ext import apply as v28_r018_apply  # noqa: E402
+# ---- 0.8.13 一模块（★ 冷却机制真 bug 修复 + 历练冷却还原上游原版口径）----
+#   · R1：UI store 的 `setCooldown:a=>t({cooldown:a})` **不支持 updater 函数**，
+#     而被动回复每秒调 `setCooldown(x=>x>0?x-1:0)` ⇒ cooldown 字段被写成**函数**
+#     ⇒ 全仓 `cooldown>0` 守卫恒 false ⇒ **冷却机制彻底失效**。
+#     运行时实证：`typeof cooldown === "function"`；自动历练实测 2002ms（代码意图 6000ms）。
+#     修法与 setPlayer/setSettings 同构（补 typeof 判断）。
+#   · R2：历练 9 个冷却点还原为**上游基线 b822f2d 原值**（1/1/2/2/2/1/2/1/2）。
+#     ★ 必须排在 `yl_flow083_ext.py` 之后（要改它留下的 d(6)/d(4)/d(.4)/d(1)）。
+#   · 恒在 numbal 之前。
+from yl_cooldown_ext import apply as v28_cooldown_apply  # noqa: E402
+# ---- 0.8.13 一模块（R-028 客户端 `YlxwQMile` 表对齐：1000 extra 清空 / 1900 承接
+#      「仙品珍宝+称号」/ 2310 改「传承石×1（每月限领）」）----
+#   ★ 必须排在 `econ2` 之后（econ2 的 `MILE_OLD` 锚点就是 t9quest 的旧 3 档表，
+#     原地改 t9quest 会让 econ2 锚点 count=0 ⇒ 整链硬崩）。
+from yl_r013c_ext import apply as v28_r013c_apply  # noqa: E402
+# ---- 0.8.11.2 一模块（R-024 每跳灵石因子加入大境界序号，修正「跨大境界回落」）----
+#   因子 = 1 + realmIndex*K + (层-1)*0.03，K=0.083；炼气 L1 仍 ×1.00（不动 R-022 的 2-3h 锚点）。
+#   ★ 必须排在 econ2 之后（锚点是 econ2 的产物形态）。
+from yl_r024_ext import apply as v28_r024_apply  # noqa: E402
+# ---- 0.8.11.2 两模块（R-021 挂机收益玩法说明 + R-032③ 秘境网格降列）----
+from yl_r021help_ext import apply as v28_r021help_apply  # noqa: E402
+from yl_r032layout_ext import apply as v28_r032layout_apply  # noqa: E402
+# ---- 2026-10-01 一模块（R-040 修炼效率：明细显示对齐实算；★ 必须排在 econ2 之后）----
+#   R-025（econ2）把 6 桶改成「相加 × 各来源 K」，但**明细显示没跟着改**，仍打未打折的原值
+#   ⇒ 面板显示「天赋 +380%」而实算只有 a*0.26=+98.8%（用户截图 +108.8% 完全吻合）。
+#   本环只改展示那一串（换成实际生效值 + 补 协同/羁绊 两桶），**公式一个字不动**。
+from yl_r040_ext import apply as v28_r040_apply  # noqa: E402
+# ---- 2026-10-01 二模块（R-037 去掉自带离线修炼；R-041 悟道触发率+日志）----
+#   r037：删读档离线结算触发块 + Sw 文案 + ww 入账；★ 连带停用「离线洞府灵草收获/离线寿命流逝」
+#   r041：打坐顿悟 0.2%->1.5%、历练奇遇基础 5%->15%(上限 30%->50%) + 补历练触发日志；
+#         ★ 必须排在 econ2 之后（锚点是 econ2 产物的 .002）
+from yl_r037_ext import apply as v28_r037_apply  # noqa: E402
+from yl_r037b_ext import apply as v28_r037b_apply  # noqa: E402  # R-037b 接回离线洞府灵草+寿命（★ 必须紧接 r037）
+from yl_r041_ext import apply as v28_r041_apply  # noqa: E402
+from yl_r038_ext import apply as v28_r038_apply  # noqa: E402
+from yl_r039_ext import apply as v28_r039_apply  # noqa: E402
+from yl_r044_ext import apply as v28_r044_apply  # noqa: E402  # R-044 历练灵石（★ 排 r062 之后）
+from yl_r045_ext import apply as v28_r045_apply  # noqa: E402  # R-045 妖灵归位（★ 排 pet089 之后）
+from yl_r046_ext import apply as v28_r046_apply  # noqa: E402  # R-046 灵田显示（★ 排 farm2 之后）
+from yl_r047_ext import apply as v28_r047_apply  # noqa: E402  # R-047 灵田收益（客户端侧 no-op 守卫）
+from yl_r048_ext import apply as v28_r048_apply  # noqa: E402  # R-048 灵草分档（★ 排 farm2 之后）
+from yl_r070_ext import apply as v28_r070_apply  # noqa: E402
+from yl_r071_ext import apply as v28_r071_apply  # noqa: E402
+from yl_r073_ext import apply as v28_r073_apply  # noqa: E402
+from yl_r074_ext import apply as v28_r074_apply  # noqa: E402
+from yl_r042_ext import apply as v28_r042_apply  # noqa: E402  # ★ 必须排在 cooldown 之后
+from yl_r043_ext import apply as v28_r043_apply  # noqa: E402  # ★ 必须排在 r041 之后
+# ---- 0.8.11.2 一模块（R-018 D5 灵纹：战斗层只读 + 换纹行）----
+from yl_r018b_ext import apply as v28_r018b_apply  # noqa: E402
+# ---- 0.8.11.1 一模块（周里程碑「已领取」显示修复：milestones 数组 → {tier: claimed} 映射）----
+#   服务端第 32 环修好了 summary 的 claimed，但客户端从来是拿**数组当字典取**（`claims[m.tier]`）
+#   ⇒ claimed 恒 false。本环把数组归一成映射，第 160 行原样即可命中。
+#   ★ 必须排在 `r013c` 之后（r013c 覆盖式替换 `YlxwQMile` 表，本环要看到最终形态）。
+from yl_claimedfix_ext import apply as v28_claimedfix_apply  # noqa: E402
+# ---- 2026-10-01 第 1 批 R 批次五模块（R-049/050/051/052/053；恒在 numbal 之前）----
+#      r049：洞府灵草种植区扩地（grotto.extraSlots，上限=基础+3，价格 2000/8000/24000）。
+#            锚点全在基座 vite 字面区、与全部现有模块零文本交集；紧随 grotto087 便于审阅。
+#      r050：洞府加速一次半小时（★ 必须排在 v2810c 之后——锚是其注入的 YlxwHerbSpeedMs 定义行）
+#            + 每日催熟基础 3→10 随洞府等级（服务端配套 = SRV_CHAIN 第 35 环 srv_patch_050.py）。
+#      r051：日常任务修为+灵石奖励 ×1.5（★ 必须排在 fun086 之后——锚是其 F2 造出的
+#            'v=r*d.rewardMultiplier*u*f,vs=v*5' 形态）。
+#      r052：周活跃度显示修（summary.week 日期串 → weekActivity 数值；★ 必须排在 claimedfix
+#            之后，锚点行由 t9quest 的 INJECT_JS 产出）。
+#      r053：茶馆玩法说明 + 灰因动态提示（★ 必须排在 fun2 之后——锚在 fun086 注入、
+#            fun2 改写过的 YlxwTDaily 区域内）。
+from yl_049_ext import apply as v28_049_apply  # noqa: E402
+from yl_050_ext import apply as v28_r050_apply  # noqa: E402
+from yl_051_ext import apply as v28_r051_apply  # noqa: E402
+from yl_052_ext import apply as v28_r052_apply  # noqa: E402
+from yl_053_ext import apply as v28_r053_apply  # noqa: E402
+# ---- 2026-10-01 第 2 批 R 批次五模块（R-054~R-058；恒在 numbal 之前）----
+#      r054：每日签到（月历长期签到+修为/灵石+里程碑；★ 锚在 act087 注入区，必须排其后）
+#      r055：灵玉阁玩法说明+掉落口径透明化（★ 必须排在 act087 之后）
+#      r056：万妖巢穴多 boss（每期 5 只+每只免费 5 次+10 分钟冷却；★ 锚在 act087 注入块内）
+#      r057：奇遇抽奖 UI 面（冷却禁用/倒计时/规则说明/暴击 toast；无硬依赖）
+#      r058：缘契寻访任务板「整体刷新」按钮（★ 必须排在 renwu 之后）
+from yl_054_ext import apply as v28_r054_apply  # noqa: E402
+from yl_055_ext import apply as v28_r055_apply  # noqa: E402
+from yl_056_ext import apply as v28_r056_apply  # noqa: E402
+from yl_057_ext import apply as v28_057_apply  # noqa: E402
+from yl_058_ext import apply as v28_r058_apply  # noqa: E402
+# ---- 2026-10-01 第 3 批 R 批次五模块（R-059~R-063；恒在 numbal 之前）----
+#      r059：人物志·缘契结识好感递减 + 解锁档 2→4 带奖励（★ 必须排在 renwu/t6chardex 之后）
+#      r060：师门任务好感按提交品阶结算 + 单条刷新每日限 3 次（★ 必须排在 renwu 之后）
+#      r061：演武场试炼战报反馈 + 次数即时刷新（★ 必须排在 t16arena 之后；服务端 = SRV_CHAIN 链尾 srv_patch_061.py）
+#      r062：秘境单独点选收益 ×3 + 冷却 15 分钟（★ 必须排在 eco085/dungeon2 之后；服务端 = SRV_CHAIN 链尾 srv_patch_062.py）
+#      r063：roguelike 地宫单独算上限（★ 必须排在 dungeon085/dungeon2/v2811a 之后；服务端 = SRV_CHAIN 链尾 srv_patch_063.py）
+from yl_059_ext import apply as v28_059_apply  # noqa: E402
+from yl_060_ext import apply as v28_r060_apply  # noqa: E402
+from yl_061_ext import apply as v28_061_apply  # noqa: E402
+from yl_062_ext import apply as v28_062_apply  # noqa: E402
+from yl_063_ext import apply as v28_063_apply  # noqa: E402
+# ---- 2026-10-01 第 4 批 R 批次五模块（R-064~R-068；恒在 numbal 之前）----
+#      r064：炼丹出炉丹道造诣 + 药效数值透明化 + 丹炉 3→9 方（★ 必须排在 t17alchemy 之后；
+#            7 个客户端锚点全是 t17 注入产物；服务端 = SRV_CHAIN 链尾 srv_patch_064.py）
+#      r065：宗门页只做宗门内容（摘 xw:"sect" 融合标记，1 处替换；无硬依赖，锚在 base 原生存在）
+#      r066：宗门功法阁贡献值重做 + 修满化形（★ 必须排在 sectgf 之后——全部锚点在 sectgf 注入块内；
+#            服务端 = SRV_CHAIN 链尾 srv_patch_066.py）
+#      r067：功法全表五行分类 + 扩充 55 部（★ 必须排在 gongfa 之后——功法阁 UI 锚消费 R-016 改后的
+#            z4 语义；YlxwElemInit 注入先于 numbal 才能让补 root 功法进预算重算）
+#      r068：人物志自带结交降频（★ 必须排在 t6chardex 之后——7 条锚点全是 T6-7 降频产物形态）
+from yl_064_ext import apply as v28_064_apply  # noqa: E402
+from yl_065_ext import apply as v28_065_apply  # noqa: E402
+from yl_066_ext import apply as v28_r066_apply  # noqa: E402
+from yl_r067_ext import apply as v28_r067_apply  # noqa: E402
+from yl_068_ext import apply as v28_r068_apply  # noqa: E402
+
+BASE = os.path.join(HERE, 'build', 'assets', 'index-v26m-20260927.js')
+OUT = os.path.join(HERE, 'build', 'assets', 'index-v290-20261001.js')
+
+# v28 模块调用顺序（锚点稳定性 + num-balance 必须最后）：
+#   saveretry → arb → version → mail → entry → sectgf → char → bond → ui
+#             → chargift → intro → flow → toast → eco → dungeon → numbal
+#   顺序理由（0.8.2 装配定案，预演 373 门禁 FAIL 0）：
+#     · arb 必须晚于 saveretry：两者都改存档/同步函数（Pn.fetchSave / pushSave / applyRemoteSave）
+#     · ui 必须晚于 version：ui 的 EVT_TAIL_ANCHOR 依赖 version 先插入 `d.desc` 行
+#     · bond 放在 ui 之前：只改 YlxwStatExtras/YlxwBattleBonus 的函数体头部，与 ui 无交集
+#     · numbal 恒为最后：它要看到别人注入的块（心法预算表 / 战斗封顶表）
+#   0.8.3 追加理由（lead 接线）：
+#     · chargift 排在 char 之后：与 yl_char_ext 同触「人物志」域，后跑才能看到 char 的最终形态
+#     · intro / flow / toast 三者彼此无交集、也不依赖前置模块，顺序仅为确定性
+#     · toast 排在 numbal 之前（toast 的宿主锚点 RS 与 numbal 的心法表互不重叠）
+#   0.8.5 追加理由（cli-eco / cli-dg）：
+#     · eco 与 dungeon 改的面互不重叠（eco: Ym/_ylf/G3/商店刷新；dungeon: handleEnterRealm/yk/秘境 API 助手）
+#     · 两者都排在 numbal 之前，且都在 toast 之后（toast 之后已无其它模块触碰同一锚点）
+#     · dungeon 的注入锚是 YlxwMin（hub block），eco 的注入锚是 Ym 定义前 —— 互不干扰
+#   0.8.6 追加理由（fun086）：
+#     · fun086 改的是「玩法内容层」（洞府加速文案 / 日常任务奖励公式 / 每日行乐面板 /
+#       奇遇面板 / 妖灵面板 / 远征按钮 / 仙务页签栏），与 0.8.5 的 eco（Ym/_ylf/G3/商店刷新）
+#       和 dungeon（handleEnterRealm/yk/秘境 API 助手）**面不重叠**
+#     · 必须排在 numbal **之前**（numbal 恒最后），也排在 dungeon 之后 —— dungeon 会改
+#       hub block 的注入锚 YlxwMin，fun086 的注入锚是 YlxwTDaily 定义前，互不干扰
+#   0.8.7 追加理由（implEventsUi 接线，装配序即 0.8.7-build-plan §1.1 定案）：
+#     · 七个新模块统一插在 fun086 之后、numbal 之前（numbal 恒最后不动）
+#     · grotto087 紧跟 fun086：锚定 fun086 产物形态（F1 加速按钮文案串零回归），
+#       T4 修复 + T9 等级路径同 modal 同模块；farm087 紧邻 grotto087 便于洞府↔灵田联动
+#     · adv087 必须晚于 eco（复用 T2 注入的 YlxwCvtStones，装配序硬约束 eco → adv087）
+#       且按「T2→T6→T11」序排 t6chardex 之后
+#     · act087（活动中心）只覆盖注册 YLXW_COMP.events 并调用 toast 宿主（只调用不改宿主），
+#       注入锚是 YlxwHub 定义行（紧跟 var YLXW_COMP 之后），与 t7sect/t8mentor 的
+#       YLXW_COMP.sect / YLXW_COMP.mentor 覆盖互不同键、互不重叠
+#     · numbal 恒最后：它要看到别人注入的块
+V28_MODULES = [
+    ('saveretry', v28_saveretry_apply),
+    ('arb', v28_arb_apply),
+    # ---- 0.8.12 一模块（R-021 离线锚点 + R-020 文案；★ 必须紧跟 arb 之后）----
+    ('offline2', v28_offline2_apply),
+    ('version', v28_version_apply),
+    ('changelog', v28_changelog_apply),   # 游戏内更新日志：玩家向 + 不截断（★ 排 version 之后）
+    ('mail', v28_mail_apply),
+    ('entry', v28_entry_apply),
+    ('sectgf', v28_sectgf_apply),
+    ('char', v28_char_apply),
+    ('bond', v28_bond_apply),
+    ('ui', v28_ui_apply),
+    ('chargift', v28_chargift083_apply),
+    ('intro', v28_intro083_apply),
+    ('flow', v28_flow083_apply),
+    ('toast', v28_toast083_apply),
+    ('eco', v28_eco085_apply),
+    ('dungeon', v28_dungeon085_apply),
+    ('fun086', v28_fun086_apply),
+    ('grotto087', v28_grotto087_apply),
+    # ---- 2026-10-01 第 1 批（R-049 洞府灵草扩地；无硬依赖，紧随 grotto087 便于审阅）----
+    ('r049', v28_049_apply),
+    ('farm087', v28_farm087_apply),
+    ('xinfa087', v28_xinfa087_apply),
+    ('t6chardex', v28_t6chardex_apply),
+    ('adv087', v28_adv087_apply),
+    ('act087', v28_act087_apply),
+    ('t7sect', v28_t7sect_apply),
+    ('t8mentor', v28_t8mentor_apply),
+    ('forge088', v28_forge088_apply),
+    ('t17alchemy', v28_t17alchemy_apply),
+    ('t16arena', v28_t16arena_apply),
+    ('t9quest', v28_t9quest_apply),
+    ('t7legacy', v28_t7legacy_apply),
+    ('reward089', v28_reward089_apply),
+    ('pet089', v28_pet089_apply),
+    ('farm089', v28_farm089_apply),
+    # ---- 0.8.10 五模块（三步工作流；恒在 numbal 之前）----
+    ('v2810a', v28_v2810a_apply),
+    ('v2810b', v28_v2810b_apply),
+    ('v2810c', v28_v2810c_apply),
+    ('v2810d', v28_v2810d_apply),
+    ('v2810e', v28_v2810e_apply),
+    ('v2810f', v28_v2810f_apply),
+    ('v2810g', v28_v2810g_apply),
+    ('v2810h', v28_v2810h_apply),
+    # ---- 0.8.11 一模块（恒在 numbal 之前）----
+    ('v2811a', v28_v2811a_apply),
+    # ---- 0.8.12 一模块（R-016 功法；恒在 numbal 之前）----
+    ('gongfa', v28_gongfa_apply),
+    # ---- 0.8.12 一模块（R-012/014/015 角色系统；恒在 numbal 之前）----
+    ('char2', v28_char2_apply),
+    # ---- 0.8.12 六模块（R-019/023/027/029/031/032；恒在 numbal 之前）----
+    ('farm2', v28_farm2_apply),
+    ('medlog', v28_medlog_apply),
+    ('daily', v28_daily_apply),
+    ('fun2', v28_fun2_apply),
+    ('lottery', v28_lottery_apply),
+    ('dungeon2', v28_dungeon2_apply),
+    # ---- 0.8.13 一模块（M-1 宠物buff $ 字面量 + 效果块孤立 0 守卫；M-2 pS 卡死）----
+    #   · 与 dungeon2 零交集（merge01 只碰 PetModal buff 块 / 4 个效果块 / pS 定义；
+    #     dungeon2 碰秘境入口与冷却），排在 numbal 之前仅为确定性
+    #   · M-1(a) 是真 bug（线上可见 `攻击+$100`）；M-1(b) 35 处 !! 为防御性（0 当前不可达）
+    ('merge01', v28_merge01_apply),
+    # ---- 0.8.13 二模块（R-034/035/036 人物志任务化；R-013 传承石可交易）----
+    #   · renwu：改人物志模态框（Nk）+ 缘契面板 + 师门任务卡 + 掉落稀有度矩阵；
+    #     排在末尾使 needle 看到全部前置模块的最终形态（对 t6/char 只用声明引用 + 就地改写）
+    #   · r013：改传承系统掉落（机缘 → 传承石）+ 上架交易入口；**硬约束**须晚于 t7legacy
+    #     （t7legacy 定义传承等级/定价面），两者锚区零交集
+    ('renwu', v28_renwu_apply),
+    ('r013', v28_r013_apply),
+    # ---- 0.8.13 三模块（数值统一 econ2 / 妖灵重设计 r018；恒在 numbal 之前）----
+    ('econ2', v28_econ2_apply),
+    # ---- 0.8.13 一模块（R-028 客户端表对齐；★ 必须排在 econ2 之后）----
+    ('r013c', v28_r013c_apply),
+    ('r024', v28_r024_apply),   # 0.8.11.2 R-024 大境界因子（★ 必须紧接 econ2 之后）
+    # ---- 0.8.11.1 一模块（周里程碑「已领取」显示修复；★ 必须排在 r013c 之后）----
+    ('claimedfix', v28_claimedfix_apply),
+    ('r018', v28_r018_apply),
+    # ---- 0.8.13 一模块（★ 冷却机制修复 + 历练冷却还原上游原版；恒在 numbal 之前）----
+    ('cooldown', v28_cooldown_apply),
+    ('r018b', v28_r018b_apply),          # R-018 D5 灵纹（★ 必须紧接 r018 之后）
+    ('r021help', v28_r021help_apply),     # R-021 挂机收益玩法说明
+    ('r032layout', v28_r032layout_apply),  # R-032③ 秘境网格降列（去 lg 那档）
+    ('r040', v28_r040_apply),              # R-040 效率明细显示对齐（★ 必须排在 econ2 之后）
+    ('r037', v28_r037_apply),              # R-037 去掉自带离线修炼
+    ('r037b', v28_r037b_apply),             # R-037b 接回离线洞府灵草+寿命（★ 必须紧接 r037）
+    ('r041', v28_r041_apply),              # R-041 悟道触发率 + 日志（★ 必须排在 econ2 之后）
+    ('r038', v28_r038_apply),              # R-038 天赋页重构（6 随机 + 刷新 + 锁 3 + 6点红）
+    ('r042', v28_r042_apply),              # R-042 自动历练频率改慢（★ 必须排在 cooldown 之后）
+    ('r043', v28_r043_apply),              # R-043 历练掉血改缓（★ 必须排在 r041 之后）
+    ('r039', v28_r039_apply),              # R-039 重置删干净（客户端侧）
+    ('r044', v28_r044_apply),              # R-044 历练灵石 ×3（★ 必须排在 r062 之后）
+    ('r045', v28_r045_apply),              # R-045 妖灵归位修 bug（★ 必须排在 pet089 之后）
+    ('r046', v28_r046_apply),              # R-046 灵田显示精简（★ 必须排在 farm2 之后）
+    ('r047', v28_r047_apply),              # R-047 灵田收益（客户端守卫；真值在服务端）
+    ('r048', v28_r048_apply),              # R-048 灵草分档 UI（★ 必须排在 farm2 之后）
+    ('r070', v28_r070_apply),
+    ('r071', v28_r071_apply),
+    ('r073', v28_r073_apply),
+    ('r074', v28_r074_apply),
+    # ---- 2026-10-01 第 1 批 R 批次四模块（R-050/051/052/053；恒在 numbal 之前）----
+    ('r050', v28_r050_apply),              # R-050 洞府：加速一次半小时 + 每日催熟10次起步（★ 必须排在 v2810c 之后）
+    ('r051', v28_r051_apply),              # R-051 日常任务奖励×1.5（★ 必须排在 fun086 之后：其 F2 造出 vs=v*5 形态）
+    ('r052', v28_r052_apply),              # R-052 周活跃度显示修：week 日期串 → weekActivity 数值（★ 必须排在 claimedfix 之后）
+    ('r053', v28_r053_apply),              # R-053 茶馆玩法说明+灰因动态提示（★ 必须排在 fun2 之后）
+    # ---- 2026-10-01 第 2 批 R 批次五模块（R-054~R-058；恒在 numbal 之前）----
+    ('r054', v28_r054_apply),              # R-054 每日签到：七日礼→月历长期签到+修为/灵石+里程碑（★ 锚在 act087 注入区，必须排其后；与 r055 无序依赖，双向已验证）
+    ('r055', v28_r055_apply),              # R-055 灵玉阁玩法说明+掉落口径透明化（★ 必须排在 act087 之后；建议 r053 之后、numbal 之前）
+    ('r056', v28_r056_apply),              # R-056 万妖巢穴多boss：每期5只+每只免费5次+10分钟冷却（★ 锚在 act087 注入块内，必须排在 act087 之后；服务端配套 = SRV_CHAIN 链尾 'srv_patch_056.py'）
+    ('r057', v28_057_apply),               # R-057 奇遇抽奖 UI 面：冷却禁用/倒计时/规则说明/暴击 toast（服务端配套 = SRV_CHAIN 链尾 'srv_patch_057.py'）
+    ('r058', v28_r058_apply),              # R-058 缘契寻访任务板「整体刷新」按钮（★ 必须排在 renwu 之后）
+    # 2026-10-01 第 3 批 R 批次五模块（R-059~R-063；恒在 numbal 之前）：
+    ('r059', v28_059_apply),               # R-059 寻访好感递减+解锁档2→4带奖励（★ 必须排在 renwu/t6chardex 之后）
+    ('r060', v28_r060_apply),              # R-060 师门任务好感按提交品阶 + 单条刷新每日限3次（★ 必须排在 renwu 之后）
+    ('r061', v28_061_apply),               # R-061 演武场试炼：战报反馈+次数即时刷新（★ 必须排在 t16arena 之后；服务端配套 = SRV_CHAIN 链尾 'srv_patch_061.py'）
+    ('r062', v28_062_apply),               # R-062 秘境单独点选收益×3 + 冷却15分钟（★ 必须排在 eco085/dungeon2 之后；服务端配套 = SRV_CHAIN 链尾 'srv_patch_062.py'）
+    ('r063', v28_063_apply),               # R-063 roguelike 地宫单独算上限（★ 必须排在 dungeon085/dungeon2/v2811a 之后；服务端配套 = SRV_CHAIN 链尾 'srv_patch_063.py'）
+    # ---- 2026-10-01 第 4 批 R 批次五模块（R-064~R-068；恒在 numbal 之前）----
+    ('r064', v28_064_apply),               # R-064 炼丹：出炉加丹道造诣+丹方药效数值透明化+丹炉 3→9 方（★ 排在 r063 之后；服务端配套 = SRV_CHAIN 链尾 srv_patch_064.py，--src srv/index_v28.ts）
+    ('r065', v28_065_apply),               # R-065 宗门页只做宗门内容：摘 xw:"sect" 融合标记（1 处替换；无硬依赖，锚在 base 原生存在）
+    ('r066', v28_r066_apply),              # R-066 宗门功法阁：贡献值重做（基价×2~×2.7+每层×2指数）+ 修满化形转实装功法（★ 必须排在 sectgf 之后；服务端配套 = SRV_CHAIN 链尾 'srv_patch_066.py'）
+    ('r067', v28_r067_apply),              # R-067 功法五行分类+扩充55部（★ 必须排在 gongfa 之后、numbal 之前：功法阁 UI 锚消费 R-016 改后的 z4 语义；YlxwElemInit 先于 numbal 预算重算）
+    ('r068', v28_r068_apply),              # R-068 人物志自带结交降频（★ 必须排在 t6chardex 之后）
+    ('numbal', v28_numbal_apply),
+]
+
+# v28 注入块的禁词表（比 build_v26n 自有 6 块的 BAN_PATTERNS 宽松）：
+#   保留真危险项；放行 fetch( / localStorage —— version 模块需读取静态 /yl/CHANGELOG.md
+#   并缓存版本号到 localStorage，属静态文件读取，非"绕过鉴权自建 API 调用"。
+V28_BAN_PATTERNS = ['iframe', 'postMessage', 'XMLHttpRequest', 'auth_token', 'X-YL-']
+
+# ---------------------------------------------------------------- 注入代码
+# 注意：这里可以放心写中文，落盘前统一走 zh() 转义。
+
+TOWER_JS = r'''
+/* ===== yl-v26n 九天通天塔 (upstream react-xiuxian-game 0.3.8) ===== */
+var YlxwTowerTitles = ["守塔傀儡", "天门巡卫", "九霄剑修", "荒古武侍", "太虚灵兽", "星宿战将", "雷劫化身", "幽冥道尊", "通天金甲", "九天玄尊"];
+var YlxwTowerNames = ["玄铁傀儡", "破军剑侍", "青阳道长", "赤羽妖修", "裂渊蛮王", "飞霜剑圣", "天魁星君", "万劫雷尊", "乾坤法王", "九霄天帝真影"];
+
+function YlxwTowerFloor(f) {
+  var sf = Math.max(1, Math.min(100, Math.floor(f)));
+  var isBoss = sf % 10 === 0, isMile = sf % 25 === 0;
+  var realm = "炼气期", rf = 1;
+  if (sf <= 10) { realm = "炼气期"; rf = 1 + sf * 0.12; }
+  else if (sf <= 25) { realm = "筑基期"; rf = 2.5 + (sf - 10) * 0.25; }
+  else if (sf <= 45) { realm = "金丹期"; rf = 6.5 + (sf - 25) * 0.45; }
+  else if (sf <= 65) { realm = "元婴期"; rf = 16 + (sf - 45) * 1.1; }
+  else if (sf <= 80) { realm = "化神期"; rf = 40 + (sf - 65) * 2.8; }
+  else if (sf <= 95) { realm = "合道期"; rf = 90 + (sf - 80) * 6.5; }
+  else { realm = "长生境"; rf = 200 + (sf - 95) * 20; }
+  var ti = Math.min(9, Math.floor((sf - 1) / 10));
+  var gTitle = YlxwTowerTitles[ti];
+  var gName = isBoss ? "【镇塔道尊】" + YlxwTowerNames[ti] : YlxwTowerNames[ti] + "·分身";
+  var bm = isBoss ? 1.4 : 1.0;
+  var baseAttack = Math.floor((80 + sf * 28) * rf * bm);
+  var baseDefense = Math.floor((50 + sf * 20) * rf * bm);
+  var baseHp = Math.floor((500 + sf * 260) * rf * bm * 1.5);
+  var baseSpeed = Math.floor(40 + sf * 4.5 + (isBoss ? 30 : 0));
+  var baseSpirit = Math.floor(60 + sf * 16 * rf * 0.4);
+  var expReward = Math.floor(600 * Math.pow(1.065, sf) + sf * 500);
+  var stoneReward = Math.floor(400 * Math.pow(1.055, sf) + sf * 300);
+  var reforge = Math.max(1, Math.floor(sf / 10) + (isBoss ? 3 : 1));
+  var scrolls = isMile ? Math.max(1, Math.floor(sf / 25)) : (isBoss ? 1 : 0);
+  var extra = null;
+  if (sf === 100) {
+    extra = { id: "tower-divine-token", name: "九天通天令", type: "法宝",
+      description: "通关九天通天塔百层极顶后天道所赐的神物，佩戴可大幅增强全属性与悟性。",
+      rarity: "仙品", quantity: 1, isEquippable: !0, equipmentSlot: "法宝1",
+      effect: { attack: 8888, defense: 6666, hp: 66666, spirit: 3333 } };
+  } else if (isBoss) {
+    extra = { id: "tower-floor-chest-" + sf, name: sf + "层通天宝匣", type: "法宝",
+      description: "九天通天塔第 " + sf + " 层镇守者珍藏的秘宝匣，开启可获得大量修炼资粮。",
+      rarity: sf >= 70 ? "仙品" : (sf >= 40 ? "传说" : "稀有"), quantity: 1 };
+  }
+  return {
+    floor: sf, name: "九天通天塔 第 " + sf + " 重天", guardianName: gName, guardianTitle: gTitle, realm: realm,
+    baseAttack: baseAttack, baseDefense: baseDefense, baseHp: baseHp, baseSpeed: baseSpeed, baseSpirit: baseSpirit,
+    description: isBoss
+      ? "此乃通天塔第 " + sf + " 关大圆满重地，镇塔尊者神念亲临，威势滔天！"
+      : "九天通天塔第 " + sf + " 层，天地法则凝聚的守塔灵将正驻守于此。",
+    firstClearRewards: { exp: expReward, spiritStones: stoneReward, reforgeStones: reforge, comprehensionScrolls: scrolls, items: extra ? [extra] : null }
+  };
+}
+
+function YlxwTowerReforgeStone(q) {
+  return { id: "taixu-reforge-stone", name: "太虚洗炼石", type: "材料",
+    description: "蕴含九天太虚法则的奇石，可在洞天万宝炉中重铸与洗炼法宝装备的玄妙词条。",
+    quantity: q, rarity: "稀有" };
+}
+function YlxwTowerScroll(q) {
+  return { id: "taixu-comprehension-scroll", name: "太虚悟道卷", type: "材料",
+    description: "记载远古神通道法奥义的残卷，可用于自创神通与提升神通领悟境界。",
+    quantity: q, rarity: "传说" };
+}
+
+/* 落库：Material 按 name 叠加；isEquippable 每次新建实例 */
+function YlxwTowerAddItem(inv, item, qty) {
+  var n = Math.max(1, qty || item.quantity || 1);
+  var a = Array.isArray(inv) ? inv.slice() : [];
+  if (item.isEquippable) {
+    for (var i = 0; i < n; i++) a.push(Object.assign({}, item, { id: St(), quantity: 1 }));
+    return a;
+  }
+  var k = -1;
+  for (var j = 0; j < a.length; j++) { if (a[j] && a[j].name === item.name) { k = j; break; } }
+  if (k >= 0) a[k] = Object.assign({}, a[k], { quantity: (a[k].quantity || 1) + n });
+  else a.push(Object.assign({}, item, { id: St(), quantity: n }));
+  return a;
+}
+
+/* 挑战：25 回合制模拟（复刻上游 towerService.challengeTowerFloor） */
+function YlxwTowerChallenge(p, tf) {
+  var ch = (p.tower && p.tower.highestFloor) || 0;
+  var logs = [];
+  if (tf > ch + 1) return { result: { success: !1, floor: tf, combatLogs: ["你尚未通关前置层数，无法跨层挑战第 " + tf + " 层！"] }, updatedPlayer: p };
+  if (tf > 100) return { result: { success: !1, floor: 100, combatLogs: ["你已登顶九天通天塔最高之巅，万界俯首，无人可阻！"] }, updatedPlayer: p };
+  var fc = YlxwTowerFloor(tf);
+  var ps = xt(p);
+  logs.push("【踏入试炼】你踏入【" + fc.name + "】，狂暴的法则雷云翻涌！");
+  logs.push("守塔生灵【" + fc.guardianName + "】（境界：" + fc.realm + "）手持道兵，冷冷凝视着你。");
+  var pAtk = ps.attack, pDef = ps.defense, pHp = Math.max(1, p.hp), pSpd = ps.speed;
+  var gAtk = fc.baseAttack, gDef = fc.baseDefense, gHp = fc.baseHp, gSpd = fc.baseSpeed;
+  function pDmg() { return Math.max(1, Math.floor(pAtk * (1 + Math.random() * 0.2) - gDef * 0.4)); }
+  function gDmg() { return Math.max(1, Math.floor(gAtk * (1 + Math.random() * 0.2) - pDef * 0.45)); }
+  var round = 1, maxRound = 25, win = !1;
+  while (round <= maxRound && pHp > 0 && gHp > 0) {
+    if (pSpd >= gSpd) {
+      var d1 = pDmg(); gHp = Math.max(0, gHp - d1);
+      if (round <= 3 || gHp <= 0) logs.push("第" + round + "回合：你运起无上神通轰出，对其造成 " + d1 + " 点穿透伤害！(守关者气血剩余: " + gHp + ")");
+      if (gHp <= 0) { win = !0; break; }
+      var d2 = gDmg(); pHp = Math.max(0, pHp - d2);
+      if (round <= 3 || pHp <= 0) logs.push("守塔将【" + fc.guardianName + "】法印震荡，对你造成 " + d2 + " 点震慑反震！(自身气血剩余: " + pHp + ")");
+      if (pHp <= 0) { win = !1; break; }
+    } else {
+      var d3 = gDmg(); pHp = Math.max(0, pHp - d3);
+      if (round <= 3 || pHp <= 0) logs.push("守塔将【" + fc.guardianName + "】先发制人，重击对你造成 " + d3 + " 点伤害！");
+      if (pHp <= 0) { win = !1; break; }
+      var d4 = pDmg(); gHp = Math.max(0, gHp - d4);
+      if (round <= 3 || gHp <= 0) logs.push("你稳住阵脚，反手祭出道芒重创对手 " + d4 + " 点气血！");
+      if (gHp <= 0) { win = !0; break; }
+    }
+    round++;
+  }
+  if (pHp > 0 && gHp > 0) {
+    var pr = pHp / ps.maxHp, gr = gHp / fc.baseHp;
+    win = pr >= gr;
+    logs.push(win ? "激战数十回合，你气势如虹，生生将守关者本源神念磨灭！" : "力战力竭，守关傀儡大阵威能愈发澎湃，你遗憾败退。");
+  }
+  if (win) {
+    logs.push("【破关大捷】你成功通关【九天通天塔 第 " + tf + " 层】！");
+    var items = [];
+    if (fc.firstClearRewards.reforgeStones > 0) items.push(YlxwTowerReforgeStone(fc.firstClearRewards.reforgeStones));
+    if (fc.firstClearRewards.comprehensionScrolls > 0) items.push(YlxwTowerScroll(fc.firstClearRewards.comprehensionScrolls));
+    if (fc.firstClearRewards.items) items = items.concat(fc.firstClearRewards.items);
+    var isFirst = tf > ch, rExp = 0, rStone = 0, grant = [];
+    if (isFirst) {
+      logs.push("【首次破关】天道赐福降下，你获得本层全部首通嘉奖！");
+      rExp = fc.firstClearRewards.exp; rStone = fc.firstClearRewards.spiritStones; grant = items;
+    } else {
+      logs.push("此层早已踏破，本次仅淬炼心性，未再领取首通嘉奖。");
+    }
+    var inv = p.inventory || [];
+    grant.forEach(function (it) { inv = YlxwTowerAddItem(inv, it, it.quantity || 1); });
+    var up = Object.assign({}, p, {
+      hp: Math.max(1, pHp), exp: p.exp + rExp, spiritStones: p.spiritStones + rStone, inventory: inv,
+      tower: Object.assign({}, p.tower, { highestFloor: Math.max(ch, tf), dailySwept: (p.tower && p.tower.dailySwept) || !1, lastSweepDate: (p.tower && p.tower.lastSweepDate) || "", expGained: (Number(p.tower && p.tower.expGained) || 0) + rExp })
+    });
+    return { result: { success: !0, floor: tf, combatLogs: logs, rewards: { exp: rExp, spiritStones: rStone, items: grant }, playerHpLoss: Math.max(0, p.hp - pHp) }, updatedPlayer: up };
+  }
+  logs.push("【挑战落败】你被守塔者的恐怖威压震飞出通天塔，所幸本源未损。");
+  var up2 = Object.assign({}, p, { hp: Math.max(1, Math.floor(ps.maxHp * 0.15)) });
+  return { result: { success: !1, floor: tf, combatLogs: logs, playerHpLoss: p.hp - up2.hp }, updatedPlayer: up2 };
+}
+
+/* 每日扫荡（复刻上游 sweepTower + calculateTowerDailySweep） */
+function YlxwTowerSweep(p) {
+  var today = new Date().toISOString().split("T")[0];
+  var ts = p.tower || { highestFloor: 0, dailySwept: !1, lastSweepDate: "" };
+  if (ts.highestFloor <= 0) return { success: !1, message: "你尚未通关任何通天塔关卡，无法进行扫荡！", updatedPlayer: p };
+  if (ts.lastSweepDate === today && ts.dailySwept) return { success: !1, message: "今日已完成通天塔扫荡，天道回馈每日仅限一次，请明日再来！", updatedPlayer: p };
+  var e = 0, s = 0, f;
+  for (f = 1; f <= ts.highestFloor; f++) {
+    e += Math.floor(150 * Math.pow(1.045, f) + f * 50);
+    s += Math.floor(100 * Math.pow(1.04, f) + f * 35);
+  }
+  var ref = Math.max(1, Math.floor(ts.highestFloor / 8));
+  var items = [YlxwTowerReforgeStone(ref)];
+  if (ts.highestFloor >= 50 && Math.random() < 0.6) items.push(YlxwTowerScroll(1));
+  var inv = p.inventory || [];
+  items.forEach(function (it) { inv = YlxwTowerAddItem(inv, it, it.quantity || 1); });
+  return {
+    success: !0, message: "【仙光垂落】你一键扫荡了前 " + ts.highestFloor + " 层通天塔，收获颇丰！",
+    updatedPlayer: Object.assign({}, p, { exp: p.exp + e, spiritStones: p.spiritStones + s, inventory: inv,
+      tower: Object.assign({}, ts, { dailySwept: !0, lastSweepDate: today, expGained: (Number(ts.expGained) || 0) + e }) }),
+    rewards: { exp: e, spiritStones: s, items: items }
+  };
+}
+
+/* UI：仙务枢纽「通天塔」页（结构参照上游 TowerModal） */
+function YlxwTTower() {
+  var p = Be(function (s) { return s.player; });
+  var st = O.useState(0), sr = st[0], setSr = st[1];
+  var lg = O.useState([]), logs = lg[0], setLogs = lg[1];
+  var bs = O.useState(!1), busy = bs[0], setBusy = bs[1];
+  if (!p) return e.jsx(YlxwEmpty, { children: "尚未进入游戏，无法登塔。" });
+  var hi = (p.tower && p.tower.highestFloor) || 0;
+  var next = Math.min(100, hi + 1);
+  var sel = sr > 0 ? Math.min(100, sr) : next;
+  var today = new Date().toISOString().split("T")[0];
+  var swept = !!(p.tower && p.tower.lastSweepDate === today && p.tower.dailySwept);
+  var cfg = YlxwTowerFloor(sel);
+  var ps = xt(p);
+  var cleared = sel <= hi;
+  var isNext = sel === next && sel > hi;
+  var rew = cfg.firstClearRewards;
+  function doSweep() {
+    var cur = Be.getState().player; if (!cur) return;
+    var r = YlxwTowerSweep(cur);
+    if (!r.success) { Be.getState().addLog(r.message, "normal"); setLogs([r.message]); return; }
+    var up = r.updatedPlayer;
+    Be.getState().setPlayer(Object.assign({}, cur, { exp: up.exp, spiritStones: up.spiritStones, inventory: up.inventory, tower: up.tower }));
+    Be.getState().addLog(r.message, "special");
+    Be.getState().addLog("【扫荡收获】获得修为 +" + r.rewards.exp + "，灵石 +" + r.rewards.spiritStones + "，珍稀物品 x" + r.rewards.items.length, "gain");
+    setLogs([r.message, "【扫荡收获】修为 +" + r.rewards.exp + "，灵石 +" + r.rewards.spiritStones + "，珍稀物品 x" + r.rewards.items.length]);
+  }
+  function doFight() {
+    var cur = Be.getState().player; if (!cur) return;
+    if (cur.hp <= 50) { Be.getState().addLog("你气血极度亏空，强行闯关恐有性命之忧，请先疗伤或打坐！", "danger"); return; }
+    setBusy(!0);
+    var r = YlxwTowerChallenge(cur, sel);
+    var up = r.updatedPlayer;
+    Be.getState().setPlayer(Object.assign({}, cur, { hp: up.hp, exp: up.exp, spiritStones: up.spiritStones, inventory: up.inventory, tower: up.tower }));
+    setLogs(r.result.combatLogs);
+    if (r.result.success) {
+      Be.getState().addLog("【破关大捷】你成功登上了九天通天塔第 " + sel + " 层！", "special");
+      if (sel < 100) setSr(sel + 1);
+    } else {
+      Be.getState().addLog("【挑战惜败】第 " + sel + " 层守塔灵阵威能磅礴，你不得不退回休整。", "danger");
+    }
+    setBusy(!1);
+  }
+  var guardData = { 气血: cfg.baseHp, 攻击: cfg.baseAttack, 防御: cfg.baseDefense, 速度: cfg.baseSpeed, 神识: cfg.baseSpirit };
+  var rewData = {
+    修为: rew.exp, 灵石: rew.spiritStones, 太虚洗炼石: rew.reforgeStones,
+    太虚悟道卷: rew.comprehensionScrolls || 0,
+    秘宝: (rew.items && rew.items.length) ? rew.items.map(function (it) { return it.name; }).join("、") : "无"
+  };
+  return e.jsxs(YlxwPanel, { children: [
+    e.jsx(YlxwTitle, { extra: e.jsx("span", { className: "text-xs text-stone-400", children: "历史最高 第 " + hi + " 层 / 100" }), children: "九天通天塔" }),
+    e.jsx(YlxwRow, { children: e.jsxs("div", { className: "flex items-center justify-between gap-2 flex-wrap", children: [
+      e.jsxs("span", { children: ["第 " + sel + " 重天 · " + cfg.realm + (cleared ? " · 已通关" : (isNext ? " · 挑战目标" : " · 未解锁"))] }),
+      e.jsxs("span", { className: "flex items-center gap-1.5", children: [
+        e.jsx(YlxwBtn, { tone: "ghost", disabled: sel <= 1, onClick: function () { setSr(Math.max(1, sel - 1)); }, children: "上一重" }),
+        e.jsx(YlxwBtn, { tone: "ghost", disabled: sel >= 100, onClick: function () { setSr(Math.min(100, sel + 1)); }, children: "下一重" }),
+        e.jsx(YlxwBtn, { tone: "ghost", onClick: function () { setSr(0); }, children: "回待挑战层" })
+      ] })
+    ] }) }),
+    e.jsxs(YlxwRow, { children: [
+      e.jsx("div", { className: "text-xs text-stone-400 mb-1.5", children: "守关者：" + cfg.guardianName + "（" + cfg.guardianTitle + "）" }),
+      e.jsx(YlxwKv, { data: guardData })
+    ] }),
+    e.jsxs(YlxwRow, { children: [
+      e.jsx("div", { className: "text-xs text-stone-400 mb-1.5", children: "首通破关奖励" }),
+      e.jsx(YlxwKv, { data: rewData })
+    ] }),
+    e.jsxs(YlxwRow, { children: [
+      e.jsxs("div", { className: "text-xs text-stone-400", children: ["我方战力：攻击 " + ps.attack + " · 防御 " + ps.defense + " · 气血上限 " + ps.maxHp + " · 速度 " + ps.speed] }),
+      e.jsxs("div", { className: "text-[11px] text-stone-500 mt-1", children: ["当前气血 " + p.hp + " / " + ps.maxHp + "（低于 50 无法挑战）"] })
+    ] }),
+    e.jsxs("div", { className: "flex items-center justify-between gap-2 flex-wrap pt-1", children: [
+      e.jsx(YlxwBtn, { tone: "ghost", disabled: hi <= 0 || swept, onClick: doSweep, children: swept ? "今日已扫荡" : "每日一键扫荡" }),
+      e.jsx(YlxwBtn, { disabled: busy || sel > next, onClick: doFight, children: busy ? "激战演算中…" : ((cleared && !isNext) ? "复战 第 " + sel + " 重天" : "挑战 第 " + sel + " 重天") })
+    ] }),
+    logs.length ? e.jsx(YlxwRow, { children: e.jsx("div", { className: "max-h-40 overflow-y-auto font-mono text-[11px] space-y-0.5 text-stone-300", children: logs.map(function (L, i) { return e.jsx("div", { children: L }, i); }) }) }) : null
+  ] });
+}
+
+YLXW_ICONS.tower = "M12 2l3 3H9zM9 5v3h6V5M7 21h10M8 8v13M16 8v13M9 12h6M9 16h6";
+YLXW_COMP.tower = YlxwTTower;
+YLXW_TABS.push({ key: "tower", label: "通天塔", group: 1 });
+'''
+
+# ================================================================ 灵兽远征
+# 上游：constants/petExpedition.ts + services/petExpeditionService.ts
+# 适配：
+#   1) 上游草药「凝血草」我方物品池不存在（会静默丢奖）→ 替换为「血参」（我方草药）
+#   2) 灵石奖励过 YLRF(player)（我方 v26m 既定规则：非挂机玩法灵石按境界缩放）
+#   3) 丹药类奖励从 Ct 池取真实定义（保留 effect/permanentEffect，可正常服用）
+#   4) UI 用仙务枢纽展示组件；洞府等级决定队伍槽位（≥3→2 / ≥6→3 / ≥9→4）
+
+EXP_JS = r'''
+/* ===== yl-v26n 灵兽远征 (upstream react-xiuxian-game 0.3.8) ===== */
+var YlxwExpLocations = [
+  { id: "ten-thousand-mountains", name: "十万大山外围", minPetLevel: 1, durationMs: 1800000, durationLabel: "30分钟",
+    dangerLevel: "普通", description: "古木参天，灵禽栖息。适合初出茅庐的灵兽漫游采撷草木与灵矿。",
+    lootPreview: "大量灵石、聚灵草/血参、强化石、灵兽历练心得" },
+  { id: "east-sea-dragon-abyss", name: "东海潜龙深渊", minPetLevel: 15, durationMs: 7200000, durationLabel: "2小时",
+    dangerLevel: "危险", description: "海眼深邃，暗礁潜龙。灵兽可下潜探索远古沉船与深海秘矿。",
+    lootPreview: "海量灵石、龙鳞果/紫猴花、太虚洗炼石、高阶妖丹" },
+  { id: "meteor-forbidden-zone", name: "太虚陨星禁地", minPetLevel: 30, durationMs: 14400000, durationLabel: "4小时",
+    dangerLevel: "绝凶", description: "虚空裂隙中天火流坠，危机四伏，唯有通灵道行的灵兽方能踏足。",
+    lootPreview: "磅礴灵石、太虚洗炼石x2~4、九转金丹/天元丹、天外陨铁/万年灵乳" }
+];
+
+/* 草药/材料兜底定义（我方物品池里存在同名物品，按 name 可与炼丹配方匹配） */
+var YlxwExpHerbs = {
+  "聚灵草": { type: "草药", rarity: "稀有", description: "蕴含浓郁灵气的灵草，炼丹常用材料。" },
+  "血参": { type: "草药", rarity: "稀有", description: "色如鲜血的灵参，大补气血，炼丹常用材料。" },
+  "紫猴花": { type: "草药", rarity: "稀有", description: "炼制洗髓丹的材料，生长在悬崖峭壁。" },
+  "龙鳞果": { type: "草药", rarity: "稀有", description: "龙族栖息地生长的灵果，蕴含龙族血脉之力。" },
+  "高阶妖丹": { type: "材料", rarity: "稀有", description: "强大妖兽的内丹，灵气逼人。" },
+  "天外陨铁": { type: "材料", rarity: "传说", description: "来自天外的神秘金属，炼制仙器的材料。" },
+  "万年灵乳": { type: "材料", rarity: "传说", description: "万年灵脉中凝聚的精华，炼制仙丹的珍贵材料。" },
+  "强化石": { type: "材料", rarity: "稀有", description: "提高装备强化成功率的珍贵材料，每颗可提高 10% 成功率。" }
+};
+
+/* 取物品定义：丹药优先走 Ct 池（保留 effect），其余走兜底表 */
+function YlxwExpItem(name, qty) {
+  var n = Math.max(1, qty || 1), d = null;
+  try { if (Ct && Ct[name]) d = Ct[name]; } catch (e) { d = null; }
+  if (d) return Object.assign({}, d, { id: St(), quantity: n });
+  var h = YlxwExpHerbs[name];
+  if (h) return Object.assign({ id: St(), name: name, quantity: n }, h);
+  return { id: St(), name: name, type: "材料", description: "灵兽远征带回的珍稀物品。", quantity: n, rarity: "稀有" };
+}
+
+function YlxwExpSlots(lv) { return lv >= 9 ? 4 : (lv >= 6 ? 3 : (lv >= 3 ? 2 : 1)); }
+
+/* 奖励生成（复刻上游 3 地点公式；灵石过 YLRF 境界缩放） */
+function YlxwExpGenRewards(locId, petLevel, player) {
+  var r = Math.random, items = [], stones = 0, exp = 0, rf = 1;
+  try { rf = YLRF(player); } catch (e) { rf = 1; }
+  if (locId === "ten-thousand-mountains") {
+    stones = Math.floor(800 + r() * 800 + petLevel * 50);
+    exp = Math.floor(1200 + r() * 1000 + petLevel * 80);
+    items.push(YlxwExpItem(r() < 0.5 ? "聚灵草" : "血参", Math.floor(r() * 3) + 1));
+    if (r() < 0.6) items.push(YlxwExpItem("强化石", 1));
+  } else if (locId === "east-sea-dragon-abyss") {
+    stones = Math.floor(3500 + r() * 2500 + petLevel * 100);
+    exp = Math.floor(6000 + r() * 4000 + petLevel * 150);
+    items.push(YlxwTowerReforgeStone(r() < 0.35 ? 2 : 1));
+    items.push(YlxwExpItem(r() < 0.5 ? "龙鳞果" : "紫猴花", Math.floor(r() * 2) + 1));
+    if (r() < 0.5) items.push(YlxwExpItem("高阶妖丹", 1));
+  } else {
+    stones = Math.floor(10000 + r() * 8000 + petLevel * 200);
+    exp = Math.floor(20000 + r() * 15000 + petLevel * 300);
+    items.push(YlxwTowerReforgeStone(Math.floor(r() * 3) + 2));
+    var rare = ["天外陨铁", "万年灵乳", "九转金丹", "天元丹"];
+    items.push(YlxwExpItem(rare[Math.floor(r() * rare.length)], 1));
+  }
+  return { spiritStones: Math.floor(stones * rf), exp: exp, items: items };
+}
+
+function YlxwExpStart(p, petId, locId) {
+  var g = p.grotto, i;
+  if (!g || g.level < 1) return { success: !1, message: "尚未开辟洞府，无法开启灵兽苑远征！", updatedPlayer: p };
+  var pet = null;
+  for (i = 0; i < (p.pets || []).length; i++) { if (p.pets[i].id === petId) { pet = p.pets[i]; break; } }
+  if (!pet) return { success: !1, message: "未找到指定灵兽！", updatedPlayer: p };
+  var loc = null;
+  for (i = 0; i < YlxwExpLocations.length; i++) { if (YlxwExpLocations[i].id === locId) { loc = YlxwExpLocations[i]; break; } }
+  if (!loc) return { success: !1, message: "未知的探索地点！", updatedPlayer: p };
+  if ((pet.level || 1) < loc.minPetLevel) {
+    return { success: !1, message: "【" + pet.name + "】境界未稳（当前等级 " + (pet.level || 1) + "），前往【" + loc.name + "】需达到 Lv." + loc.minPetLevel + "！", updatedPlayer: p };
+  }
+  var cur = g.petExpeditions || [], slots = YlxwExpSlots(g.level), active = 0, k;
+  for (k = 0; k < cur.length; k++) { if (cur[k].status !== "claimed") active++; }
+  if (active >= slots) return { success: !1, message: "灵兽远征队伍已满（当前最多 " + slots + " 队），升级洞府可解锁更多队伍！", updatedPlayer: p };
+  for (k = 0; k < cur.length; k++) {
+    if (cur[k].petId === petId && cur[k].status !== "claimed") {
+      return { success: !1, message: "【" + pet.name + "】正在外出远征，无法重复派遣！", updatedPlayer: p };
+    }
+  }
+  var now = Date.now();
+  var ne = { id: St(), petId: pet.id, petName: pet.name, locationId: loc.id, locationName: loc.name,
+    startTime: now, duration: loc.durationMs, endTime: now + loc.durationMs, status: "exploring" };
+  return { success: !0, message: "【灵兽远征】你派遣【" + pet.name + "】前往【" + loc.name + "】踏上寻珍之旅！",
+    updatedPlayer: Object.assign({}, p, { grotto: Object.assign({}, g, { petExpeditions: cur.concat([ne]) }) }) };
+}
+
+/* 到期结算：exploring → completed + 生成奖励 */
+function YlxwExpTick(p) {
+  var g = p.grotto;
+  if (!g || !g.petExpeditions || !g.petExpeditions.length) return p;
+  var now = Date.now(), ch = !1;
+  var list = g.petExpeditions.map(function (e) {
+    if (e.status === "exploring" && now >= e.endTime) {
+      ch = !0;
+      var pet = null, i;
+      for (i = 0; i < (p.pets || []).length; i++) { if (p.pets[i].id === e.petId) { pet = p.pets[i]; break; } }
+      return Object.assign({}, e, { status: "completed", rewards: YlxwExpGenRewards(e.locationId, (pet && pet.level) || 1, p) });
+    }
+    return e;
+  });
+  if (!ch) return p;
+  return Object.assign({}, p, { grotto: Object.assign({}, g, { petExpeditions: list }) });
+}
+
+function YlxwExpClaim(p, id) {
+  var g = p.grotto, i;
+  if (!g || !g.petExpeditions) return { success: !1, message: "远征记录不存在！", updatedPlayer: p };
+  var t = null;
+  for (i = 0; i < g.petExpeditions.length; i++) { if (g.petExpeditions[i].id === id) { t = g.petExpeditions[i]; break; } }
+  if (!t) return { success: !1, message: "远征记录不存在！", updatedPlayer: p };
+  if (t.status !== "completed" || !t.rewards) return { success: !1, message: "远征尚未凯旋，暂无法领取！", updatedPlayer: p };
+  var rw = t.rewards, inv = p.inventory || [];
+  (rw.items || []).forEach(function (it) { inv = YlxwTowerAddItem(inv, it, it.quantity || 1); });
+  var rest = g.petExpeditions.filter(function (e) { return e.id !== id; });
+  var summary = (rw.items || []).length
+    ? "、获得珍宝：" + rw.items.map(function (it) { return it.name + "x" + (it.quantity || 1); }).join("，") : "";
+  return {
+    success: !0,
+    message: "【远征凯旋】灵兽【" + t.petName + "】自【" + t.locationName + "】满载而归！获得灵石 +" + rw.spiritStones + "，历练修为 +" + rw.exp + summary + "。",
+    updatedPlayer: Object.assign({}, p, {
+      spiritStones: p.spiritStones + rw.spiritStones, exp: p.exp + rw.exp, inventory: inv,
+      grotto: Object.assign({}, g, { petExpeditions: rest, expeditionExpGained: (Number(g.expeditionExpGained) || 0) + rw.exp })
+    })
+  };
+}
+
+function YlxwExpRecall(p, id) {
+  var g = p.grotto, i;
+  if (!g || !g.petExpeditions) return { success: !1, message: "远征记录不存在！", updatedPlayer: p };
+  var t = null;
+  for (i = 0; i < g.petExpeditions.length; i++) { if (g.petExpeditions[i].id === id) { t = g.petExpeditions[i]; break; } }
+  if (!t) return { success: !1, message: "远征记录不存在！", updatedPlayer: p };
+  var rest = g.petExpeditions.filter(function (e) { return e.id !== id; });
+  return { success: !0, message: "【灵兽归苑】已提前传音召回【" + t.petName + "】。",
+    updatedPlayer: Object.assign({}, p, { grotto: Object.assign({}, g, { petExpeditions: rest }) }) };
+}
+
+function YlxwFmtDur(ms) {
+  if (ms <= 0) return "已完成";
+  var s = Math.floor(ms / 1000), m = Math.floor(s / 60), h = Math.floor(m / 60);
+  if (h > 0) return h + "时" + (m % 60) + "分";
+  if (m > 0) return m + "分" + (s % 60) + "秒";
+  return s + "秒";
+}
+
+/* UI：仙务枢纽「灵兽远征」页 */
+function YlxwTPetExp() {
+  var p = Be(function (s) { return s.player; });
+  var st = O.useState(""), selRaw = st[0], setSel = st[1];
+  var tk = O.useState(0), tick = tk[0], setTick = tk[1];
+  O.useEffect(function () {
+    var id = setInterval(function () { setTick(function (x) { return x + 1; }); }, 1000);
+    return function () { clearInterval(id); };
+  }, []);
+  O.useEffect(function () {
+    var cur = Be.getState().player;
+    if (!cur) return;
+    var up = YlxwExpTick(cur);
+    if (up !== cur) Be.getState().setPlayer(up);
+  }, [tick]);
+  if (!p) return e.jsx(YlxwEmpty, { children: "尚未进入游戏，无法开启远征。" });
+  var g = p.grotto || { level: 0 };
+  var pets = p.pets || [];
+  var selPet = selRaw || ((pets[0] && pets[0].id) || "");
+  var slots = YlxwExpSlots(g.level);
+  var list = g.petExpeditions || [];
+  var active = list.filter(function (x) { return x.status !== "claimed"; }).length;
+  var now = Date.now();
+  var pet = null, i;
+  for (i = 0; i < pets.length; i++) { if (pets[i].id === selPet) { pet = pets[i]; break; } }
+  function doStart(locId) {
+    var cp = Be.getState().player; if (!cp) return;
+    var pid = selPet || ((cp.pets && cp.pets[0] && cp.pets[0].id) || "");
+    if (!pid) { Be.getState().addLog("你还没有灵兽，无法派遣远征。", "danger"); return; }
+    var r = YlxwExpStart(cp, pid, locId);
+    Be.getState().addLog(r.message, r.success ? "special" : "normal");
+    if (r.success) Be.getState().setPlayer(r.updatedPlayer);
+  }
+  function doClaim(id) {
+    var cp = Be.getState().player; if (!cp) return;
+    var up = YlxwExpTick(cp);
+    var r = YlxwExpClaim(up, id);
+    Be.getState().addLog(r.message, r.success ? "special" : "normal");
+    if (r.success) Be.getState().setPlayer(r.updatedPlayer);
+  }
+  function doRecall(id) {
+    var cp = Be.getState().player; if (!cp) return;
+    var r = YlxwExpRecall(cp, id);
+    Be.getState().addLog(r.message, "normal");
+    if (r.success) Be.getState().setPlayer(r.updatedPlayer);
+  }
+  var head = "洞府 Lv." + g.level + " · 队伍 " + active + "/" + slots + " · 灵兽 " + pets.length;
+  var locRows = YlxwExpLocations.map(function (L) {
+    var ok = pet ? (pet.level || 1) >= L.minPetLevel : !1;
+    return e.jsxs(YlxwRow, { children: [
+      e.jsxs("div", { className: "flex items-center justify-between gap-2 flex-wrap", children: [
+        e.jsxs("span", { children: [L.name + " · " + L.dangerLevel + " · " + L.durationLabel + " · 需 Lv." + L.minPetLevel] }),
+        e.jsx(YlxwBtn, { disabled: !ok || active >= slots, onClick: function () { doStart(L.id); }, children: "派遣" })
+      ] }),
+      e.jsx("div", { className: "text-[11px] text-stone-500 mt-1", children: L.description }),
+      e.jsx("div", { className: "text-[11px] text-amber-400/80 mt-0.5", children: "掉落预览：" + L.lootPreview })
+    ] }, L.id);
+  });
+  var runRows = list.map(function (x) {
+    var left = x.endTime - now, done = x.status === "completed" || left <= 0;
+    return e.jsxs(YlxwRow, { children: [
+      e.jsxs("div", { className: "flex items-center justify-between gap-2 flex-wrap", children: [
+        e.jsxs("span", { children: [x.petName + " → " + x.locationName + " · " + (done ? "已凯旋" : "剩余 " + YlxwFmtDur(left))] }),
+        e.jsxs("span", { className: "flex items-center gap-1.5", children: [
+          done ? e.jsx(YlxwBtn, { onClick: function () { doClaim(x.id); }, children: "领取战果" })
+               : e.jsx(YlxwBtn, { tone: "ghost", onClick: function () { doRecall(x.id); }, children: "召回" })
+        ] })
+      ] }),
+      x.rewards ? e.jsx("div", { className: "text-[11px] text-stone-400 mt-1", children: "预计战果：灵石 +" + x.rewards.spiritStones + "，修为 +" + x.rewards.exp + "，物品 x" + ((x.rewards.items || []).length) }) : null
+    ] }, x.id);
+  });
+  return e.jsxs(YlxwPanel, { children: [
+    e.jsx(YlxwTitle, { extra: e.jsx("span", { className: "text-xs text-stone-400", children: head }), children: "灵兽远征" }),
+    pets.length ? e.jsxs(YlxwRow, { children: [
+      e.jsx("div", { className: "text-xs text-stone-400 mb-1.5", children: "选择出战的灵兽" }),
+      e.jsx("select", {
+        value: selPet,
+        onChange: function (ev) { setSel(ev.target.value); },
+        className: "w-full bg-ink-800 border border-stone-600 rounded px-2 py-1.5 text-sm text-stone-100",
+        children: pets.map(function (x) {
+          return e.jsx("option", { value: x.id, children: x.name + " Lv." + (x.level || 1) + "（" + (x.species || "灵兽") + "）" }, x.id);
+        })
+      })
+    ] }) : e.jsx(YlxwEmpty, { children: "你还没有灵兽，先去灵宠界面捕捉或孵化吧。" }),
+    g.level < 1 ? e.jsx(YlxwEmpty, { children: "尚未开辟洞府，无法开启灵兽远征。" }) : null,
+    g.level >= 1 ? e.jsx("div", { className: "text-xs text-amber-300 pt-1", children: "可派遣地点" }) : null,
+    g.level >= 1 ? e.jsx(e.Fragment, { children: locRows }) : null,
+    runRows.length ? e.jsx("div", { className: "text-xs text-amber-300 pt-1", children: "远征进行中" }) : null,
+    runRows.length ? e.jsx(e.Fragment, { children: runRows }) : null
+  ] });
+}
+
+YLXW_ICONS.expedition = "M6 13a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM10 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM14 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM18 13a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM12 21c-3 0-5-2-5-4s2-3 5-3 5 1 5 3-2 4-5 4z";
+YLXW_COMP.expedition = YlxwTPetExp;
+YLXW_TABS.push({ key: "expedition", label: "灵兽远征", group: 1 });
+'''
+
+DRAWER_ITEM = '{icon:YlxwMk("tower"),label:"通天塔",onClick:()=>YlxwOpen("tower"),color:"text-amber-300"},'
+DRAWER_ITEM_EXP = '{icon:YlxwMk("expedition"),label:"灵兽远征",onClick:()=>YlxwOpen("expedition"),color:"text-amber-300"},'
+
+
+BAN_PATTERNS = ['fetch(', 'localStorage', 'sessionStorage', 'auth_token',
+                '/yl/api', 'iframe', 'postMessage', 'X-YL-', 'XMLHttpRequest']
+
+
+
+def _js_syntax_check(src):
+    """★★ 独立的 JS 语法门禁：产物必须是合法 JS，否则拒绝落盘。
+    这一道**任何字面门禁都替代不了** —— 字面门禁只能证明
+    「我改了我想改的」，不能证明「产物还是合法 JS」。
+    """
+    import subprocess, tempfile, os as _os
+    node = _os.environ.get('YL_NODE') or r'C:\Users\27026\.workbuddy-ai\binaries\node\versions\22.22.2-3\node.exe'
+    if not _os.path.exists(node):
+        print('[WARN] 找不到 node，跳过 JS 语法门禁：%s' % node)
+        return
+    fd, tmp = tempfile.mkstemp(suffix='.js')
+    try:
+        with _os.fdopen(fd, 'w', encoding='utf-8', newline='') as f:
+            f.write(src)
+        r = subprocess.run([node, '--check', tmp], capture_output=True, text=True, timeout=300)
+        if r.returncode != 0:
+            raise SystemExit('\n\u2605\u2605 JS 语法门禁未过（产物不是合法 JS，已拒绝落盘）：\n'
+                             + (r.stderr or '')[-1500:])
+        print('  [OK] JS 语法门禁（node --check 通过）')
+    finally:
+        try:
+            _os.unlink(tmp)
+        except Exception:
+            pass
+
+
+def build(base_text):
+    import re
+    from yl_patch import PatchError
+
+    tower_block = zh(TOWER_JS)
+    exp_block = zh(EXP_JS)
+    core_block = zh(CORE_JS)
+    ref_block = zh(REFORGE_JS)
+    spell_block = zh(SPELL_JS)
+    payout_block = zh(PAYOUT_JS)
+
+    # 注入块硬断言（不通过 gates，直接拒绝落盘）
+    for label, blk in (('tower', tower_block), ('expedition', exp_block),
+                       ('core', core_block), ('reforge', ref_block), ('spell', spell_block),
+                       ('payout', payout_block)):
+        bad = re.findall(r'[^\x00-\x7f]', blk)
+        if bad:
+            raise PatchError('[%s] 注入块仍含非 ASCII 字符: %r' % (label, bad[:10]))
+        for pat in BAN_PATTERNS:
+            if pat in blk:
+                raise PatchError('[%s] 注入块含禁用模式: %s' % (label, pat))
+
+    p = Patcher(base_text, label='v26n')
+
+    # 0) 整体改名：云灵修仙传 → 摸鱼修仙传（只动 base 既有字面中文，先长后短）
+    for name, a, r, expect in RENAME_PATCHES:
+        p.replace(name, a, r, expect=expect, note='改名·字面量替换')
+
+    # 1) 主注入块：放在 YlxwPanelModal 之前（此时 YLXW_COMP / YLXW_TABS / YLXW_ICONS /
+    #    YlxwIc / YlxwPanel 系列 / xt / St / Ct / YLRF 均已定义）
+    p.insert_before(
+        'core-block',
+        'function YlxwPanelModal(p) {',
+        core_block + '\n' + tower_block + '\n' + exp_block + '\n' + ref_block + '\n'
+        + spell_block + '\n' + payout_block + '\n',
+        note='洗炼/神通 共用层 + 通天塔 + 灵兽远征 + 万宝洗炼 + 自创神通 + 交易行货款'
+    )
+
+    # 1b) 交易行货款 API：插在交易行 API 函数 Fk 之后（Nd/jo/ln 同作用域，复用统一鉴权头）
+    p.insert_before(
+        'market-payouts-api',
+        PAYOUT_API_ANCHOR,
+        zh(PAYOUT_API_JS) + '\n',
+        note='交易行货款查询/领取 API（V27 卖家收益，复用 Nd/jo 鉴权）'
+    )
+
+    # 2) 抽屉入口（同一锚点多次 append，锚点本身保留）
+    anchor = '{icon:YlxwMk("guide"),label:"仙途指引",onClick:()=>YlxwOpen("guide"),color:"text-amber-300"},'
+    p.append_to('drawer-entry-tower', anchor, DRAWER_ITEM, note='抽屉加通天塔入口')
+    p.append_to('drawer-entry-exp', anchor, DRAWER_ITEM_EXP, note='抽屉加灵兽远征入口')
+    p.append_to('drawer-entry-reforge', anchor, DRAWER_ITEM_REF, note='抽屉加万宝洗炼入口')
+    p.append_to('drawer-entry-spell', anchor, DRAWER_ITEM_SPELL, note='抽屉加自创神通入口')
+    p.append_to('drawer-entry-payout', anchor, DRAWER_ITEM_PAYOUT, note='抽屉加交易行货款入口')
+
+    # 3) 战斗 / 属性 消费补丁（锚点各自唯一，逐条断言）
+    for name, a, r, note in BATTLE_PATCHES:
+        p.replace(name, a, r, note=note)
+
+    # 3b) 出售页展示金额对齐实际入账（v27；helper 锚在 YLRF 定义之后，保证同作用域）
+    p.insert_after(
+        'sellui-helper',
+        SELL_UI_HELPER_ANCHOR,
+        '\n' + SELL_UI_HELPER_JS + '\n',
+        note='注入 YLSellCredit（复用与实际入账同一条公式）'
+    )
+    for name, a, r, expect, note in SELL_UI_PATCHES:
+        p.replace(name, a, r, expect=expect, note=note)
+
+    # 3c) v28 模块：各自 zh() 自己的 INJECT_JS 并自行插入锚点；此处只做安全自检 + 汇总门禁
+    v28_gates = []
+    for _name, _apply in V28_MODULES:
+        _mod = sys.modules[_apply.__module__]
+        _blk = zh(getattr(_mod, 'INJECT_JS', ''))
+        _bad = re.findall(r'[^\x00-\x7f]', _blk)
+        if _bad:
+            raise PatchError('[v28/%s] 注入块 zh() 后仍含非 ASCII: %r' % (_name, _bad[:10]))
+        for _pat in V28_BAN_PATTERNS:
+            if _pat in _blk:
+                raise PatchError('[v28/%s] 注入块含禁用模式: %s' % (_name, _pat))
+        # 少数模块（numbal）不自行插入 INJECT_JS，由 build 侧按约定插入
+        _anchor = getattr(_mod, 'INJECT_BEFORE_ANCHOR', None)
+        if _anchor:
+            p.insert_before(getattr(_mod, 'INJECT_BLOCK_ID', 'v28-' + _name + '-block'),
+                            _anchor, _blk + '\n',
+                            note='v28/%s 注入块（模块未自行插入，build 侧补插）' % _name)
+        _g = _apply(p, {'zh': zh, 'base_text': base_text})
+        if _g is None:
+            raise PatchError('[v28/%s] apply() 必须返回 gates 列表' % _name)
+        for _t in _g:
+            # 5 元 = (name, needle, expect, cmp, note)；可选第 6 元 = within 限域切片
+            # （2026-09-29 BLK-A：限域断言需要，见 yl_patch.Gates.check）
+            assert len(_t) in (5, 6), '[v28/%s] gate 元组必须 5 元（可选第 6 元 within）: %r' % (_name, _t)
+        v28_gates.extend(_g)
+
+    _js_syntax_check(p.text)      # ★ 独立语法门禁（见函数注释）
+
+    out = p.text
+
+    # ---------------- 门禁 ----------------
+    towers = zh('九天通天塔')
+    exps = zh('灵兽远征')
+    gates = [
+        ('YLXW_COMP.tower 挂载',      'YLXW_COMP.tower = YlxwTTower',           1, '==', ''),
+        ('YlxwTTower 定义',            'function YlxwTTower(',                  1, '==', ''),
+        ('YLXW_TABS.push tower',       'YLXW_TABS.push({ key: "tower"',         1, '==', ''),
+        ('YLXW_ICONS.tower',           'YLXW_ICONS.tower =',                    1, '==', ''),
+        ('抽屉入口 tower',              'YlxwOpen("tower")',                     1, '==', ''),
+        ('通天塔标题',                  towers,                                  1, '>=', ''),
+        ('YlxwTowerFloor 定义',        'function YlxwTowerFloor(',              1, '==', ''),
+        ('YlxwTowerChallenge 定义',    'function YlxwTowerChallenge(',          1, '==', ''),
+        ('YlxwTowerSweep 定义',        'function YlxwTowerSweep(',              1, '==', ''),
+        ('YlxwTowerAddItem 定义',      'function YlxwTowerAddItem(',            1, '==', ''),
+        # ---- 灵兽远征 ----
+        ('YLXW_COMP.expedition 挂载',  'YLXW_COMP.expedition = YlxwTPetExp',    1, '==', ''),
+        ('YlxwTPetExp 定义',           'function YlxwTPetExp(',                 1, '==', ''),
+        ('YLXW_TABS.push expedition',  'YLXW_TABS.push({ key: "expedition"',    1, '==', ''),
+        ('YLXW_ICONS.expedition',      'YLXW_ICONS.expedition =',               1, '==', ''),
+        ('抽屉入口 expedition',         'YlxwOpen("expedition")',                1, '==', ''),
+        ('灵兽远征标题',                exps,                                    1, '>=', ''),
+        ('地点·十万大山',                'ten-thousand-mountains',                1, '>=', ''),
+        ('地点·东海潜龙',                'east-sea-dragon-abyss',                 1, '>=', ''),
+        ('地点·太虚陨星',                'meteor-forbidden-zone',                 1, '>=', ''),
+        ('YlxwExpStart 定义',          'function YlxwExpStart(',                1, '==', ''),
+        ('YlxwExpTick 定义',           'function YlxwExpTick(',                 1, '==', ''),
+        ('YlxwExpClaim 定义',          'function YlxwExpClaim(',                1, '==', ''),
+        ('YlxwExpRecall 定义',         'function YlxwExpRecall(',               1, '==', ''),
+        ('凝血草已替换(应为0)',          zh('凝血草'),                             0, '==', '必须为 0'),
+        ('灵石过 YLRF 缩放',            'Math.floor(stones * rf)',               1, '==', ''),
+        # ---- 万宝洗炼 ----
+        ('YLXW_COMP.reforge 挂载',      'YLXW_COMP.reforge = YlxwTReforge',      1, '==', ''),
+        ('YlxwTReforge 定义',           'function YlxwTReforge(',                1, '==', ''),
+        ('YLXW_TABS.push reforge',      'YLXW_TABS.push({ key: "reforge"',       1, '==', ''),
+        ('YLXW_ICONS.reforge',          'YLXW_ICONS.reforge =',                  1, '==', ''),
+        ('抽屉入口 reforge',             'YlxwOpen("reforge")',                   1, '==', ''),
+        ('万宝洗炼标题',                 zh('万宝洗炼'),                           1, '>=', ''),
+        ('7 词条·锋芒',                  zh('锋芒'),                               1, '>=', ''),
+        ('7 词条·噬灵',                  zh('噬灵'),                               1, '>=', ''),
+        ('YlxwRF_Candidate 定义',       'function YlxwRF_Candidate(',            1, '==', ''),
+        ('YlxwRF_Apply 定义',           'function YlxwRF_Apply(',                1, '==', ''),
+        ('YlxwRF_ToggleLock 定义',      'function YlxwRF_ToggleLock(',           1, '==', ''),
+        ('洗炼石 id 一致',              'taixu-reforge-stone',                   2, '>=', ''),
+        # ---- 自创神通 ----
+        ('YLXW_COMP.spell 挂载',        'YLXW_COMP.spell = YlxwTSpell',          1, '==', ''),
+        ('YlxwTSpell 定义',             'function YlxwTSpell(',                  1, '==', ''),
+        ('YLXW_TABS.push spell',        'YLXW_TABS.push({ key: "spell"',         1, '==', ''),
+        ('YLXW_ICONS.spell',            'YLXW_ICONS.spell =',                    1, '==', ''),
+        ('抽屉入口 spell',               'YlxwOpen("spell")',                     1, '==', ''),
+        ('自创神通标题',                 zh('自创神通'),                           1, '>=', ''),
+        ('YlxwSP_Fuse 定义',            'function YlxwSP_Fuse(',                 1, '==', ''),
+        ('YlxwSP_Upgrade 定义',         'function YlxwSP_Upgrade(',              1, '==', ''),
+        ('YlxwSP_CanFuse 定义',         'function YlxwSP_CanFuse(',              1, '==', ''),
+        # ---- 交易行货款（V27 卖家收益）----
+        ('YLXW_COMP.payout 挂载',       'YLXW_COMP.payout = YlxwTPayout',        1, '==', ''),
+        ('YlxwTPayout 定义',            'function YlxwTPayout(',                 1, '==', ''),
+        ('YLXW_TABS.push payout',       'YLXW_TABS.push({ key: "payout"',        1, '==', ''),
+        ('YLXW_ICONS.payout',           'YLXW_ICONS.payout =',                   1, '==', ''),
+        ('抽屉入口 payout',              'YlxwOpen("payout")',                    1, '==', ''),
+        ('交易行货款标题',               zh('交易行货款'),                         1, '>=', ''),
+        ('货款 API·查询',               'async function YlxwMarketPayouts(',     1, '==', ''),
+        ('货款 API·领取',               'async function YlxwMarketClaim(',       1, '==', ''),
+        ('货款 API 走 Nd 鉴权',          'Nd(`${ln}/market/payouts`)',            1, '==', ''),
+        ('货款 API 挂 window',          'window.YlxwMarketPayouts = YlxwMarketPayouts', 1, '==', ''),
+        ('领取按 amount 增量入账',       'next.spiritStones = now + r.amount', 1, '==', 'v28 深测：叠加前须过竞态守卫'),
+        ('不采纳服务端绝对余额',         'r.stones == null',                      0, '==', '必须为 0（客户端权威，采纳绝对值会丢本地未同步收益）'),
+        ('领取提示独立于刷新',           zh('setNotice("已领取 " + r.amount'),    1, '==', ''),
+        ('错误态独立于刷新',             zh('setErr((r && r.error) || "查询失败")'), 1, '==', ''),
+        ('注入块未自造 fetch',           'window.YlxwMarketPayouts ? window.YlxwMarketPayouts()', 1, '==', ''),
+        ('货款明细行两端对齐',           'flex items-center justify-between gap-2", children: [', 2, '>=', ''),
+        # ---- 战斗 / 属性 消费 ----
+        ('xt 挂载 YlxwStatExtras',      'typeof YlxwStatExtras==="function"&&YlxwStatExtras(t,r)', 1, '==', ''),
+        ('YlxwStatExtras 定义',         'function YlxwStatExtras(',              1, '==', ''),
+        ('YlxwBattleBonus 定义',        'function YlxwBattleBonus(',             1, '==', ''),
+        ('YlxwSpellBuffs 定义',         'function YlxwSpellBuffs(',              1, '==', ''),
+        ('X0 暴击上限 .2 已移除',        'Math.min(.2,F)',                        0, '==', '必须为 0'),
+        ('X0 暴击上限 .35 已注入',       'W=Math.max(0,Math.min(.35,F))',         1, '==', ''),
+        ('X0 吸血已注入',               'YlxwPB.lifeLeech>0&&(M=Math.min(S,M+Math.floor(X*YlxwPB.lifeLeech)))', 1, '==', ''),
+        ('km 吸血已注入',               'w.lifeLeech&&w.lifeLeech>0&&(l.hp=Math.min(l.maxHp', 1, '==', ''),
+        ('QS buff 注入已生效',          'm.concat(typeof YlxwSpellBuffs==="function"?YlxwSpellBuffs(t):[])', 1, '==', ''),
+        ('km 原 .35 上限未被破坏',      'f=Math.min(.35,Math.max(0,f))',         1, '==', ''),
+        # ---- v27 修为计数器（服务端 capExp 放行依据）----
+        ('通天塔计数·首通',             'expGained: (Number(p.tower && p.tower.expGained) || 0) + rExp', 1, '==', ''),
+        ('通天塔计数·扫荡',             'expGained: (Number(ts.expGained) || 0) + e', 1, '==', ''),
+        ('远征计数·领取',               'expeditionExpGained: (Number(g.expeditionExpGained) || 0) + rw.exp', 1, '==', ''),
+        ('tower 子对象已保留旧字段',     'tower: Object.assign({}, p.tower, {', 1, '==', ''),
+        # ---- 基线完整性 ----
+        ('YLXW_TABS 原 23 项仍在',      '{ key: "mail", label:',                 1, '==', ''),
+        ('YLXW_COMP 原 23 项仍在',      'stats: YlxwTStats }',                   1, '==', ''),
+        ('YlxwPanelModal 未被破坏',     'function YlxwPanelModal(p) {',          1, '==', ''),
+        ('存档上报 player 原样',        'body:JSON.stringify({player:',          1, '==', ''),
+        ('xt 总属性函数仍在',           'const xt=t=>{',                         1, '==', ''),
+        ('St uid 生成器仍在',           'const St=()=>(pg++',                    1, '==', ''),
+        ('YLRF 缩放函数仍在',           'function YLRF(j) {',                    1, '==', ''),
+        ('Ct 物品池仍在',               'const Ct={',                            1, '==', ''),
+    ]
+    # 交易行货款：乐观增量竞态守卫（v28 本机深测修复；与信箱一键领取同款 bug 类）
+    gates.append(('货款·请求前快照 before', 'var before = Number((Be.getState().player || {}).spiritStones) || 0;', 2, '==', '信箱+货款各一处'))
+    gates.append(('货款·响应后竞态守卫',   'if (now === before) {',                                   2, '==', '信箱+货款各一处'))
+    gates.append(('货款·增量入账新写法',   'next.spiritStones = now + r.amount;',                     1, '==', ''))
+    gates.append(('货款·旧无守卫写法已移除', 'next.spiritStones = (Number(cur.spiritStones) || 0) + r.amount;', 0, '==', '必须为 0'))
+    # 出售页展示金额对齐（v27）
+    gates.append(('出售页 helper 只注入一次', 'YL_SELLUI_FIX_V27', 2, '==', '起始+结束标记'))
+    gates.extend(SELL_UI_GATES)
+    # 整体改名门禁（v27）
+    gates.extend(RENAME_GATES)
+    # v28 模块门禁（saveretry / version / mail / entry / sectgf / char / numbal）
+    gates.extend(v28_gates)
+    return out, gates
+
+
+if __name__ == '__main__':
+    # ---- stdout 减负（2026-10-01 第 3 批接线，假 FAIL 修复）----
+    # 工作流执行器对单条命令 stdout 有 262,144 字节硬帽；本批门禁总数增至 2708，
+    # 逐条全量打印 ≈266KB 超帽（上批 2367 条未超）→ 执行器报 WorkflowError，
+    # 属调用面问题，门禁本体无恙。故默认丢弃逐条 '[OK]' 行（[FAIL] 行、
+    # 门禁头/摘要/落盘信息全保留），退出码与判定逻辑零改动。
+    # 需要全量逐条输出时：--verbose 或环境变量 YL_BUILD_VERBOSE=1。
+    if ('--verbose' not in sys.argv) and os.environ.get('YL_BUILD_VERBOSE') != '1':
+        class _QuietGateStdout(object):
+            """行级过滤：只丢 '  [OK] …' 行（[FAIL] 行必含 '[FAIL]'，恒放行）。"""
+
+            def __init__(self, raw):
+                self._raw = raw
+
+            def write(self, s):
+                if '[OK]' in s:
+                    # report() 是整段单次 write，按行滤；[FAIL] 行恒保留
+                    kept = [ln for ln in s.split('\n')
+                            if ('[OK]' not in ln) or ('[FAIL]' in ln)]
+                    if any(ln.strip() for ln in kept):
+                        return self._raw.write('\n'.join(kept))
+                    return len(s)  # 整段皆 OK 行：静默吞掉
+                return self._raw.write(s)
+
+            def flush(self):
+                self._raw.flush()
+
+        sys.stdout = _QuietGateStdout(sys.stdout)
+    from yl_patch import run
+    sys.exit(run(sys.modules[__name__]))

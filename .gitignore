@@ -1,0 +1,88 @@
+# ============================================================
+# 摸鱼修仙传 (moyuwang-xiuxian) —— .gitignore
+# 原则：凡是「密钥 / 数据库 / 本机环境 / 构建中间产物」一律不入库。
+# ============================================================
+
+# ---------- 密钥与私密配置（最高优先级）----------
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.p12
+*.pfx
+*.jks
+*.keystore
+id_rsa
+id_rsa.*
+id_ed25519
+id_ed25519.*
+.jwt_secret
+*secret*.json
+credentials.json
+
+# ---------- 数据库与备份 ----------
+*.sqlite
+*.sqlite3
+*.sqlite-journal
+*.db
+*.db-journal
+*.mdb
+database.sqlite
+yl.db
+*.dump
+*.bak.sql
+# 注意：srv/*.sql 是「建表迁移脚本」，属于源码，故意保留。
+
+# ---------- 本机 / 编辑器环境 ----------
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+node_modules/
+.pnpm-store/
+dist/
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+.vscode/
+*.swp
+*~
+
+# ---------- 构建中间产物 / 暂存区 ----------
+# 冻结基座 _v281_base/ 与最终产物是「发布物」，保留；中间态一律忽略。
+_chainstage/
+_v284_base/
+_numbal_backup/
+_srvprobe/
+_stage_srvecon/
+*.pre082
+*.pre-v*
+*.bundle.js
+dryrun*.js
+t_*.bundle.js
+tmp*.js
+*.log
+
+# ---------- 本机实测产物 / 截图 ----------
+# 只保留人工挑选进 docs/screenshots/ 的图，其余截图不入库。
+*.png
+*.jpg
+*.jpeg
+!build/assets/*.png
+!docs/screenshots/*.png
+!docs/screenshots/*.jpg
+!docs/screenshots/*.jpeg
+
+# ---------- 部署密钥与主机信息 ----------
+# 部署脚本含真实服务器地址与私钥路径，绝不入库；
+# 如需部署请参考 docs/DEPLOYMENT.md 自行填写。
+deploy_*/
+*DEPLOY_LOG*
+EXPECT_*.env

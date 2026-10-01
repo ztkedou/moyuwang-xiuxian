@@ -1,0 +1,48 @@
+# =============================================================================
+# 摸鱼修仙传 · 一键部署（docker compose up -d）
+# -----------------------------------------------------------------------------
+# 用法：
+#   cp .env.example .env      # 或 make init（自动生成随机密钥）
+#   docker compose up -d
+#   浏览器打开 http://localhost:8080/
+#
+# 说明：
+#   · 数据库挂在命名卷 yl_data 上，`docker compose down` 不会丢档；
+#     只有 `docker compose down -v` 才会连数据一起删。
+#   · 密钥只从 .env / 环境变量注入，镜像里不含任何密钥。
+#   · 改对外端口：改 .env 里的 HOST_PORT（或 `HOST_PORT=9000 docker compose up -d`）。
+# =============================================================================
+
+services:
+  moyuwang:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        # 基础镜像拉不动时，换成可访问的镜像源前缀，例如
+        #   NODE_IMAGE=<镜像源>/library/node:22-bookworm-slim
+        NODE_IMAGE: ${NODE_IMAGE:-node:22-bookworm-slim}
+        NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmmirror.com}
+    image: moyuwang-xiuxian:${YL_TAG:-local}
+    container_name: moyuwang-xiuxian
+    restart: unless-stopped
+    ports:
+      - "${HOST_PORT:-8080}:8080"
+    environment:
+      PUBLIC_PORT: "8080"
+      API_PORT: "3000"
+      DATABASE_PATH: /data/database.sqlite
+      # 未显式设置 JWT_SECRET 时，服务端会自生成并落盘到容器内（重启会掉线，建议显式配置）
+      JWT_SECRET: ${JWT_SECRET:-}
+      # GM 管理后台口令：自 0.8.9 起未设置则服务端 [FATAL] 拒绝启动，故此处强制要求
+      GM_PASSWORD: ${GM_PASSWORD:?未设置 GM_PASSWORD。请先执行 `make init` 或 `cp .env.example .env` 并填写 GM_PASSWORD}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:8080}
+      AI_API_KEY: ${AI_API_KEY:-}
+      AI_API_URL: ${AI_API_URL:-https://api.siliconflow.cn/v1/chat/completions}
+      AI_MODEL: ${AI_MODEL:-Qwen/Qwen2.5-7B-Instruct}
+    volumes:
+      - yl_data:/data
+
+volumes:
+  yl_data:
+    name: moyuwang-xiuxian-data

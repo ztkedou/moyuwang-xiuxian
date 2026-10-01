@@ -230,6 +230,13 @@ from yl_r070_ext import apply as v28_r070_apply  # noqa: E402
 from yl_r071_ext import apply as v28_r071_apply  # noqa: E402
 from yl_r073_ext import apply as v28_r073_apply  # noqa: E402
 from yl_r074_ext import apply as v28_r074_apply  # noqa: E402
+from yl_r078_ext import apply as v28_r078_apply  # noqa: E402  # R-078 收养显示灵石（★ 排 r071 之后）
+from yl_r082_ext import apply as v28_r082_apply  # noqa: E402  # R-082 洞府可收获提示
+from yl_r076_ext import apply as v28_r076_apply  # noqa: E402
+from yl_r077_ext import apply as v28_r077_apply  # noqa: E402
+from yl_r080_ext import apply as v28_r080_apply  # noqa: E402
+from yl_r081_ext import apply as v28_r081_apply  # noqa: E402
+from yl_r079_ext import apply as v28_r079_apply  # noqa: E402  # R-079 补全玩法介绍
 from yl_r042_ext import apply as v28_r042_apply  # noqa: E402  # ★ 必须排在 cooldown 之后
 from yl_r043_ext import apply as v28_r043_apply  # noqa: E402  # ★ 必须排在 r041 之后
 # ---- 0.8.11.2 一模块（R-018 D5 灵纹：战斗层只读 + 换纹行）----
@@ -293,7 +300,7 @@ from yl_r067_ext import apply as v28_r067_apply  # noqa: E402
 from yl_068_ext import apply as v28_r068_apply  # noqa: E402
 
 BASE = os.path.join(HERE, 'build', 'assets', 'index-v26m-20260927.js')
-OUT = os.path.join(HERE, 'build', 'assets', 'index-v290-20261001.js')
+OUT = os.path.join(HERE, 'build', 'assets', 'index-v292-20261001.js')
 
 # v28 模块调用顺序（锚点稳定性 + num-balance 必须最后）：
 #   saveretry → arb → version → mail → entry → sectgf → char → bond → ui
@@ -429,6 +436,8 @@ V28_MODULES = [
     ('r071', v28_r071_apply),
     ('r073', v28_r073_apply),
     ('r074', v28_r074_apply),
+    ('r078', v28_r078_apply),              # R-078 收养显示灵石（★ 排 r071 之后）
+    ('r082', v28_r082_apply),              # R-082 洞府可收获提示
     # ---- 2026-10-01 第 1 批 R 批次四模块（R-050/051/052/053；恒在 numbal 之前）----
     ('r050', v28_r050_apply),              # R-050 洞府：加速一次半小时 + 每日催熟10次起步（★ 必须排在 v2810c 之后）
     ('r051', v28_r051_apply),              # R-051 日常任务奖励×1.5（★ 必须排在 fun086 之后：其 F2 造出 vs=v*5 形态）
@@ -452,6 +461,12 @@ V28_MODULES = [
     ('r066', v28_r066_apply),              # R-066 宗门功法阁：贡献值重做（基价×2~×2.7+每层×2指数）+ 修满化形转实装功法（★ 必须排在 sectgf 之后；服务端配套 = SRV_CHAIN 链尾 'srv_patch_066.py'）
     ('r067', v28_r067_apply),              # R-067 功法五行分类+扩充55部（★ 必须排在 gongfa 之后、numbal 之前：功法阁 UI 锚消费 R-016 改后的 z4 语义；YlxwElemInit 先于 numbal 预算重算）
     ('r068', v28_r068_apply),              # R-068 人物志自带结交降频（★ 必须排在 t6chardex 之后）
+    # ---- 0.9.x 批次（★ 全部必须排在 r064/r065/r066 之后：r077 锚 R-064 的出炉产出行）----
+    ('r076', v28_r076_apply),              # R-076 roguelike 秘境 = 普通 2 倍
+    ('r077', v28_r077_apply),              # R-077 开炉出丹随机数量（★ 必须排 r064 之后）
+    ('r079', v28_r079_apply),              # R-079 补全玩法介绍
+    ('r080', v28_r080_apply),              # R-080 抽奖保底 UI（★ 排 v2810d 之后）
+    ('r081', v28_r081_apply),              # R-081 宗门俸禄按职位
     ('numbal', v28_numbal_apply),
 ]
 

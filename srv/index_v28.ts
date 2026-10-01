@@ -5125,6 +5125,39 @@ const ALCHEMY_RECIPES: Record<string, AlchemyRecipeDef> = {
   pojing:   { name: '破境丹',   minutes: 480, cost: 80000,  rarity: '传说', unlockLevel: 5, summary: '服用 修为+1万｜永久 神识+50 体魄+50 攻击+30 防御+30', profGain: 100 },
   jiuzhuan: { name: '九转金丹', minutes: 720, cost: 120000, rarity: '仙品', unlockLevel: 8, summary: '服用 修为+5万｜永久 全属性+1000 寿命上限+1000年', profGain: 500 },
 };
+// [r077] R-077 炼丹开炉按成熟时长随机出丹数量（拍板 2026-10-01）：
+//   基础方（聚气丹/回春丹）1-10 枚随机；方子越高阶（成熟越久、单枚越贵）随机枚数越少、波动越窄；
+//   出炉灵石 = max(cost, floor(alchemyYieldStones(cost) × 枚数 / E[枚数])) ⇒ 期望 = cost×1.5（同改前，不通胀），
+//   最差一掷保本（= cost）；单枚价值随成本/成熟时长递增（30min 1364 → 720min 120000）。
+//   枚数区间走旁表（不改 ALCHEMY_RECIPES 逐行，srv_patch_064 门禁逐字钉死该表）。
+const ALCHEMY_PILL_QTY: Record<string, [number, number]> = {
+  '聚气丹': [1, 10], '回春丹': [1, 10], '凝元丹': [2, 8], '洗髓丹': [2, 7], '延寿丹': [2, 6],
+  '筑基丹': [2, 5], '龙血丹': [1, 4], '破境丹': [1, 3], '九转金丹': [1, 2],
+};
+function alchemyQtyRange(name: unknown): [number, number] {
+  const q = ALCHEMY_PILL_QTY[String(name)];
+  if (!q) { return [1, 1]; }
+  const lo = Math.max(1, Math.floor(Number(q[0]) || 1));
+  const hi = Math.max(lo, Math.floor(Number(q[1]) || lo));
+  return [lo, hi];
+}
+function alchemyRollPillCount(name: unknown): number {
+  const r = alchemyQtyRange(name);
+  return r[0] + Math.floor(Math.random() * (r[1] - r[0] + 1));
+}
+function alchemyPillYield(cost: number, count: number, name: unknown): number {
+  const r = alchemyQtyRange(name);
+  const e = (r[0] + r[1]) / 2;
+  const n = Math.max(1, Math.floor(Number(count) || 1));
+  return Math.max(cost, Math.floor(alchemyYieldStones(cost) * n / e));
+}
+function alchemyRecipesWithQty(): Record<string, any> {
+  const out: Record<string, any> = {};
+  for (const k of Object.keys(ALCHEMY_RECIPES)) {
+    out[k] = Object.assign({}, ALCHEMY_RECIPES[k], { qty: alchemyQtyRange(ALCHEMY_RECIPES[k].name) });
+  }
+  return out;
+}
 function alchemyRecipe(key: unknown): AlchemyRecipeDef | null {
   return key != null && Object.prototype.hasOwnProperty.call(ALCHEMY_RECIPES, asStr(key)) ? ALCHEMY_RECIPES[asStr(key)] : null;
 }
@@ -7798,7 +7831,7 @@ app.get('/api/alchemy/list', authenticateToken, rateLimit({ windowMs: 60 * 1000,
         leftMs: Math.max(0, Number(r.mature_at) - now),
       } : { slot: s, pill: null });
     }
-    res.json({ now, slots, recipes: ALCHEMY_RECIPES, yieldRate: ALCHEMY_YIELD_RATE });
+    res.json({ now, slots, recipes: alchemyRecipesWithQty(), yieldRate: ALCHEMY_YIELD_RATE, pillQty: ALCHEMY_PILL_QTY });
   } catch (e: any) {
     console.error('alchemy list error:', e?.message || e);
     res.status(500).json({ error: 'Database error' });
@@ -7880,7 +7913,9 @@ app.post('/api/alchemy/claim', authenticateToken, rateLimit({ windowMs: 60 * 100
     const recipe = alchemyRecipeByName(pill);
     // Y6B：师徒加成/出师增益（徒弟在门且师徒都在线 ×1.1；本人有未到期出师增益 ×1.3；读取失败 ×1 保底）
     const mnG = await resolveMentorGains(userId, now).catch(() => ({ expMult: 1, stonesMult: 1 }));
-    const yieldStones = recipe ? actApplyGain(alchemyYieldStones(recipe.cost), evMult.stonesMult * mnG.stonesMult) : 0; // Y21 活动 × Y6B 师徒倍率入账
+    // [r077] 开炉按成熟时长/方子档随机出丹枚数（1-10 基础方 → 1-2 高阶），枚数折算灵石（期望同改前）
+    const pillCount = recipe ? alchemyRollPillCount(pill) : 0;
+    const yieldStones = recipe ? actApplyGain(alchemyPillYield(recipe.cost, pillCount, pill), evMult.stonesMult * mnG.stonesMult) : 0; // Y21 活动 × Y6B 师徒倍率入账；[r077] 枚数→灵石（保本下限 cost）
     // Y3A：凝元丹出炉额外凝丹入囊（渡劫垫刀材料，upsert 幂等；失败不影响出炉本体，只记日志）
     let pillsGained = 0;
     if (pill === '凝元丹') {
@@ -7894,7 +7929,7 @@ app.post('/api/alchemy/claim', authenticateToken, rateLimit({ windowMs: 60 * 100
     try {
       const pillLine = pillsGained > 0 ? '\n· 凝元丹 ×1 已收入丹囊（渡劫页可垫刀，每颗 +3% 天劫成功率）' : '';
       await insertMail(userId, '丹药出炉',
-        `炉火纯青，「${pill}」丹成出炉！\n\n· 丹药化灵：灵石 ×${yieldStones}（点击下方领取）${pillLine}\n\n丹炉已空，下一炉随时可开。`,
+        `炉火纯青，「${pill}」×${pillCount} 枚丹成出炉！\n\n· 丹药化灵：灵石 ×${yieldStones}（点击下方领取）${pillLine}\n\n丹炉已空，下一炉随时可开。`,
         'system', yieldStones);
     } catch (e: any) {
       console.error('alchemy claim mail error:', e?.message || e);
@@ -7925,7 +7960,7 @@ app.post('/api/alchemy/claim', authenticateToken, rateLimit({ windowMs: 60 * 100
         if (!up.ok) { profGained = 0; profLevel = 0; profNow = 0; profNext = 0; profUp = false; console.error('alchemy claim prof save error:', up.error); }
       }
     } catch (e: any) { console.error('alchemy claim prof error:', e?.message || e); }
-    res.json({ ok: true, slot, pill, yieldStones, pillsGained, eventMults: { exp: evMult.expMult, stones: evMult.stonesMult }, prof: profGained > 0 ? { gained: profGained, level: profLevel, proficiency: profNow, nextAt: profNext, leveledUp: profUp } : null });
+    res.json({ ok: true, slot, pill, yieldStones, pillCount, pillsGained, eventMults: { exp: evMult.expMult, stones: evMult.stonesMult }, prof: profGained > 0 ? { gained: profGained, level: profLevel, proficiency: profNow, nextAt: profNext, leveledUp: profUp } : null });
   } catch (e: any) {
     console.error('alchemy claim error:', e?.message || e);
     res.status(500).json({ error: '服务器繁忙' });
@@ -12764,6 +12799,8 @@ app.get('/api/pet', authenticateToken, rateLimit({ windowMs: 60 * 1000, max: 60,
         expedBond: R018_EXPED_BOND, expedExp: R018_EXPED_EXP,
         convert: R018_CONVERT, feedTiers: R018_FEED_TIERS, playKinds: R018_PLAY_KINDS,
         runeCost: R018B_RUNE_COST, runeTable: R018B_RUNE_TABLE,
+        // [r078] R-078 消耗回显：收养 / 归位 的灵石价（引用 r071 常量，客户端按钮据此显示与置灰）
+        adoptCost: R071_ADOPT_COST, awayCost: R071_AWAY_COST,
       },
     });
   } catch (e: any) {
@@ -14792,6 +14829,71 @@ app.post('/api/sect/welfare/claim', authenticateToken, sectWriteLimit, async (re
   } catch (e: any) {
     console.error('sect welfare claim error:', e?.message || e);
     res.status(500).json({ error: '服务器繁忙' });
+  }
+});
+
+// [r081salary] R-081 \u5b97\u95e8\u4ff8\u7984\uff08\u6309\u804c\u4f4d\u6bcf\u65e5\u9886\u53d6\uff09\uff1a
+//   \u804c\u4f4d\u6765\u6e90=\u5b58\u6863 player.sectRank\uff08\u5916\u95e8\u5f1f\u5b50/\u5185\u95e8\u5f1f\u5b50/\u771f\u4f20\u5f1f\u5b50/\u957f\u8001/\u5b97\u4e3b\uff0c\u4e0e SECT_GF_RANK_ORDER \u540c\u6e90\uff09\uff1b
+//   \u5e42\u7b49=sect_welfare_claims PK(user_id,date,kind=rank_salary)\uff08UNIQUE \u51b2\u7a81\u5373 409\uff09\uff1b
+//   \u7075\u77f3\u4f59\u989d\u7531 YL_STONE_ECHO_V26K \u4e2d\u95f4\u4ef6\u81ea\u52a8\u56de\u663e\uff1b\u8d21\u732e\u503c\u5728\u56de\u6267\u91cc\u56de\u663e\u3002
+const SECT_RANK_SALARY: Record<string, { spiritStones: number; contribution: number }> = {
+  '\u5916\u95e8\u5f1f\u5b50': { spiritStones: 1000, contribution: 10 },
+  '\u5185\u95e8\u5f1f\u5b50': { spiritStones: 2500, contribution: 25 },
+  '\u771f\u4f20\u5f1f\u5b50': { spiritStones: 6000, contribution: 60 },
+  '\u957f\u8001': { spiritStones: 12000, contribution: 120 },
+  '\u5b97\u4e3b': { spiritStones: 25000, contribution: 300 },
+};
+const SECT_RANK_SALARY_ORDER = ['\u5916\u95e8\u5f1f\u5b50', '\u5185\u95e8\u5f1f\u5b50', '\u771f\u4f20\u5f1f\u5b50', '\u957f\u8001', '\u5b97\u4e3b'];
+// \u672a\u77e5/\u7f3a\u5931\u804c\u8854\u4e00\u5f8b\u6309\u6700\u4f4e\u6863\uff08\u9632\u8d8a\u6743\u591a\u9886\uff09
+function sectSalaryOf(rank: unknown): { spiritStones: number; contribution: number } {
+  return SECT_RANK_SALARY[String(rank || '')] || SECT_RANK_SALARY[SECT_RANK_SALARY_ORDER[0]];
+}
+// \u4eca\u65e5\u53ef\u9886/\u5df2\u9886\uff08\u53ea\u8bfb\uff09
+app.get('/api/sect/salary/status', authenticateToken, sectReadLimit, async (req: any, res: any) => {
+  try {
+    const pl = await sectGfPlayerOf(req.user.id);
+    if (!pl || !pl.sectId) return res.json({ inSect: false, claimed: false });
+    const rank = String(pl.sectRank || '');
+    const sal = sectSalaryOf(rank);
+    const date = bjDate(Date.now());
+    const row: any = await dbGet('SELECT 1 AS c FROM sect_welfare_claims WHERE user_id = ? AND date = ? AND kind = ?', [req.user.id, date, 'rank_salary']);
+    res.json({ inSect: true, rank, spiritStones: sal.spiritStones, contribution: sal.contribution, claimed: !!row, date });
+  } catch (e: any) {
+    console.error('sect salary status error:', e?.message || e);
+    res.status(500).json({ error: '\u670d\u52a1\u5668\u7e41\u5fd9' });
+  }
+});
+// \u9886\u53d6\u5b97\u95e8\u4ff8\u7984\uff08\u6309\u804c\u4f4d\uff1b\u6bcf\u65e5\u9650\u4e00\u6b21\uff09
+app.post('/api/sect/salary', authenticateToken, sectWriteLimit, async (req: any, res: any) => {
+  try {
+    const pl = await sectGfPlayerOf(req.user.id);
+    if (!pl || !pl.sectId) return res.status(400).json({ error: '\u4f60\u8fd8\u6ca1\u6709\u52a0\u5165\u5b97\u95e8\uff0c\u65e0\u6cd5\u9886\u53d6\u4ff8\u7984', code: 'NO_SECT' });
+    const rank = String(pl.sectRank || '');
+    const sal = sectSalaryOf(rank);
+    const date = bjDate(Date.now());
+    try {
+      await dbRun('INSERT INTO sect_welfare_claims (user_id, date, kind, claimed_at) VALUES (?, ?, ?, ?)', [req.user.id, date, 'rank_salary', nowIso()]);
+    } catch (e: any) {
+      if (String(e?.message || '').includes('UNIQUE')) return res.status(409).json({ error: '\u4eca\u65e5\u4ff8\u7984\u5df2\u9886\u53d6', code: 'ALREADY_CLAIMED' });
+      throw e;
+    }
+    let contribAfter = 0;
+    const grant = await updatePlayerSave(req.user.id, (saveData: any) => {
+      const p = saveData && saveData.player;
+      if (!p) return;
+      p.spiritStones = (Number(p.spiritStones) || 0) + sal.spiritStones;
+      const c0 = Math.max(0, Math.floor(Number(p.sectContribution) || 0));
+      p.sectContribution = c0 + sal.contribution;
+      contribAfter = p.sectContribution;
+    });
+    if (!grant.ok) {
+      await dbRun('DELETE FROM sect_welfare_claims WHERE user_id = ? AND date = ? AND kind = ?', [req.user.id, date, 'rank_salary']).catch(() => undefined);
+      return res.status(400).json({ error: grant.error || '\u4ff8\u7984\u53d1\u653e\u5931\u8d25' });
+    }
+    res.json({ message: '\u4ff8\u7984\u5df2\u5165\u8d26', rank, reward: { spiritStones: sal.spiritStones, contribution: sal.contribution }, contribution: contribAfter, date });
+  } catch (e: any) {
+    console.error('sect salary error:', e?.message || e);
+    res.status(500).json({ error: '\u670d\u52a1\u5668\u7e41\u5fd9' });
   }
 });
 

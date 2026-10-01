@@ -1,0 +1,75 @@
+# =============================================================================
+# 构建上下文裁剪：只放行「运行镜像真正需要的东西」
+#   需要：build/（前端产物）、srv/index_v28.ts + game-dicts.json、CHANGELOG*.md、deploy/、Dockerfile
+#   不需要：装配脚本 / 冻结基座 / 中间态 / 文档 / git / 依赖 / 密钥
+# =============================================================================
+
+# ---- git 与编辑器 ----
+.git
+.gitignore
+.gitattributes
+.idea
+.vscode
+*.swp
+*~
+
+# ---- 依赖与缓存 ----
+node_modules
+**/node_modules
+.pnpm-store
+__pycache__
+*.py[cod]
+
+# ---- 装配脚本与冻结基座（镜像内不重新装配）----
+build_v26n.py
+yl_*.py
+srv_patch_*.py
+localtest/
+scripts/
+_chainstage/
+_v281_base/
+_v284_base/
+_numbal_backup/
+_srvprobe/
+_stage_srvecon/
+deploy.sh
+
+# ---- 中间态 / 备份 ----
+*.bak
+*.bak-*
+*.pre082
+*.pre-v*
+*.bundle.js
+dryrun*.js
+t_*.bundle.js
+tmp*.js
+*.log
+
+# ---- 文档（镜像内只需要 README + 两份更新日志）----
+docs/
+CHANGELOG.md.bak*
+*.md
+!README.md
+!CHANGELOG.md
+!CHANGELOG_PLAYER.md
+
+# ---- 密钥 / 数据库 / 本机配置（绝不入镜像）----
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.sqlite
+*.sqlite3
+*.db
+.jwt_secret
+*secret*.json
+
+# ---- 其它 ----
+*.png
+*.jpg
+*.jpeg
+!build/assets/*.png
+.DS_Store
+Thumbs.db
+desktop.ini

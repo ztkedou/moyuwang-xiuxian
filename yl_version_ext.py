@@ -46,14 +46,14 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 CHANGELOG_LOCAL = os.path.join(HERE, 'CHANGELOG.md')
 
 # 兜底版本（= 当前线上/本地 CHANGELOG 最新版；_test_version.py 会断言两者一致）
-DEFAULT_VERSION = '0.9.0'
+DEFAULT_VERSION = '0.9.2'
 
 # ---------------------------------------------------------------------------
 # 注入 JS 块（纯 ASCII；构建侧统一 zh()）
 # ---------------------------------------------------------------------------
 INJECT_JS = r'''
 /* == YL_VERSION_DYNAMIC_V28 == */
-var YLVERSION_FALLBACK = "0.9.0";
+var YLVERSION_FALLBACK = "0.9.2";
 var YLVERSION_CACHE = null;
 var YLVERSION_LOADED = false;
 function YlxwVersionParse(text) {
@@ -228,7 +228,9 @@ def apply(p, ctx):
         ('version·Get helper 定义',      'function YlxwVersionGet(',                            1, '==', ''),
         ('version·Parse helper 定义',    'function YlxwVersionParse(',                          1, '==', ''),
         ('version·Load helper 定义',     'function YlxwVersionLoad(',                           1, '==', ''),
-        ('version·兜底常量=0.9.0',       'var YLVERSION_FALLBACK = "0.9.0"',                    1, '==', ''),
+        ('version·兜底常量=0.9.2',       'var YLVERSION_FALLBACK = "0.9.2"',                    1, '==', ''),
+        ('version·旧兜底 0.9.1 已清零',  'var YLVERSION_FALLBACK = "0.9.1"',                    0, '==', ''),
+        ('version·旧兜底 0.9.0 已清零',  'var YLVERSION_FALLBACK = "0.9.0"',                    0, '==', ''),
         ('version·旧兜底 0.8.11.13 已清零','var YLVERSION_FALLBACK = "0.8.11.13"',               0, '==', ''),
         ('version·旧兜底 0.8.11.12 已清零','var YLVERSION_FALLBACK = "0.8.11.12"',               0, '==', ''),
         ('version·旧兜底 0.8.11.11 已清零','var YLVERSION_FALLBACK = "0.8.11.11"',               0, '==', ''),

@@ -324,10 +324,13 @@ SRV_CHAIN = [
     'srv_patch_r069.py',
     'srv_patch_r071.py',
     'srv_patch_r073.py',
+    'srv_patch_r078.py',
+    'srv_patch_r077.py',
+    'srv_patch_r081.py',
 ]
 
-# ---- 前端产物路径（0.8.11.8 换名：index-v290-20261001.js，与 build_v26n.py OUT 逐字一致）----
-CLIENT_OUT = os.path.join(ROOT, 'build', 'assets', 'index-v290-20261001.js')
+# ---- 前端产物路径（0.8.11.8 换名：index-v292-20261001.js，与 build_v26n.py OUT 逐字一致）----
+CLIENT_OUT = os.path.join(ROOT, 'build', 'assets', 'index-v292-20261001.js')
 SRV_OUT = os.path.join(ROOT, 'srv', 'index_v28.ts')
 
 

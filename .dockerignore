@@ -22,8 +22,8 @@ __pycache__
 
 # ---- 装配脚本与冻结基座（镜像内不重新装配）----
 build_v26n.py
-yl_*.py
-srv_patch_*.py
+yl_patch.py
+patches/
 localtest/
 scripts/
 _chainstage/

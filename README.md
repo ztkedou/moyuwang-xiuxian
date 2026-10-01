@@ -219,10 +219,12 @@ docker compose up -d --build  # ② 构建镜像并启动
 
 ```
 moyuwang-xiuxian/
-├── build_v26n.py                 # ★ 前端装配器：冻结基座 → 注入 111 个 yl_*_ext 模块 → 最终 bundle
+├── build_v26n.py                 # ★ 前端装配器：冻结基座 → 注入 111 个补丁模块 → 最终 bundle
+├── yl_patch.py                   # 补丁引擎（锚点定位 + 字符串替换）
 ├── yl_patch.py                   # 补丁引擎（锚点定位 + 字符串注入）
-├── yl_*_ext.py                   # 111 个客户端补丁模块（每个对应一批玩法改造）
-├── srv_patch_*.py                # 66 个服务端补丁模块（装配链实际串行 52 环）
+├── patches/
+│   ├── client/yl_*_ext.py      # 111 个客户端补丁模块（每个对应一批玩法改造）
+│   └── server/srv_patch_*.py   # 66 个服务端补丁模块（装配链实际串行 52 环）
 ├── build/
 │   ├── index.html                # 页面外壳（引用最终 bundle）
 │   └── assets/

@@ -431,7 +431,8 @@ def build_srv():
     #   共享文件 `srv/index_v28.ts` 在整个装配过程中**一次都不会被碰到**，
     #   只有全部通过后才由本函数末尾统一落盘。
     for i, mod in enumerate(SRV_CHAIN, start=1):
-        src_py = os.path.join(ROOT, mod)
+        # 服务端补丁模块（srv_patch_*.py）已收进 patches/server/；SRV_CHAIN 仍存裸文件名
+        src_py = os.path.join(ROOT, 'patches', 'server', mod)
         if not os.path.isfile(src_py):
             print('\n[ABORT] 缺少补丁模块 %s' % mod)
             return None

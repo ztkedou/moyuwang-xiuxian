@@ -20,6 +20,8 @@ import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
+# 客户端补丁模块（yl_*_ext.py）已收进 patches/client/，加进搜索路径保持裸名 import 不变
+sys.path.insert(0, os.path.join(HERE, 'patches', 'client'))
 from yl_patch import Patcher, zh  # noqa: E402
 from yl_v26n_ext import (  # noqa: E402
     CORE_JS, REFORGE_JS, SPELL_JS, BATTLE_PATCHES,

@@ -141,28 +141,28 @@ def apply(p, ctx):
 
     gates = [
         # ================= 本模块改动（新形态在位） =================
-        ('R56·三状态变量已就位',     'var bossNo = YlxwNum(d && d.bossNo) || 1', 1, '==', 'bossNo/bossMax/coolLeft 同一行'),
-        ('R56·bossMax 兜底 5',      'bossMax = YlxwNum(d && d.bossMax) || 5', 1, '==', '与服务端 ACT_BOSS_MAX_BOSSES 对齐'),
-        ('R56·coolLeft 变量',       'coolLeft = YlxwNum(d && d.coolLeft)', 1, '==', ''),
-        ('R56·标题第 X/Y 只',       zh('万妖巢穴 · 第 ') + '" + bossNo + "/" + bossMax', 1, '==', ''),
+        ('R56→R113·选择态 state 就位', 'var ss = O.useState(1), sel = ss[0], setSel = ss[1];', 1, '==', 'R-113 接管：五只同现逐只选择器'),
+        ('R56→R113·逐只回执数组',    'var bosses = (d && d.bosses) || [];', 1, '==', 'R-113 接管：服务端新回执 bosses[]'),
+        ('R56→R113·免费上限读回执',  'freeLim = YlxwNum(d && d.freeLimit) || 5', 1, '==', 'R-113 接管：免费 5 次/日/只'),
+        ('R56→R113·五只同现标题',    zh('万妖巢穴 · 五只同现'), 1, '==', 'R-113 接管：不再是「第 X/Y 只」'),
         ('R56·「本只免费剩余」',     zh('本只免费剩余'), 1, '==', '口径每日→每只'),
-        ('R56·行内冷却秒数',        zh('出手冷却 ') + '" + coolLeft + "' + zh(' 秒'), 1, '==', 'coolLeft>0 才显示'),
-        ('R56·按钮冷却闸',          'disabled: busy || killed || freeLeft <= 0 || coolLeft > 0 || !engineOn', 1, '==', ''),
-        ('R56·按钮冷却文案',        zh('冷却 ') + '" + Math.ceil(coolLeft / 60) + "' + zh(' 分'), 1, '==', ''),
-        ('R56·横幅分叉',            '(bossNo < bossMax ? ' + '"' + zh('，下一只妖兽即将现身。'), 1, '==', ''),
-        ('R56·最终只保留结算文案',    zh('，奖励结算中。') + '") })', 1, '==', ''),
+        ('R56→R113·逐只免费冷却显示', '" ' + zh('· 免费冷却 ') + '" + YlxwNum(cur.freeCoolLeft) + "' + zh(' 秒') + '"', 1, '==', 'R-113 接管'),
+        ('R56→R113·免费按钮逐只闸',  'disabled: busy || cur.killed || YlxwNum(cur.freeLeft) <= 0 || YlxwNum(cur.freeCoolLeft) > 0 || !engineOn', 1, '==', 'R-113 接管'),
+        ('R56→R113·收费按钮逐只闸',  'disabled: busy || cur.killed || YlxwNum(cur.paidLeft) <= 0 || YlxwNum(cur.paidCoolLeft) > 0 || !engineOn', 1, '==', 'R-113 接管：收费 10 次/日/只 + 5 分钟冷却'),
+        ('R56·横幅分叉已清零',      '(bossNo < bossMax ? ', 0, '==', 'R-113 五只同现 ⇒ 顺序现身横幅消失'),
+        ('R56·旧结算尾已清零',      zh('，奖励结算中。') + '") })', 0, '==', 'R-113 接管'),
         # ================= 本模块改动（旧形态清零） =================
         ('R56·旧每日口径已清零',     zh('今日免费剩余'), 0, '==', '「今日免费剩余」必须为 0'),
         ('R56·旧按钮 disabled 已清零', 'disabled: busy || killed || freeLeft <= 0 || !engineOn', 0, '==', '已被冷却闸版取代'),
         ('R56·旧按钮 label 已清零',  'children: busy && act.actKey === "boss-strike" ? ' + '"' + zh('出手中…') + '" : ' + '"' + zh('出手（免费）') + '" })', 0, '==', ''),
         ('R56·旧标题已清零',        'children: "\\u4e07\\u5996\\u5de2\\u7a74" })', 0, '==', '已带「第 X/Y 只」'),
         ('R56·旧结算尾已清零',      '+ "\\uff0c\\u5956\\u52b1\\u7ed3\\u7b97\\u4e2d\\u3002" })', 0, '==', '已改条件分叉'),
-        ('R56·冷却三分支计数',       'coolLeft > 0', 3, '==', '行内/按钮 disabled/按钮文案 各 1'),
+        ('R56·旧冷却三分支已清零',   'coolLeft > 0', 0, '==', 'R-113 逐只冷却闸取代（见 r113 门禁）'),
         # ================= 冻结：并行工友与 act087 门禁面一字未动 =================
         ('冻结·boss 组件仍唯一',     'function YlxwTActBoss(p) {', 1, '==', 'act087 注入'),
         ('冻结·boss 页签未动',      '["boss", "\\u4e07\\u5996\\u5de2\\u7a74"]', 1, '==', '页签数组本环不碰'),
-        ('冻结·出手调用未动',       'act.run("boss-strike", "/eventboss/strike", { eventId: ev.id }', 1, '==', 'act087 门禁 T5·⑦'),
-        ('冻结·诛妖符调用未动',     'act.run("boss-talisman", "/eventboss/talisman", { eventId: ev.id }', 1, '==', 'act087 门禁 T5·⑧'),
+        ('冻结·出手调用未动',       '"boss-strike", "/eventboss/strike"', 1, '==', 'R-113 改带 bossNo（act087 门禁 T5·⑦ 的端点面仍在）'),
+        ('冻结·诛妖符调用未动',     '"boss-talisman", "/eventboss/talisman"', 1, '==', 'R-113 改带 bossNo'),
         ('冻结·诛妖符按钮未动',     '"\\u8bdb\\u5996\\u7b26\\u8ffd\\u52a0\\uff081 \\u5c0f\\u65f6\\u65f6\\u85aa/\\u6b21\\uff09"', 1, '==', 'R-055 邻面'),
         ('冻结·status GET 未动',    '"/eventboss/status?eventId="', 1, '==', 'act087 门禁 T5·⑥'),
         ('冻结·engineOn 计数不变',  '!engineOn', 7, '==', 'v28115 基线 5；r054 重写签到段 −1+3、r056 冷却闸原地 +0 ⇒ 终态 7（lead 接线校准 2026-10-01）；act087 门禁 >=4 仍满足'),
@@ -171,6 +171,6 @@ def apply(p, ctx):
         ('冻结·签到页签函数未动',    'function YlxwTActCheckin(', 1, '==', 'R-054 工友面'),
         ('冻结·灵玉阁页签函数未动',  'function YlxwTActShop(', 1, '==', 'R-055 工友面'),
         ('冻结·冲榜页签函数未动',    'function YlxwTActRank(', 1, '==', ''),
-        ('冻结·血量行未动',         '"\\u8840\\u91cf " + YlxwNum(hpCur)', 1, '==', ''),
+        ('冻结·血量行未动',         '" / " + YlxwNum(cur.hpMax)', 1, '==', 'R-113 改为「第 N 只血量 x / y」'),
     ]
     return gates

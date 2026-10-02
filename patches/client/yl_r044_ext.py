@@ -139,7 +139,10 @@ INJECT_ANCHOR = 'function fs(t,r,a=0){'
 SETTLE_OLD = 'await Fg({result:V,'
 SETTLE_NEW = 'V=(Q==="secret_realm"?V:YlxwAdvBoostR44(V)),await Fg({result:V,'
 SETTLE_PRE_OLD = 'setTimeout(oe,1500)),await Fg({result:V,'
-SETTLE_PRE_NEW = 'setTimeout(oe,1500)),V=(Q==="secret_realm"?V:YlxwAdvBoostR44(V)),await Fg({result:V,'
+# ★ 0.9.8 adv097(R-089b) 在本模块 R44 层之后又叠了一层 R97 提升，结算出口最终形态含两层；
+#   本门禁锚点同步为该最终形态（R44 层仍在，语义不变：结算出口已套提升）。
+SETTLE_PRE_NEW = ('setTimeout(oe,1500)),V=(Q==="secret_realm"?V:YlxwAdvBoostR44(V)),'
+                  'V=(Q==="secret_realm"?V:YlxwAdvBoostR97(V)),await Fg({result:V,')
 
 # —— 境界因子（两线统一到同一套 r=k^a）——
 # 模板事件线 Ym 头：const a=fe.indexOf(r.realm),c=[1,1.6,…][a]||1,
@@ -160,7 +163,7 @@ FRZ_R043_HP = 'hpChange:t.hpChange<0?Math.floor(t.hpChange*u*0.25):Math.floor(t.
 FRZ_R043_BQ = 'q=Math.max(0,Math.floor((C-g)*0.25))'
 FRZ_R043_BL = 'L=-q,'
 # R-042 历练频率 / 冷却
-FRZ_R042_CD = '}finally{c(!1),d(3)}'
+FRZ_R042_CD = '}finally{c(!1),d(10)}'
 FRZ_R042_POLL = '},500);return()=>{clearInterval(U)'
 # R-041 历练奇遇几率 + 触发日志（★ 2026-10-01 R-041 已回滚：率回 5%/30%，日志保留）
 FRZ_R041_RATE = ('B=.05,Y=U*.02,L=(t.realmLevel-1)*.01,P=t.luck*.001,'
@@ -242,7 +245,7 @@ def apply(p, ctx):
         ('R44·倍率常量=0.85',        'var YLXW_ADV_STONE_R44 = %s;' % R044_ADV_STONE_MUL, 1, '==', '调参只改 R044_ADV_STONE_MUL'),
         ('R44·倍率非有限/非正恒等',    'if (!isFinite(g0) || g0 <= 0) return r0;',      1, '==', '防 NaN 毁档'),
         ('R44·只放大正值灵石',        'if (!isFinite(s0) || s0 <= 0) return r0;',      1, '==', '负值(战败扣石)不放大'),
-        ('R44·结算出口已套提升',      SETTLE_PRE_NEW,                                  1, '==', '模板事件 + 真实战斗两路都覆盖'),
+        ('R44·结算出口已套提升',      SETTLE_PRE_NEW,                                  1, '==', '模板事件 + 真实战斗两路都覆盖；0.9.8 adv097 再叠 R97 层，锚点同步最终形态'),
         ('R44·分流条件串',            'V=(Q==="secret_realm"?V:YlxwAdvBoostR44(V)),',  1, '==', '弹窗秘境排除，恒等返回'),
         ('R44·旧结算出口形态已清零',   SETTLE_PRE_OLD,                                  0, '==', '已被分流包裹'),
         ('R44·倍率引用恰2处',         'YLXW_ADV_STONE_R44',                            2, '==', '声明 + 函数内 1 用'),
@@ -261,7 +264,7 @@ def apply(p, ctx):
         ('冻结·R43 战斗 hpChange=-q 未动', FRZ_R043_BL,                                1, '==', ''),
 
         # ================= 冻结：R-042 历练频率 / 冷却 =================
-        ('冻结·R42 历练冷却仍 3s',     FRZ_R042_CD,                                    1, '==', 'R-042 面'),
+        ('冻结·R42 历练冷却仍 10s',    FRZ_R042_CD,                                    1, '==', 'R-042 面（R-117 2026-10-02 调 10s，属主侧放宽）'),
         ('冻结·R42 自动轮询仍 500ms',  FRZ_R042_POLL,                                  1, '==', ''),
 
         # ================= 冻结：R-041 历练奇遇几率 / 日志 =================

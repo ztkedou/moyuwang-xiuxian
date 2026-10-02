@@ -23,7 +23,7 @@
 ## 1. 起沙盒（每人一个独立 idx，互不干扰）
 
 ```bash
-cd /c/Users/27026/workbuddy-ai/WorkBuddyAiWorkSpace/yl-deploy
+cd /c/Users/<USER>/workbuddy-ai/WorkBuddyAiWorkSpace/yl-deploy
 bash localtest/sandbox.sh up    <idx>      # 起服 + 前端壳；40s 内就绪
 bash localtest/sandbox.sh seed  <idx>      # 灌测试数据（活动 + 3 个原型账号）
 bash localtest/sandbox.sh down  <idx>      # 收
@@ -66,7 +66,7 @@ bash localtest/sandbox.sh url   <idx>      # 打印入口
 | `ylt_mid` | 40 | 中坚正向 | 金丹期 lv3 | 内门弟子 | 50,000 | 2,000,000 | 6 |
 | `ylt_max` | 41 | 满级上限 | 长生境 lv9 | 宗主 | 5,000,000 | 500,000,000 | 6 |
 
-- 派生自真实存档 `ztkedou`(userId=13)。
+- 派生自仓库作者的真实存档(userId=13)。
 - 三个账号的 `player.sectId = 'sect-localtest'`（**字符串**），`currentSectInfo.name='摸鱼宗'`。
 - `seed` 会同时建 `sects` 表里 **数字 id=1** 的「摸鱼宗」+ 清 `sect_members`，并灌一个**限时活动**
   `stones2_live`「天降灵雨」`multiplier=2`，窗口 `[now-1h, now+30d]`。
@@ -112,7 +112,7 @@ call(base, "/save", token, method="POST", body={"saveData": save_obj})
 ## 4. Playwright 用法（唯一可用的 python）
 
 ```
-C:/Users/27026/.workbuddy-ai/binaries/python/envs/default/Scripts/python.exe
+C:/Users/<USER>/.workbuddy-ai/binaries/python/envs/default/Scripts/python.exe
 ```
 `playwright` 已装（含 chromium）。示例：
 

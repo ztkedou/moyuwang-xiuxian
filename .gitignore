@@ -86,3 +86,4 @@ tmp*.js
 deploy_*/
 *DEPLOY_LOG*
 EXPECT_*.env
+*.sqlite*

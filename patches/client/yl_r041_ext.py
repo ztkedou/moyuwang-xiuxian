@@ -94,7 +94,7 @@ LUCKY_NEW = 'const Z=Math.random()<V;' + LUCKY_LOG + 'await I(Z?"lucky":"normal"
 FRZ_MED_STONE = '__ylsq=YlxwMedStone2(q,$.realmLevel,C),'                       # R-024 打坐灵石公式
 FRZ_MED_CD = 'handleMeditate(),As.current.updateQuestProgress("meditate",1),M(2)'  # R-022 打坐间隔 2s
 FRZ_MED_EXP = 'S=Math.floor(v*(.85+Math.random()*.3))'                           # R-022 打坐每跳修为
-FRZ_ADV_CD = '}finally{c(!1),d(3)}};'                                           # 历练冷却（cooldown 模块产物）
+FRZ_ADV_CD = '}finally{c(!1),d(10)}};'                                          # 历练冷却（R-042 产物；R-117 2026-10-02 调 10s）
 FRZ_OFFLINE = '"/offline/claim"'                                                # 挂机收益
 FRZ_INSIGHT_TEXT = '✨ 你突然顿悟，灵台清明'                                      # 顿悟文案（不改）
 FRZ_INSIGHT_LOG = ',c(x,"special")}else'                                        # 顿悟日志双写（toast083 T1②）
@@ -122,7 +122,7 @@ def apply(p, ctx):
 
     gates = [
         # ================= 本模块改动（回滚后形态）=================
-        ('R41·顿悟率已回滚 0.2%',      'Math.random()<.002',                1, '==', '1.5%→0.2%'),
+        ('R41·顿悟率 0.4%(adv097 后)', 'Math.random()<.004',                1, '==', 'r041 回滚 1.5%→0.2%，0.9.8 adv097(R-090) 有意再上调至 0.4%'),
         ('R41·顿悟率 1.5% 已清零',     'Math.random()<.015',                0, '==', ''),
         ('R41·奇遇率已回滚 5%',        'B=.05,Y=U*.02',                     1, '==', '基础 15%→5%'),
         ('R41·奇遇上限已回滚 30%',     'Math.min(.3,B+Y+L+P)',              1, '==', '50%→30%'),
@@ -136,17 +136,21 @@ def apply(p, ctx):
         ('冻结·打坐灵石公式未动',      FRZ_MED_STONE,                       1, '==', 'R-024 锚点'),
         ('冻结·打坐间隔仍 2s',         FRZ_MED_CD,                          1, '==', 'R-022'),
         ('冻结·打坐每跳修为未动',      FRZ_MED_EXP,                         1, '==', 'R-022'),
-        ('冻结·历练冷却未动',          FRZ_ADV_CD,                          1, '==', 'cooldown 模块产物 d(3)'),
+        ('冻结·历练冷却未动',          FRZ_ADV_CD,                          1, '==', 'r042 产物，R-117 2026-10-02 调 10s（属主侧放宽）'),
         ('冻结·挂机收益未动',          FRZ_OFFLINE,                         1, '==', ''),
     ]
     return gates
 
 
-# --------------------------------------------------------------------------- 受影响门禁（本模块回滚后已逐条同步）
-#   · yl_econ2_ext.py    第 249 行  ('R22·顿悟改 0.2%', 'Math.random()<.002', 0→**1**)
-#   · yl_r024_ext.py     第 133 行  ('冻结·顿悟仍 0.2%', 'Math.random()<.002', 0→**1**)
-#   · yl_cooldown_ext.py 第 180 行  ('冻结·顿悟 0.2% 未动', 'Math.random()<.002', 0→**1**)
-#   · yl_068_ext.py      第 115 行  FRZ_R41_LUCKY  'B=.15,Y=U*.02' → 'B=.05,Y=U*.02'
+# --------------------------------------------------------------------------- 受影响门禁（0.9.8 二次同步：顿悟率最终由 adv097 上调至 0.4%）
+#   R-041 把顿悟率回滚到 0.2%（.002）；0.9.8 adv097(R-090) **有意**再上调至 0.4%（.004）。
+#   下列门禁原断言 .002==1，现同步为 .004==1（语义不变：本模块/相邻模块未动顿悟率）：
+#   · yl_econ2_ext.py    第 249 行  ('R22·顿悟改 0.4%', 'Math.random()<.004', 1)
+#   · yl_r024_ext.py     第 133 行  ('冻结·顿悟仍 0.4%', 'Math.random()<.004', 1)
+#   · yl_cooldown_ext.py 第 180 行  ('冻结·顿悟 0.4% 未动', 'Math.random()<.004', 1)
+#   · yl_068_ext.py      第 116/173 行 FRZ_R41_INSIGHT 'Math.random()<.004'
+#   · 本模块第 125 行     ('R41·顿悟率 0.4%(adv097 后)', 'Math.random()<.004', 1)
+#   （yl_068_ext.py 第 115/172 行 FRZ_R41_LUCKY 'B=.15,Y=U*.02' → 'B=.05,Y=U*.02' 不变）
 #   · yl_068_ext.py      第 116 行  FRZ_R41_INSIGHT 'Math.random()<.015' → 'Math.random()<.002'
 #   · yl_r044_ext.py     第 111-112 行 FRZ_R041_RATE 'B=.15…Math.min(.5,…)' → 'B=.05…Math.min(.3,…)'
 #   （yl_r044_ext.py 的 FRZ_R041_LOG 不变——触发日志保留）

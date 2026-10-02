@@ -36,7 +36,7 @@ Node 服务 (systemd: yl-server)
 ```bash
 # 前端：冻结基座 → 注入补丁 → 最终 bundle
 python build_v26n.py
-#   产出 build/assets/index-v28111-20260930.js
+#   产出 build/assets/index-v2913-20261002.js
 
 # 服务端：冻结基座 → 串行应用 32 环补丁 → srv/index_v28.ts
 python localtest/chain_build.py --srv

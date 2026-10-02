@@ -1,8 +1,8 @@
 # 敏感串扫描报告 · SECRETS-SCAN
 
 > 目的：证明即将发布到公开 GitHub 的仓库中**不含任何密钥、凭据、隐私或服务器信息**。
-> 扫描对象：staging 目录 `D:\AIWorkspaces\github-moyuwang-xiuxian\`（**173 个文件 / 约 14 MB**）
-> 扫描时间：2026-09-30（0.8.11.1 同步后复扫） ｜ 扫描方式：`grep -rE` / `git grep` 逐文件全量匹配
+> 扫描对象：staging 目录 `D:\AIWorkspaces\github-moyuwang-xiuxian\`（**306 个文件 / 约 14.3 MB**）
+> 扫描时间：2026-10-02（0.9.13 同步后复扫；历史 0.8.11.1 记录见下文） ｜ 扫描方式：`grep -rE` / `git grep` 逐文件全量匹配
 >
 > **独立复扫（2026-09-30）**：以 `git grep` 对**全部文件（含本次新增的 59 个客户端补丁 / 44 个服务端补丁 / 产物 / 设计文档）**重跑 4 组正则
 > （`sk-` / `ghp_` / `github_pat_` / `AKIA` / `-----BEGIN` / `PRIVATE KEY` / 服务器 IP /
@@ -147,6 +147,23 @@ if (!GM_PASSWORD) {
 ### 说明项 B：`/opt/yl` 部署路径
 部分设计文档中出现 `/opt/yl/...`。这是通用的 Linux 部署目录约定，**不含任何凭据或主机信息**，
 属正常上下文，**保留不脱敏**。
+
+---
+
+---
+
+## 六·补·4、0.9.13 同步后的复扫记录（2026-10-02）
+
+同步阶段做了以下改动，并**对全部 306 个文件重新完整扫描一次**：
+
+| 动作 | 内容 |
+|---|---|
+| 同步至 0.9.13 | 新增 24 个 `yl_*_ext.py`（0.9.3~0.9.11 批：adv097 / advend105 / attr097 / bt096 / chardex101 / dao097 / life094 / life097 / linggen097 / r083 / r106 / r107 / r108 / r109 / r111 / r112 / r113 / r114 / r115 / r124 / shop102 / shoprefresh101 / speedname097 / talent097）+ 12 个 `srv_patch_*.py`（101 / 110 / 111 / 113 / 115 / r116 / r122 / r123 / r124 / r127 / r128 / r129）+ 11 个 standalone 客户端补丁 `localtest/yl_r1*_ext.py`（r116/r118/r119/r120/r121/r123/r124/r125/r126/r128/r131）+ `docs/0.9.13-design/` 2 份；更新 17 个既有客户端补丁 / `build_v26n.py` / `localtest/chain_build.py` / `localtest/dryrun_087.py` / `srv/index_v28.ts` / `CHANGELOG.md` / `CHANGELOG_PLAYER.md` / `build/index.html` / `docs/0.8.8-design/接力与坑清单.md` |
+| 产物换版 | 新增 `build/assets/index-v2913-20261002.js`（0.9.13 定版，md5 `b4586dba…`），删除旧产出 `index-v292-20261001.js`（仅保留冻结基座 v26m + 当前产出 v2913） |
+| **本轮新修脱敏回流（重要）** | ① `build_v26n.py` 的 node 探测兜底串带**真实本机用户名**绝对路径 → 还原为 `<WORKDIR>`；② `localtest/README_SANDBOX.md` 两处真实本机路径（`/c/Users/<数字>/...` 与 python 路径）→ `<USER>`；③ `localtest/chain_build.py` 的 `NODE` 常量 —— **0.9.2 同步时已回流成真值且随 41a73ca 入库**（此前 0.8.10 曾打码），本轮重新打码为 `<WORKDIR>`；④ `docs/0.8.8-design/接力与坑清单.md` 反面教材引用的三个真实 IP + 本机用户名 → 还原为 `47.243.x.x` / `161.33.*` / `47.109.*` / `C:/Users/<USER>`，并把括注中的真实用户名字面量一并打码 |
+
+**复扫结果：真实密钥 / 私钥 / 真实 IP / 手机号 / 本机用户名路径 = 0 命中。**
+剩余 17 处正则命中全部为**扫描自指文档字面量**（本报告自身的模式清单、`GITHUB-PUBLISH-INSTRUCTIONS.md` / `NEXT-CONVERSATION-STEPS.md` 的扫描命令原文、`README_SANDBOX.md 的 PortableGit 通用占位示例），与 0.8.9~0.8.11.1 各轮的既定豁免口径一致。
 
 ---
 

@@ -77,6 +77,16 @@ _A_EFF_M_NEW = '!!m.effect.attack&&e.jsxs("div",{children:["攻击 +",m.effect.a
 _A_EFF_L_OLD = 'L.effect.attack&&e.jsxs("div",{children:["攻击 +",lt(L.effect.attack)]}),L.effect.defense&&e.jsxs("div",{children:["防御 +",lt(L.effect.defense)]}),L.effect.hp&&e.jsxs("div",{children:["气血 +",lt(L.effect.hp)]}),L.effect.spirit&&e.jsxs("div",{children:["神识 +",lt(L.effect.spirit)]}),L.effect.physique&&e.jsxs("div",{children:["体魄 +",lt(L.effect.physique)]}),L.effect.speed&&e.jsxs("div",{children:["速度 +",lt(L.effect.speed)]})]})'  # 交易行 效果块（1 处）
 _A_EFF_L_NEW = '!!L.effect.attack&&e.jsxs("div",{children:["攻击 +",lt(L.effect.attack)]}),!!L.effect.defense&&e.jsxs("div",{children:["防御 +",lt(L.effect.defense)]}),!!L.effect.hp&&e.jsxs("div",{children:["气血 +",lt(L.effect.hp)]}),!!L.effect.spirit&&e.jsxs("div",{children:["神识 +",lt(L.effect.spirit)]}),!!L.effect.physique&&e.jsxs("div",{children:["体魄 +",lt(L.effect.physique)]}),!!L.effect.speed&&e.jsxs("div",{children:["速度 +",lt(L.effect.speed)]})]})'  
 
+# ★ 0.9.7 speedname097 把玩家可见「速度」统一改名「身法」。下列 4 个「新块已就位」门禁的
+#   锚点落在改名覆盖范围内（宠物 buff 的 `["速度+",` 与物品/装备效果块的 `["速度 +",`），
+#   故门禁锚点用**改名后的最终形态**。注意：替换用的 _A_*_NEW 常量必须保持原样（含「速度」），
+#   否则会在 merge01（早于 speedname097）就把「速度」改掉，反使 speedname097 的
+#   sn-plusarr / sn-plus 锚点落空。此改名是 0.9.7 的既定行为，与本模块的 $ / !! 修复无冲突。
+_A_BUF_NEW_G  = _A_BUF_NEW.replace('速度', '身法')
+_A_EFF_W_NEW_G = _A_EFF_W_NEW.replace('速度', '身法')
+_A_EFF_M_NEW_G = _A_EFF_M_NEW.replace('速度', '身法')
+_A_EFF_L_NEW_G = _A_EFF_L_NEW.replace('速度', '身法')
+
 # --------------------------------------------------------------------------- M-2 锚点
 _A_PS_OLD = 'let Pl=null;async function pS(){if(Pl)return Pl;const r=Et.getState().refreshToken;return Pl=(async()=>{try{if(!r)throw Et.getState().logout(),Je(Hr),new Error(Hr);const a=await fetch(`${ln}/auth/refresh`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({refreshToken:r})}),l=await a.json().catch(()=>({}));if(!a.ok){if(Et.getState().refreshToken!==r)return"";throw Et.getState().logout(),Je(l.error||Hr),new Error(Hr)}return Et.getState().setTokens(l.token,l.refreshToken),l.token}finally{Pl=null}})(),Pl}'  # 旧 pS（Pl 永不清除）
 _A_PS_NEW = 'let Pl=null;async function pS(){if(Pl)return Pl;const r=Et.getState().refreshToken;const pending=Promise.resolve().then(async()=>{if(!r)throw Et.getState().logout(),Je(Hr),new Error(Hr);const a=await fetch(`${ln}/auth/refresh`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({refreshToken:r})}),l=await a.json().catch(()=>({}));if(!a.ok){if(Et.getState().refreshToken!==r)return"";throw Et.getState().logout(),Je(l.error||Hr),new Error(Hr)}return Et.getState().setTokens(l.token,l.refreshToken),l.token});const tracked=pending.finally(()=>{if(Pl===tracked)Pl=null});Pl=tracked;return tracked}'  # 新 pS（microtask 启动 + tracked 收敛）
@@ -107,7 +117,7 @@ def apply(p, ctx):
     gates = [
         # ---- M-1 (a) $ 字面量 ----
         ('M1a·旧宠物buff块（含$）已清除', _A_BUF_OLD,                        0, '==', ''),
-        ('M1a·新宠物buff块已就位',        _A_BUF_NEW,                        1, '==', ''),
+        ('M1a·新宠物buff块已就位',        _A_BUF_NEW_G,                      1, '==', '含「身法+」（speedname097 改名后形态；$ 已去、!! 已加）'),
         ('M1a·字面量$ 全站清零',          '+$"',                             0, '==', '基线=8（6 种标签）'),
         ('M1a·攻击+ 无$',                 'children:["攻击+",P.effect.buff.attack]', 1, '==', ''),
         ('M1a·气血+ 无$',                 'children:["气血+",P.effect.buff.hp]',    1, '==', ''),
@@ -116,14 +126,14 @@ def apply(p, ctx):
         # ---- M-1 (b) 孤立 0 守卫（!! 前缀）----
         ('M1b·buff 守卫已加!!',           '!!P.effect.buff.attack&&e.jsxs', 1, '==', ''),
         ('M1b·旧 w 效果块已清除',         _A_EFF_W_OLD,                      0, '==', ''),
-        ('M1b·新 w 效果块已就位',         _A_EFF_W_NEW,                      2, '==', ''),
+        ('M1b·新 w 效果块已就位',         _A_EFF_W_NEW_G,                    2, '==', '含「身法 +」（speedname097 改名后形态）'),
         ('M1b·w.effect 守卫已加!!',       '!!w.effect.attack&&e.jsxs',       2, '==', ''),
         ('M1b·w.effect.exp 守卫已加!!',   '!!w.effect.exp&&e.jsxs',          2, '==', ''),
         ('M1b·旧 m 效果块已清除',         _A_EFF_M_OLD,                      0, '==', ''),
-        ('M1b·新 m 效果块已就位',         _A_EFF_M_NEW,                      1, '==', ''),
+        ('M1b·新 m 效果块已就位',         _A_EFF_M_NEW_G,                    1, '==', '含「身法 +」（speedname097 改名后形态）'),
         ('M1b·m.effect 守卫已加!!',       '!!m.effect.attack&&e.jsxs',       1, '==', ''),
         ('M1b·旧 L 效果块已清除',         _A_EFF_L_OLD,                      0, '==', ''),
-        ('M1b·新 L 效果块已就位',         _A_EFF_L_NEW,                      1, '==', ''),
+        ('M1b·新 L 效果块已就位',         _A_EFF_L_NEW_G,                    1, '==', '含「身法 +」（speedname097 改名后形态）'),
         ('M1b·L.effect 守卫已加!!',       '!!L.effect.attack&&e.jsxs',       1, '==', ''),
 
         # ---- M-2 ----

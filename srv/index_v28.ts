@@ -674,7 +674,7 @@ if (!rows.some((r) => r.name === 'drawn_at')) safeAddColumn('adventures', 'drawn
     )
   `);
   db.run(`CREATE INDEX IF NOT EXISTS idx_farm_care_player_date ON farm_daily_care(player_id, date)`);
-  // WUDAO（R-GAME3）：悟道六系——每玩家每系至多一行（PK 幂等）；exp=该系累计修为（只增不减，
+  // WUDAO（R-GAME3）：悟道十系——每玩家每系至多一行（PK 幂等）；exp=该系累计修为（只增不减，
   // 等级由 exp 阈值纯函数推导，level 列为同语句 upsert 维护的冗余缓存，展示一律以 exp 推导值为准）；
   // 心得入账=单语句 ON CONFLICT 原子 upsert（挂机 tick 与手动顿悟并发安全，无读改写竞态）
   db.run(`
@@ -1128,6 +1128,17 @@ if (!rows.some((r) => r.name === 'drawn_at')) safeAddColumn('adventures', 'drawn
       if (!rows.some((r: any) => r.name === 'last_strike_at')) safeAddColumn('event_boss_hits', 'last_strike_at', 'ALTER TABLE event_boss_hits ADD COLUMN last_strike_at INTEGER NOT NULL DEFAULT 0');
     }
   });
+  // [r113boss] R-113 万妖巢穴五只同现：新建 event_boss5（每期 5 行并存，复合主键）。
+  //   建表幂等；不改 event_boss / event_boss_hits（前者降级为聚合/结算行，后者仍为跨只累计榜）。
+  db.run(`CREATE TABLE IF NOT EXISTS event_boss5 (
+    event_id INTEGER NOT NULL,
+    boss_no INTEGER NOT NULL,
+    hp_max INTEGER NOT NULL,
+    hp_cur INTEGER NOT NULL,
+    killed INTEGER NOT NULL DEFAULT 0,
+    killer_id INTEGER,
+    PRIMARY KEY (event_id, boss_no)
+  )`);
 db.run(`CREATE INDEX IF NOT EXISTS idx_stats_daily_date ON stats_daily(date)`);
   // [act087] 活动限定称号 seed（灵玉阁 1000 玉兑换物；grantTitleBySource 按 source 定位，OR IGNORE 重启幂等）
   db.run(`INSERT OR IGNORE INTO titles (name, attr_json, source) VALUES ('灵玉仙客', '{"expRate":0.01}', 'act087_jade')`);
@@ -5177,54 +5188,84 @@ function alchemyMatureAt(startMs: number, minutes: number): number {
 function alchemyIsReady(matureAt: number, nowMs: number): boolean { return nowMs >= matureAt; }
 function alchemyYieldStones(cost: number): number { return Math.floor(cost * ALCHEMY_YIELD_RATE); }
 
-// ── Y19 成就系统：五类各 4 项共 20 项，达成状态从 stats_daily/daily_quests/saves 惰性推导（零新增埋点）；
-// 领取记录 achievement_claimed 主键幂等防重复领奖；奖励=灵石阶梯 200/500/1000/2000（本次定档，常量集中可调）──
+// ── Y19 成就系统：五类各 10 项共 50 项，达成状态从 stats_daily/daily_quests/saves 惰性推导（零新增埋点）；[r122] 4→10 档
+// 领取记录 achievement_claimed 主键幂等防重复领奖；奖励=灵石阶梯 500/1200/2500/4500/7000/10000/15000/22000/32000/50000（R-122 定档，单类 Σ144,700 / 全清 723,500；下方 ACH_REWARD_TIERS 为历史死常量、零消费点，未动）──
 const ACH_REWARD_TIERS = [200, 500, 1000, 2000]; // 每类四档奖励阶梯（灵石）
 // 境界序（ycore 内自持镜像，与 REALM_ORDER_FOR_RANKING 同源同序，勿外引）
 const ACH_REALM_ORDER: string[] = Object.keys(TRIB_REALM_BASES);
-type AchMetric = 'minutes' | 'kills' | 'silver' | 'quests' | 'realmIndex';
+type AchMetric = 'minutes' | 'kills' | 'silver' | 'quests' | 'realmIndex' | 'totalLevel'; // [r122] +totalLevel（境界组 10 档度量）
 const ACH_GROUPS: Array<{ key: string; name: string; metric: AchMetric }> = [
   { key: 'cultivate', name: '修行', metric: 'minutes' },
   { key: 'battle', name: '战斗', metric: 'kills' },
   { key: 'wealth', name: '财富', metric: 'silver' },
   { key: 'quest', name: '任务', metric: 'quests' },
-  { key: 'realm', name: '境界', metric: 'realmIndex' },
+  { key: 'realm', name: '境界', metric: 'totalLevel' }, // [r122] realmIndex(0..6) 只有 7 档容量 → 总等级=境界序×9+层（rankings 口径）
 ];
-interface AchTotals { minutes: number; kills: number; silver: number; quests: number; realmIndex: number; }
+interface AchTotals { minutes: number; kills: number; silver: number; quests: number; realmIndex: number; totalLevel: number; } // [r122] +totalLevel
 interface AchDef { id: string; group: string; name: string; desc: string; target: number; reward: number; }
 const ACH_DEFS: AchDef[] = [
-  // 修行：累计 stats_daily.minutes（在线分钟=打坐时长的服务端可见代理）
+  // 修行：累计 stats_daily.minutes（在线分钟=打坐时长的服务端可见代理）[r122] 4→10 档
   { id: 'cultivate_60', group: 'cultivate', name: '初窥门径', desc: '累计在线 60 分钟', target: 60, reward: 500 },
-  { id: 'cultivate_300', group: 'cultivate', name: '潜心修行', desc: '累计在线 300 分钟', target: 300, reward: 1500 },
-  { id: 'cultivate_1200', group: 'cultivate', name: '闭关苦修', desc: '累计在线 20 小时', target: 1200, reward: 4000 },
-  { id: 'cultivate_6000', group: 'cultivate', name: '枯禅入定', desc: '累计在线 100 小时', target: 6000, reward: 10000 },
-  // 战斗：累计 stats_daily.kills（战斗胜利场次）
+  { id: 'cultivate_300', group: 'cultivate', name: '潜心修行', desc: '累计在线 300 分钟', target: 300, reward: 1200 },
+  { id: 'cultivate_1200', group: 'cultivate', name: '闭关苦修', desc: '累计在线 20 小时', target: 1200, reward: 2500 },
+  { id: 'cultivate_3000', group: 'cultivate', name: '水磨功夫', desc: '累计在线 50 小时', target: 3000, reward: 4500 },
+  { id: 'cultivate_7000', group: 'cultivate', name: '枯禅入定', desc: '累计在线 7000 分钟', target: 7000, reward: 7000 },
+  { id: 'cultivate_15000', group: 'cultivate', name: '心斋坐忘', desc: '累计在线 250 小时', target: 15000, reward: 10000 },
+  { id: 'cultivate_30000', group: 'cultivate', name: '禅定不移', desc: '累计在线 500 小时', target: 30000, reward: 15000 },
+  { id: 'cultivate_60000', group: 'cultivate', name: '老僧入定', desc: '累计在线 1000 小时', target: 60000, reward: 22000 },
+  { id: 'cultivate_100000', group: 'cultivate', name: '静水深流', desc: '累计在线 10 万分钟', target: 100000, reward: 32000 },
+  { id: 'cultivate_150000', group: 'cultivate', name: '与道合真', desc: '累计在线 2500 小时', target: 150000, reward: 50000 },
+  // 战斗：累计 stats_daily.kills（战斗胜利场次）[r122] 4→10 档
   { id: 'battle_10', group: 'battle', name: '初试锋芒', desc: '累计战斗胜利 10 场', target: 10, reward: 500 },
-  { id: 'battle_50', group: 'battle', name: '身经百战', desc: '累计战斗胜利 50 场', target: 50, reward: 1500 },
-  { id: 'battle_200', group: 'battle', name: '杀伐果断', desc: '累计战斗胜利 200 场', target: 200, reward: 4000 },
-  { id: 'battle_1000', group: 'battle', name: '战无不胜', desc: '累计战斗胜利 1000 场', target: 1000, reward: 10000 },
-  // 财富：累计 stats_daily.silver_gain（灵石净获取，含邮件/宝箱/GM 入账）
+  { id: 'battle_50', group: 'battle', name: '身经百战', desc: '累计战斗胜利 50 场', target: 50, reward: 1200 },
+  { id: 'battle_200', group: 'battle', name: '杀伐果断', desc: '累计战斗胜利 200 场', target: 200, reward: 2500 },
+  { id: 'battle_500', group: 'battle', name: '百战成钢', desc: '累计战斗胜利 500 场', target: 500, reward: 4500 },
+  { id: 'battle_1200', group: 'battle', name: '千锤百炼', desc: '累计战斗胜利 1200 场', target: 1200, reward: 7000 },
+  { id: 'battle_2500', group: 'battle', name: '战无不胜', desc: '累计战斗胜利 2500 场', target: 2500, reward: 10000 },
+  { id: 'battle_5000', group: 'battle', name: '攻无不克', desc: '累计战斗胜利 5000 场', target: 5000, reward: 15000 },
+  { id: 'battle_10000', group: 'battle', name: '一骑当千', desc: '累计战斗胜利 1 万场', target: 10000, reward: 22000 },
+  { id: 'battle_18000', group: 'battle', name: '万夫莫开', desc: '累计战斗胜利 1.8 万场', target: 18000, reward: 32000 },
+  { id: 'battle_30000', group: 'battle', name: '天下无敌', desc: '累计战斗胜利 3 万场', target: 30000, reward: 50000 },
+  // 财富：累计 stats_daily.silver_gain（灵石净获取，含邮件/宝箱/GM 入账）[r122] 4→10 档
   { id: 'wealth_1e4', group: 'wealth', name: '小有积蓄', desc: '累计获取灵石 1 万', target: 10000, reward: 500 },
-  { id: 'wealth_1e5', group: 'wealth', name: '家财万贯', desc: '累计获取灵石 10 万', target: 100000, reward: 1500 },
-  { id: 'wealth_1e6', group: 'wealth', name: '富可敌国', desc: '累计获取灵石 100 万', target: 1000000, reward: 4000 },
-  { id: 'wealth_1e7', group: 'wealth', name: '仙门首富', desc: '累计获取灵石 1000 万', target: 10000000, reward: 10000 },
-  // 任务：累计 daily_quests 完成（done=1 的任务行，不含宝箱领取占位行）
+  { id: 'wealth_1e5', group: 'wealth', name: '家财万贯', desc: '累计获取灵石 10 万', target: 100000, reward: 1200 },
+  { id: 'wealth_1e6', group: 'wealth', name: '富可敌国', desc: '累计获取灵石 100 万', target: 1000000, reward: 2500 },
+  { id: 'wealth_3e6', group: 'wealth', name: '日进斗金', desc: '累计获取灵石 300 万', target: 3000000, reward: 4500 },
+  { id: 'wealth_8e6', group: 'wealth', name: '堆金积玉', desc: '累计获取灵石 800 万', target: 8000000, reward: 7000 },
+  { id: 'wealth_2e7', group: 'wealth', name: '仙门首富', desc: '累计获取灵石 2000 万', target: 20000000, reward: 10000 },
+  { id: 'wealth_5e7', group: 'wealth', name: '富甲天下', desc: '累计获取灵石 5000 万', target: 50000000, reward: 15000 },
+  { id: 'wealth_12e7', group: 'wealth', name: '金玉满堂', desc: '累计获取灵石 1.2 亿', target: 120000000, reward: 22000 },
+  { id: 'wealth_25e7', group: 'wealth', name: '灵石成海', desc: '累计获取灵石 2.5 亿', target: 250000000, reward: 32000 },
+  { id: 'wealth_5e8', group: 'wealth', name: '仙界财神', desc: '累计获取灵石 5 亿', target: 500000000, reward: 50000 },
+  // 任务：累计 daily_quests 完成（done=1 的任务行，不含宝箱领取占位行）[r122] 4→10 档
   { id: 'quest_1', group: 'quest', name: '小试牛刀', desc: '累计完成每日任务 1 个', target: 1, reward: 500 },
-  { id: 'quest_10', group: 'quest', name: '勤修不辍', desc: '累计完成每日任务 10 个', target: 10, reward: 1500 },
-  { id: 'quest_50', group: 'quest', name: '任务达人', desc: '累计完成每日任务 50 个', target: 50, reward: 4000 },
-  { id: 'quest_200', group: 'quest', name: '仙途楷模', desc: '累计完成每日任务 200 个', target: 200, reward: 10000 },
-  // 境界：saves 存档 realm 达标（target=境界序；任务书"大乘"不存在于本游戏境界表 → 以最高境"长生境"压轴）
-  { id: 'realm_jindan', group: 'realm', name: '金丹初成', desc: '境界达到金丹期', target: ACH_REALM_ORDER.indexOf('金丹期'), reward: 500 },
-  { id: 'realm_yuanying', group: 'realm', name: '元婴出窍', desc: '境界达到元婴期', target: ACH_REALM_ORDER.indexOf('元婴期'), reward: 1500 },
-  { id: 'realm_huashen', group: 'realm', name: '化神通玄', desc: '境界达到化神期', target: ACH_REALM_ORDER.indexOf('化神期'), reward: 4000 },
-  { id: 'realm_changsheng', group: 'realm', name: '长生久视', desc: '境界达到长生境', target: ACH_REALM_ORDER.indexOf('长生境'), reward: 10000 },
-];
+  { id: 'quest_10', group: 'quest', name: '勤修不辍', desc: '累计完成每日任务 10 个', target: 10, reward: 1200 },
+  { id: 'quest_50', group: 'quest', name: '任务达人', desc: '累计完成每日任务 50 个', target: 50, reward: 2500 },
+  { id: 'quest_150', group: 'quest', name: '日积月累', desc: '累计完成每日任务 150 个', target: 150, reward: 4500 },
+  { id: 'quest_350', group: 'quest', name: '恒心毅力', desc: '累计完成每日任务 350 个', target: 350, reward: 7000 },
+  { id: 'quest_700', group: 'quest', name: '仙途楷模', desc: '累计完成每日任务 700 个', target: 700, reward: 10000 },
+  { id: 'quest_1200', group: 'quest', name: '卷中豪杰', desc: '累计完成每日任务 1200 个', target: 1200, reward: 15000 },
+  { id: 'quest_2000', group: 'quest', name: '勤能补拙', desc: '累计完成每日任务 2000 个', target: 2000, reward: 22000 },
+  { id: 'quest_3000', group: 'quest', name: '初心如磐', desc: '累计完成每日任务 3000 个', target: 3000, reward: 32000 },
+  { id: 'quest_5000', group: 'quest', name: '仙途无悔', desc: '累计完成每日任务 5000 个', target: 5000, reward: 50000 },
+  // 境界：saves 存档总等级达标（总等级=境界序×9+层数，rankings 口径；[r122] realmIndex→totalLevel，7 档容量→10 档）
+  { id: 'realm_3', group: 'realm', name: '初入仙途', desc: '总等级达到 3（炼气三层）', target: 3, reward: 500 },
+  { id: 'realm_10', group: 'realm', name: '筑基功成', desc: '总等级达到 10（筑基期一层）', target: 10, reward: 1200 },
+  { id: 'realm_19', group: 'realm', name: '金丹初成', desc: '总等级达到 19（金丹期一层）', target: 19, reward: 2500 },
+  { id: 'realm_28', group: 'realm', name: '元婴出窍', desc: '总等级达到 28（元婴期一层）', target: 28, reward: 4500 },
+  { id: 'realm_37', group: 'realm', name: '化神通玄', desc: '总等级达到 37（化神期一层）', target: 37, reward: 7000 },
+  { id: 'realm_46', group: 'realm', name: '合道之始', desc: '总等级达到 46（合道期一层）', target: 46, reward: 10000 },
+  { id: 'realm_52', group: 'realm', name: '合道七重', desc: '总等级达到 52（合道期七层）', target: 52, reward: 15000 },
+  { id: 'realm_56', group: 'realm', name: '长生之初', desc: '总等级达到 56（长生境二层）', target: 56, reward: 22000 },
+  { id: 'realm_60', group: 'realm', name: '长生六重', desc: '总等级达到 60（长生境六层）', target: 60, reward: 32000 },
+  { id: 'realm_63', group: 'realm', name: '长生久视', desc: '总等级达到 63（长生境九层·圆满）', target: 63, reward: 50000 },
+]; // [r122ach10] R-122 五类各 4→10 档（0.9.13 数值表 §6）；单类 Σ144,700 / 全清 723,500；旧第 4 档退役（线上库已清空，无迁移负担）
 // 全量钳制（纯）：负值/NaN/undefined/±Infinity → 0，小数 floor（DB 空表 SUM=NULL 亦归 0，边界 0 值安全）
-function achTotalsFrom(t: { minutes?: unknown; kills?: unknown; silver?: unknown; quests?: unknown; realmIndex?: unknown }): AchTotals {
+function achTotalsFrom(t: { minutes?: unknown; kills?: unknown; silver?: unknown; quests?: unknown; realmIndex?: unknown; totalLevel?: unknown }): AchTotals {
   const n = (v: unknown) => { const x = Number(v); return Number.isFinite(x) ? Math.max(0, Math.floor(x)) : 0; };
-  return { minutes: n(t.minutes), kills: n(t.kills), silver: n(t.silver), quests: n(t.quests), realmIndex: n(t.realmIndex) };
+  return { minutes: n(t.minutes), kills: n(t.kills), silver: n(t.silver), quests: n(t.quests), realmIndex: n(t.realmIndex), totalLevel: n(t.totalLevel) }; // [r122] +totalLevel
 }
-// 视图组装（纯）：20 项全量 + 分组计数 + 可领取清单（done && !claimed）
+// 视图组装（纯）：50 项全量 + 分组计数 + 可领取清单（done && !claimed）
 function buildAchievementsView(
   totals: AchTotals,
   claimed: string[]
@@ -5274,8 +5315,8 @@ interface AdventureTierDef {
 const ADVENTURE_TIERS: AdventureTierDef[] = [
   { key: 'white',  name: '白', weight: 80,   stonesMin: 2400,  stonesMax: 5400,   expRateMin: 0.0015, expRateMax: 0.0030, tickets: 0, bonusChance: 0.02, bonusTickets: 0 }, // [r057] 灵石 ×30
   { key: 'blue',   name: '蓝', weight: 12.5, stonesMin: 7500,  stonesMax: 16500,  expRateMin: 0.0030, expRateMax: 0.0060, tickets: 0, bonusChance: 0.06, bonusTickets: 0 }, // [r057] 灵石 ×30
-  { key: 'purple', name: '紫', weight: 6,    stonesMin: 21000, stonesMax: 48000,  expRateMin: 0.0060, expRateMax: 0.0120, tickets: 0, bonusChance: 0.15, bonusTickets: 1 }, // [r057] 灵石 ×30
-  { key: 'gold',   name: '金', weight: 1.5,  stonesMin: 54000, stonesMax: 126000, expRateMin: 0.0120, expRateMax: 0.0220, tickets: 1, bonusChance: 0.35, bonusTickets: 2 }, // [r057] 灵石 ×30
+  { key: 'purple', name: '紫', weight: 6,    stonesMin: 21000, stonesMax: 48000,  expRateMin: 0.0060, expRateMax: 0.0120, tickets: 0, bonusChance: 0.01, bonusTickets: 1 }, // [r057] 灵石 ×30 // [r116] 券概率压低：紫档 bonus 0.15→0.01
+  { key: 'gold',   name: '金', weight: 1.5,  stonesMin: 54000, stonesMax: 126000, expRateMin: 0.0120, expRateMax: 0.0220, tickets: 0, bonusChance: 0.02, bonusTickets: 1 }, // [r057] 灵石 ×30 // [r116] 券概率压低：金档 1→0 / 0.35→0.02 / 2→1
 ];
 // 额外珍宝文案池（小概率触发时随抽附赠，纯展示 + 抽奖券）
 const ADVENTURE_BONUS_TEXTS = [
@@ -5585,22 +5626,23 @@ const FARM_CROPS: Record<string, { name: string; seed: number; minutes: number; 
 // ── T5 新 20 种：品阶基准 + 类型系数（两层查表，零手抄，杜绝抄错）────────
 //   品阶 1..5 = 凡品/灵品/玄品/仙品/神品；洞府解锁门槛 凡灵 Lv1 / 玄 Lv3 / 仙 Lv5 / 神 Lv7。
 const FARM_CROP_BASE: Record<number, { min: number; sell: number; expBase: number; attr: number }> = {
-  1: { min: 120, sell: 500,   expBase: 100,   attr: 8 },     // 凡品
-  2: { min: 180, sell: 1500,  expBase: 400,   attr: 30 },    // 灵品
-  3: { min: 300, sell: 5000,  expBase: 1500,  attr: 100 },   // 玄品
-  4: { min: 480, sell: 13000, expBase: 5000,  attr: 350 },   // 仙品
-  5: { min: 720, sell: 27000, expBase: 15000, attr: 1000 },  // 神品
+  1: { min: 120, sell: 500,   expBase: 63000,  attr: 8 },     // 凡品
+  2: { min: 180, sell: 1500,  expBase: 189000, attr: 30 },    // 灵品
+  3: { min: 300, sell: 5000,  expBase: 630000, attr: 100 },   // 玄品
+  4: { min: 480, sell: 13000, expBase: 2016000, attr: 350 },   // 仙品
+  5: { min: 720, sell: 27000, expBase: 5670000, attr: 1000 },  // 神品
 };
 const FARM_CROP_KIND: Record<string, { min: number; money: number; seed: number; exp: number; kindName: string }> = {
   sell: { min: 1.0,  money: 1.0,  seed: 0.50, exp: 0.2, kindName: '纯卖钱草' },   // 出售主出口（种子 0.70 见下 sellSeed）
   cult: { min: 1.25, money: 0.2,  seed: 0.50, exp: 1.0, kindName: '纯修为草' },   // 只加修为
-  mix:  { min: 1.5,  money: 0.6,  seed: 0.50, exp: 1.0, kindName: '综合草' },     // 修为 + 2~3 基础属性
-  rare: { min: 2.0,  money: 0.5,  seed: 0.56, exp: 0.5, kindName: '稀有百分比草' }, // 修为 + 1~2 百分比属性（有上限）
+  mix:  { min: 1.5,  money: 0.6,  seed: 1.50, exp: 1.0, kindName: '综合草' }, // R-115 [r115price]：加属性作物种子价大幅提升（0.50→1.50，成本 ×3.00）     // 修为 + 2~3 基础属性
+  rare: { min: 2.0,  money: 0.5,  seed: 2.00, exp: 0.5, kindName: '稀有百分比草' }, // R-115 [r115price]：加属性作物种子价大幅提升（0.56→2.00，成本 ×3.57） // 修为 + 1~2 百分比属性（有上限）
 };
 // 纯修为草「服用·修为」直表（§2.5-A，★已按 T7 §3.5 铁律单独下调：200/800/3000/10000/30000 → 下表）
-const FARM_CROP_EXP_PURE: Record<number, number> = { 1: 150, 2: 470, 3: 1450, 4: 4500, 5: 19000 };
+const FARM_CROP_EXP_PURE: Record<number, number> = { 1: 63000, 2: 189000, 3: 630000, 4: 2016000, 5: 5670000 }; // R-129 [r129farm]：纯修为草服用修为 = 打坐2h×(min/120)（凡63,000/灵189,000/玄630,000/仙2,016,000/神5,670,000）
 // 综合草「服用·修为」玄/仙保序微调（§2.5-A：1,500→1,400 / 5,000→4,400，为保「纯修为 > 综合」的 §4.3 断言）
-const FARM_CROP_EXP_MIX_ADJ: Record<number, number> = { 3: 1400, 4: 4400 };
+// R-129 [r129farm]：新值按「终值 = 0.9 × 同阶纯修为草」反推（tf=mix 1.5 在 farmCropDefs 内后乘）：378,000×1.5=567,000 / 1,209,600×1.5=1,814,400
+const FARM_CROP_EXP_MIX_ADJ: Record<number, number> = { 3: 378000, 4: 1209600 }; // R-129 [r129farm] 终值 567,000/1,814,400
 const FARM_CROP_TIERS = ['凡品', '灵品', '玄品', '仙品', '神品'];
 // 品阶解锁门槛（复用洞府等级；★与 T10 地块门槛 FARM_UNLOCK_GROTTO_LEVEL={4:5,5:7,6:9} 错位，避免同一门槛卡两件事）
 const FARM_CROP_TIER_LEVEL: Record<number, number> = { 1: 1, 2: 1, 3: 3, 4: 5, 5: 7 };
@@ -5636,7 +5678,7 @@ const FARM_CROPS_NEW_NAME: Record<string, string> = {
 // 综合草「服用·基础属性」（§3.2：2~3 项；键=服务端存档字段名）
 const FARM_CROP_ATTRS: Record<string, Array<{ key: string; label: string }>> = {
   peiyuancao:     [{ key: 'maxHp', label: '气血' }, { key: 'defense', label: '体魄' }],
-  zhuangguhua:    [{ key: 'maxHp', label: '气血' }, { key: 'defense', label: '体魄' }, { key: 'defense', label: '防御' }],
+  zhuangguhua:    [{ key: 'maxHp', label: '气血' }, { key: 'defense', label: '体魄' }], // R-124：原第三项 { defense,防御 } 与第二项同键重复 ⇒ 服用防御被 +30 两次（实得 +60），去重后单次 +30 [r124attrfix]
   bailianzhi:     [{ key: 'attack', label: '攻击' }, { key: 'defense', label: '防御' }, { key: 'maxHp', label: '气血' }],
   jiugiaoxuanzhi: [{ key: 'attack', label: '攻击' }, { key: 'maxHp', label: '气血' }, { key: 'spirit', label: '神识' }],
   wanxianghua:    [{ key: 'attack', label: '攻击' }, { key: 'defense', label: '防御' }, { key: 'maxHp', label: '气血' }],
@@ -5662,7 +5704,8 @@ const FARM_CROP_ATTR_CAP: Record<string, number> = { hitRate: 8, critRate: 8, do
 // R-047：灵田双出口收益倍率（变卖 → 灵石 / 服用 → 修为）[r047yield]
 //   只放大 farmCropDefs() 的产出（stones / exp）；种子价 seed 与成熟时长 minutes 不动。
 //   ★ 这是**纯单位时间增益**（时长不变）⇒ 满配日净放大 >倍率本身，见本文件头与报告复算。
-const FARM_YIELD_MUL = 1.85;
+const FARM_YIELD_MUL = 1.0; // R-129 [r129farm]：修为侧倍率归 1（修为收益改走 expBase/PURE/ADJ 新表，对标打坐2h，不再二次放大）
+const FARM_STONES_MUL = 10; // R-129 [r129farm]：灵石侧收益 ×10（纯灵石大幅提升；种子价 seed / 成熟时长 minutes 不经此乘数，与 r047 同口径）
 
 // R-048：灵草分三档——综合草（mix）×1.5 / 稀有草（rare）×2.5；成熟时长与收益同倍放大。[r048tier]
 //   普通（sell/cult）不动。倍率在下方 farmCropDefs() 内施加；种子价 seed 不动。
@@ -5727,7 +5770,7 @@ function farmCropDefs(): Record<string, { name: string; seed: number; minutes: n
   for (const _r47k of Object.keys(out)) {
     const _r47d = out[_r47k];
     out[_r47k] = Object.assign({}, _r47d, {
-      stones: Math.round(Number(_r47d.stones) * FARM_YIELD_MUL),
+      stones: Math.round(Number(_r47d.stones) * FARM_STONES_MUL), // R-129 [r129farm] 灵石侧改乘 FARM_STONES_MUL(×10)；exp 行仍乘 FARM_YIELD_MUL(=1.0)
       exp: Math.round(Number(_r47d.exp) * FARM_YIELD_MUL),
     });
   }
@@ -6490,16 +6533,25 @@ app.post('/api/pet/rune', authenticateToken, rateLimit({ windowMs: 60 * 1000, ma
 
 
 // [wudaocore] R-GAME3 悟道系统纯逻辑核心（依赖注入块：不引用本块外任何符号，供单测整块提取执行）
-// 六系悟道（剑/丹/体/法/阵/御），每系独立 1..10 级，exp 只增不减；数值为本次定档，常量集中可调。
+// 十系悟道（血/剑/体/法/锋/影/甲/噬/禅/丰），每系独立 1..10 级，exp 只增不减；数值为本次定档，常量集中可调。
 // 加成落点：客户端权威架构下攻防血暴击的实际结算在客户端（与称号 attr_json/回归 buff 同一架构边界，
 // 服务端出权威数值+伴生页展示，客户端接管后即插即用）。
 const WUDAO_DAOS: Record<string, { name: string; stat: string; statName: string; basePct: number; stepPct: number }> = {
-  sword: { name: '剑道', stat: 'attack', statName: '攻击', basePct: 2.0, stepPct: 0.5 },
-  body:  { name: '体道', stat: 'defense', statName: '防御', basePct: 2.0, stepPct: 0.5 },
-  pill:  { name: '丹道', stat: 'maxHp', statName: '气血', basePct: 2.0, stepPct: 0.5 },
-  spell: { name: '法道', stat: 'crit', statName: '暴击', basePct: 1.0, stepPct: 0.25 },
-  array: { name: '阵道', stat: 'attack', statName: '攻击', basePct: 1.0, stepPct: 0.25 },
-  tame:  { name: '御道', stat: 'maxHp', statName: '气血', basePct: 1.0, stepPct: 0.25 },
+  // [r110wudao] R-110 悟道十道：顺序即客户端展示顺序（客户端动态枚举 daos[]，零改动自动跟随）。
+  //   ① 旧 6 键（pill/sword/body/spell/array/tame）原样保留 —— 其 level/exp 存于 wudao 表（按 key 存续），
+  //      本环只改 name/statName、绝不改 key ⇒ 存量等级 100% 不丢；
+  //   ② 新增 4 键（edge/shadow/armor/devour）追加于后，接同一条加成/展示管线（wudaoBonusPct → bonusText）；
+  //   ③「重构每一种道的名称」：十道各取语义匹配且互不重复的道名（血/剑/体/法/锋/影/甲/噬/禅/丰）。
+  pill:   { name: '血道', stat: 'maxHp',           statName: '气血', basePct: 2.0, stepPct: 0.5  }, // 1 气血（炼气期开放）
+  sword:  { name: '剑道', stat: 'attack',          statName: '攻击', basePct: 2.0, stepPct: 0.5  }, // 2 攻击（筑基期）
+  body:   { name: '体道', stat: 'defense',         statName: '防御', basePct: 2.0, stepPct: 0.5  }, // 3 防御（筑基期）
+  spell:  { name: '法道', stat: 'crit',            statName: '暴击', basePct: 1.0, stepPct: 0.25 }, // 4 暴击（金丹期）
+  edge:   { name: '锋道', stat: 'critDamage',      statName: '暴伤', basePct: 1.0, stepPct: 0.25 }, // 5 暴伤（金丹期·新增）
+  shadow: { name: '影道', stat: 'dodge',           statName: '闪避', basePct: 1.0, stepPct: 0.25 }, // 6 闪避（元婴期·新增）
+  armor:  { name: '甲道', stat: 'damageReduction', statName: '减伤', basePct: 1.0, stepPct: 0.25 }, // 7 减伤（元婴期·新增）
+  devour: { name: '噬道', stat: 'lifesteal',       statName: '吸血', basePct: 1.0, stepPct: 0.25 }, // 8 吸血（元婴期·新增）
+  array:  { name: '禅道', stat: 'cultivate',       statName: '修炼', basePct: 1.0, stepPct: 0.25 }, // 9 修炼（化神期）
+  tame:   { name: '丰道', stat: 'gather',          statName: '资源', basePct: 1.0, stepPct: 0.25 }, // 10 资源（长生境）
 };
 const WUDAO_MAX_LEVEL = 10;
 const WUDAO_BONUS_UNLOCK_LEVEL = 3; // 系等级达标（≥3）解锁被动加成，之后每级再叠 stepPct
@@ -6515,7 +6567,7 @@ function wudaoLevelFromExp(exp: unknown): number {
   return lv;
 }
 const WUDAO_MAX_EXP_TOTAL = wudaoExpToReach(WUDAO_MAX_LEVEL); // 2250：满级累计（心得入账钳此值，满级后不再积累）
-// 挂机心得：每分钟 roll 一次，8% 命中=1 条心得（=期望 4.8 条/小时），随机落入六系之一；
+// 挂机心得：每分钟 roll 一次，8% 命中=1 条心得（=期望 4.8 条/小时），随机落入本人已开放的系之一；
 // 单次上传挂机时长钳 120 分钟（与每日任务差值钳制同风格，防改档单次爆量）
 const WUDAO_INSIGHT_CHANCE = 0.04;  // 每分钟 roll 命中概率（物品概率÷2：0.08→0.04）
 const WUDAO_INSIGHT_EXP = 10;       // 每条心得修为
@@ -6544,6 +6596,28 @@ function wudaoDaoOk(key: unknown): boolean {
   return key != null && Object.prototype.hasOwnProperty.call(WUDAO_DAOS, asStr(key));
 }
 const WUDAO_LOG_KEEP = 50; // 每玩家悟道日志保留条数（写入后裁剪，防表膨胀）
+// ── [r101wudao] R-091 悟道体系重规划：稀有道等阶门槛 + 灵石价随境界递增 ──
+// 境界序自持镜像（与 REALM_ORDER_FOR_RANKING / DUNGEON_REALM_ORDER 同源同序；本块不引用外部符号）
+const WUDAO_REALM_ORDER: string[] = ['炼气期', '筑基期', '金丹期', '元婴期', '化神期', '合道期', '长生境'];
+// [r110wudao] R-110 十道境界门槛（境界序）：血道(序1)炼气0；剑/体(2-3)筑基1；法/锋(4-5)金丹2；
+//   影/甲/噬(6-8)元婴3；禅(9)化神4；丰(10)长生境6（★注：WUDAO_REALM_ORDER 序5=合道期、序6=长生境；
+//   用户原文「资源（长生）」，故取长生境=6，与「名称」口径一致）。
+// ★ 门槛只挡「从未投入(exp<=0)」的玩家；已投入者由调用方按 exp>0 祖父放行，不追溯锁死。
+const WUDAO_DAO_REALM_GATE: Record<string, number> = { pill: 0, sword: 1, body: 1, spell: 2, edge: 2, shadow: 3, armor: 3, devour: 3, array: 4, tame: 6 };
+function wudaoRealmIndex(realm: unknown): number {
+  const i = WUDAO_REALM_ORDER.indexOf(String(realm == null ? '' : realm));
+  return i >= 0 ? i : 0; // 未知境界按最低档（炼气期），与 dungeon 同口径
+}
+function wudaoDaoGateRealm(daoKey: string): number {
+  const g = WUDAO_DAO_REALM_GATE[daoKey];
+  return typeof g === 'number' && g > 0 ? Math.min(g, WUDAO_REALM_ORDER.length - 1) : 0;
+}
+// 手动顿悟灵石价：随人物境界递增（炼气 5000 → 长生 60000，≈12×；稀有道同价——门槛已限人数）
+const WUDAO_MANUAL_COST_BY_REALM: number[] = [WUDAO_MANUAL_COST, 8000, 12000, 18000, 27000, 40000, 60000];
+function wudaoManualCost(realmIdx: unknown): number {
+  const i = Math.min(WUDAO_MANUAL_COST_BY_REALM.length - 1, Math.max(0, Math.floor(Number(realmIdx) || 0)));
+  return WUDAO_MANUAL_COST_BY_REALM[i];
+}
 // [/wudaocore]
 
 // [gongfacore] Y20 功法系统纯逻辑核心（依赖注入块：不引用本块外任何符号，供单测整块提取执行）
@@ -7009,7 +7083,7 @@ async function wudaoAddExp(
 }
 
 // WUDAO 挂机埋点：挂机时长（playTime 差值，客户端累计在线毫秒——与每日任务"打坐"同一服务端可见近似口径）
-// 每分钟 roll 8% 得 1 条心得（+10 exp），随机落入六系之一。fire-and-forget 自吞异常，绝不阻塞存档路径；
+// 每分钟 roll 8% 得 1 条心得（+10 exp），随机落入本人已开放的系之一。fire-and-forget 自吞异常，绝不阻塞存档路径；
 // 按系聚合后逐系一次 upsert（单次上传至多 120 条心得 → 至多 6 条语句，fetchAll/写入均有界）
 // [v2810] \u609f\u9053\u6302\u673a\u65f6\u957f = \u6253\u5750 + \u5386\u7ec3\uff08\u7528\u6237\u8981\u6c42\u300c\u6253\u5750/\u5386\u7ec3\u4e2d\u968f\u673a\u89e6\u53d1\u609f\u9053\u7ecf\u9a8c\u300d\uff09\u3002
 //   tickWudaoIdle \u5185\u90e8\u6982\u7387/\u7ecf\u9a8c\u516c\u5f0f\u4e00\u5b57\u4e0d\u52a8\uff0c\u53ea\u6539\u5582\u8fdb\u53bb\u7684\u65f6\u957f\u3002
@@ -7022,9 +7096,17 @@ async function tickWudaoIdle(userId: number, playTimeDeltaMs: number): Promise<v
   try {
     const hits = wudaoIdleInsights(Math.floor((Number(playTimeDeltaMs) || 0) / 60000), Math.random);
     if (hits <= 0) return;
+    // [r101wudao] R-091：挂机心得只落入本人已开放的系（稀有道未达境界不随机命中；已投入者仍可手动顿悟）
+    let realmIdx = 0;
+    try {
+      const srow: any = await dbGet('SELECT save_data FROM saves WHERE user_id = ?', [userId]);
+      realmIdx = wudaoRealmIndex(JSON.parse(String(srow?.save_data || '{}'))?.player?.realm);
+    } catch { realmIdx = 0; }
+    const openKeys = Object.keys(WUDAO_DAOS).filter((k) => realmIdx >= wudaoDaoGateRealm(k));
+    const pool = openKeys.length > 0 ? openKeys : [Object.keys(WUDAO_DAOS)[0]];
     const perDao: Record<string, number> = {};
     for (let i = 0; i < hits; i++) {
-      const k = wudaoPickDao(Math.random);
+      const k = pool[Math.min(pool.length - 1, Math.max(0, Math.floor(Math.random() * pool.length)))];
       perDao[k] = (perDao[k] || 0) + WUDAO_INSIGHT_EXP;
     }
     for (const k of Object.keys(perDao)) await wudaoAddExp(userId, k, perDao[k], 'idle');
@@ -8516,33 +8598,69 @@ app.post('/api/farm/harvest/all', authenticateToken, rateLimit({ windowMs: 60 * 
 });
 
 // ─────────────────────────────────────────────────────────
-// WUDAO（R-GAME3）悟道 API（伴生页 /yl/apps/wudao/）：六系悟道（剑/丹/体/法/阵/御）各 1..10 级。
+// WUDAO（R-GAME3）悟道 API（伴生页 /yl/apps/wudao/）：十系悟道（血/剑/体/法/锋/影/甲/噬/禅/丰）各 1..10 级。
 // 心得来源两条腿：① 挂机 roll（POST /api/save 打坐时长差值埋点，每分钟 8% → +10 exp 随机系）；
 // ② 手动顿悟（灵石 500 → +100 exp）。攻/防/血/暴击被动加成随系等级达标解锁（Lv3 起）——
 // 客户端权威架构下实际战斗结算在客户端，服务端出权威数值+伴生页展示（与称号 attr_json 同边界）。
 // exp 入账=单语句原子 upsert（wudao 表 PK 幂等，无读改写竞态）；扣灵石走 updatePlayerSave（锁内二次校验）。
 // ─────────────────────────────────────────────────────────
 
-// GET /api/wudao — 六系等级+exp+加成列表+悟道日志+灵石余额（一页全量，不落账）
+// ── [r101wudao] R-091 祖父条款：阵道/御道定位变更（攻击/气血 → 修炼速度/资源产出）一次性灵石补偿 ──
+//   规则：按两条道「改前已投入 exp」× 50 灵石/exp（= 历史手动顿悟等价 5000/100）一次性返还，
+//   走 insertMail（玩家在邮件里领取）。幂等键 = activity_config['r091_wudao_respec:<uid>']，
+//   首次触达悟道面（GET/POST）即结算一次；**先占键后发信** ⇒ 至多一次（绝不重复发放）。
+//   已练等级/exp 原样保留（升级曲线未动），本条仅补偿「加成语义变更」的定位损失。
+const WUDAO_RESPEC_REFUND_PER_EXP = 50;
+async function wudaoRespecCompensateOnce(userId: number): Promise<void> {
+  try {
+    const key = 'r091_wudao_respec:' + userId;
+    const seen = await dbGet('SELECT value FROM activity_config WHERE key = ?', [key]).catch(() => null);
+    if (seen) return;
+    // 先占键（INSERT OR IGNORE，changes=0 ⇒ 已被并发/前次占位），保证至多一次发放
+    const claim = await dbRun("INSERT OR IGNORE INTO activity_config (key, value) VALUES (?, '1')", [key]).catch(() => null);
+    if (!claim || Number(claim.changes) <= 0) return;
+    const rows = await dbAll('SELECT dao_type, exp FROM wudao WHERE player_id = ? AND dao_type IN (?, ?)', [userId, 'array', 'tame']);
+    let expSum = 0;
+    for (const r of rows || []) expSum += Math.max(0, Math.floor(Number(r.exp) || 0));
+    const refund = Math.floor(expSum * WUDAO_RESPEC_REFUND_PER_EXP);
+    if (refund > 0) {
+      await insertMail(userId, '悟道体系重规划补偿',
+        `阵道/御道定位已重规划（阵道→修炼速度、御道→资源产出）。按你此前投入的 ${expSum} 点道行，一次性返还灵石 ×${refund}。`,
+        '天机阁', refund);
+    }
+  } catch (e: any) {
+    console.error('wudao respec compensate error:', e?.message || e);
+  }
+}
+
+// GET /api/wudao — 十系等级+exp+加成列表+悟道日志+灵石余额（一页全量，不落账）
 app.get('/api/wudao', authenticateToken, rateLimit({ windowMs: 60 * 1000, max: 60, keyFn: (req: any) => `wudao:me:${req.user?.id ?? req.ip}` }), async (req: any, res: any) => {
   const userId = req.user.id;
   try {
     const [rows, saveRow, logRows] = await Promise.all([
-      dbAll('SELECT dao_type, exp FROM wudao WHERE player_id = ? LIMIT 6', [userId]),
+      dbAll('SELECT dao_type, exp FROM wudao WHERE player_id = ?', [userId]), // [r110wudao] R-110：原 LIMIT 6 会截断新增四道，改全量（PK(player_id,dao_type) 天然限 10 行）
       dbGet('SELECT save_data FROM saves WHERE user_id = ?', [userId]),
       dbAll('SELECT dao_type, exp, source, created_at FROM wudao_log WHERE player_id = ? ORDER BY id DESC LIMIT 20', [userId]),
     ]);
     const expByDao: Record<string, number> = {};
     for (const r of rows || []) expByDao[String(r.dao_type)] = Math.max(0, Math.floor(Number(r.exp) || 0));
     let balance: number | null = null;
+    let realmIdx = 0;
     if (saveRow) {
-      try { balance = Math.max(0, Math.floor(Number(JSON.parse(saveRow.save_data)?.player?.spiritStones) || 0)); } catch { balance = null; }
+      try {
+        const p = JSON.parse(saveRow.save_data)?.player;
+        balance = Math.max(0, Math.floor(Number(p?.spiritStones) || 0));
+        realmIdx = wudaoRealmIndex(p?.realm);
+      } catch { balance = null; }
     }
+    await wudaoRespecCompensateOnce(userId); // [r101wudao] 祖父条款：首次触达即一次性补偿（幂等，自吞异常）
     const daos = Object.keys(WUDAO_DAOS).map((k) => {
       const d = WUDAO_DAOS[k];
       const exp = expByDao[k] || 0;
       const level = wudaoLevelFromExp(exp);
       const next = level < WUDAO_MAX_LEVEL ? wudaoExpToReach(level + 1) : null;
+      const gateRealm = wudaoDaoGateRealm(k);
+      const locked = realmIdx < gateRealm && exp <= 0; // 已投入者祖父放行，不追溯锁死
       return {
         key: k,
         name: d.name,
@@ -8553,6 +8671,9 @@ app.get('/api/wudao', authenticateToken, rateLimit({ windowMs: 60 * 1000, max: 6
         expToNext: next == null ? 0 : next - exp,
         bonusUnlocked: level >= WUDAO_BONUS_UNLOCK_LEVEL,
         bonusPct: wudaoBonusPct(k, level),
+        locked,
+        gateRealmIndex: gateRealm,
+        gateRealmName: gateRealm > 0 ? WUDAO_REALM_ORDER[gateRealm] : null,
         bonusText: level >= WUDAO_BONUS_UNLOCK_LEVEL
           ? `${d.statName} +${wudaoBonusPct(k, level)}%`
           : `${d.statName}加成（${d.statName} +${d.basePct}%，Lv${WUDAO_BONUS_UNLOCK_LEVEL} 解锁）`,
@@ -8564,8 +8685,9 @@ app.get('/api/wudao', authenticateToken, rateLimit({ windowMs: 60 * 1000, max: 6
       maxLevel: WUDAO_MAX_LEVEL,
       bonusUnlockLevel: WUDAO_BONUS_UNLOCK_LEVEL,
       maxExpTotal: WUDAO_MAX_EXP_TOTAL,
+      realmIndex: realmIdx,
       insight: { chancePerMinute: WUDAO_INSIGHT_CHANCE, exp: WUDAO_INSIGHT_EXP, capMinutesPerUpload: WUDAO_IDLE_CAP_MINUTES },
-      manual: { cost: WUDAO_MANUAL_COST, exp: WUDAO_MANUAL_EXP },
+      manual: { cost: wudaoManualCost(realmIdx), exp: WUDAO_MANUAL_EXP },
       balance,
       hasSave: !!saveRow,
       log: (logRows || []).map((r: any) => ({
@@ -8592,15 +8714,25 @@ app.post('/api/wudao/insight', authenticateToken, rateLimit({ windowMs: 60 * 100
     const row = await dbGet('SELECT save_data FROM saves WHERE user_id = ?', [userId]);
     if (!row) return res.status(404).json({ error: '请先进游戏创建角色' });
     let bal = 0;
-    try { bal = Math.max(0, Math.floor(Number(JSON.parse(row.save_data)?.player?.spiritStones) || 0)); } catch { return res.status(500).json({ error: '存档解析失败' }); }
-    if (bal < WUDAO_MANUAL_COST) return res.status(409).json({ error: `灵石不足：需 ${WUDAO_MANUAL_COST}，现有 ${bal}` });
+    let realmIdx = 0;
+    try { const p = JSON.parse(row.save_data)?.player; bal = Math.max(0, Math.floor(Number(p?.spiritStones) || 0)); realmIdx = wudaoRealmIndex(p?.realm); } catch { return res.status(500).json({ error: '存档解析失败' }); }
+    await wudaoRespecCompensateOnce(userId); // [r101wudao] 祖父条款：一次性补偿（先于本次加 exp，按改前已投入结算）
+    // [r101wudao] R-091 稀有道等阶门槛：阵道/御道按境界逐步开放；已投入(exp>0)者祖父放行，不追溯锁死
+    const gateRealm = wudaoDaoGateRealm(daoKey);
+    if (gateRealm > 0 && realmIdx < gateRealm) {
+      const own: any = await dbGet('SELECT exp FROM wudao WHERE player_id = ? AND dao_type = ?', [userId, daoKey]);
+      const ownExp = Math.max(0, Math.floor(Number(own?.exp) || 0));
+      if (ownExp <= 0) return res.status(409).json({ error: `此道需 ${WUDAO_REALM_ORDER[gateRealm]} 起方可参悟`, code: 'DAO_LOCKED', gateRealmIndex: gateRealm });
+    }
+    const cost = wudaoManualCost(realmIdx); // [r101wudao] 灵石价随境界递增
+    if (bal < cost) return res.status(409).json({ error: `灵石不足：需 ${cost}，现有 ${bal}` });
     // 1) 扣灵石（saveLock 互斥 + gm_revision++ 促客户端拉新档；锁内余额不足拒绝）
     let short = false;
     const paid = await updatePlayerSave(userId, (sd: any) => {
       if (!sd.player || typeof sd.player !== 'object') { short = true; return; }
       const b = Math.max(0, Math.floor(Number(sd.player.spiritStones) || 0));
-      if (b < WUDAO_MANUAL_COST) { short = true; return; }
-      sd.player.spiritStones = b - WUDAO_MANUAL_COST;
+      if (b < cost) { short = true; return; }
+      sd.player.spiritStones = b - cost;
     });
     if (!paid.ok || short) {
       return res.status(409).json({ error: short ? '灵石不足' : (paid.error === 'No save found' ? '请先进游戏创建角色' : '顿悟失败，请重试') });
@@ -8610,7 +8742,7 @@ app.post('/api/wudao/insight', authenticateToken, rateLimit({ windowMs: 60 * 100
     if (!added) {
       await updatePlayerSave(userId, (sd: any) => {
         if (!sd.player || typeof sd.player !== 'object') return;
-        sd.player.spiritStones = Math.max(0, Math.floor(Number(sd.player.spiritStones) || 0)) + WUDAO_MANUAL_COST;
+        sd.player.spiritStones = Math.max(0, Math.floor(Number(sd.player.spiritStones) || 0)) + cost;
       }).catch((e: any) => console.error('wudao insight refund error:', e?.message || e));
       return res.status(500).json({ error: '顿悟入账失败，灵石已退还，请重试' });
     }
@@ -8626,7 +8758,7 @@ app.post('/api/wudao/insight', authenticateToken, rateLimit({ windowMs: 60 * 100
       maxLevel: WUDAO_MAX_LEVEL,
       bonusPct: wudaoBonusPct(daoKey, added.level),
       bonusText: added.level >= WUDAO_BONUS_UNLOCK_LEVEL ? `${d.statName} +${wudaoBonusPct(daoKey, added.level)}%` : null,
-      cost: WUDAO_MANUAL_COST,
+      cost,
     });
   } catch (e: any) {
     console.error('wudao insight error:', e?.message || e);
@@ -9063,10 +9195,12 @@ const ACT_SHOP_ITEMS: Array<{ id: string; name: string; price: number; limit: nu
   { id: 'bag_l',      name: '灵石袋·大',     price: 800,  limit: 5,  hours: 12 },
   { id: 'title_jade', name: '称号·灵玉仙客', price: 1000, limit: 1,  titleSource: 'act087_jade' },
 ]; // 兑换率恒定零随机（C2，零新增赔率常量）；装饰 SKU 无承载系统整行砍（数值表-T5T6 C-5）[r055jade] R-055：title_jade 2500→1000（顶价可达性，见拍板 2026-10-01）
-const ACT_BOSS_FREE_STRIKES = 5;                   // [r056boss] R-056 免费出手 5 次/只（event_boss_hits.free_used，换 boss 归零；每日不限次）
-const ACT_BOSS_MAX_BOSSES = 5;                     // [r056boss] R-056 每期连刷 5 只（诛一只当场现身下一只；最终只保留休战 2 天结算）
-const ACT_BOSS_STRIKE_COOLDOWN_MS = 10 * 60 * 1000; // [r056boss] R-056 免费出手冷却 10 分钟（event_boss_hits.last_strike_at）
-const ACT_BOSS_HP_GROWTH = 0.5;                    // [r056boss] R-056 第 n 只血量 = 基础 × (1 + 0.5×(n-1))：第 2 只 1.5× … 第 5 只 3×
+const ACT_BOSS_FREE_STRIKES = 5;                   // [r113boss] R-113 免费出手 5 次/日/只（fun_daily kind='raid5f<ev>_<no>'，逐只独立）
+const ACT_BOSS_PAID_LIMIT = 10;                    // [r113boss] R-113 收费（诛妖符）10 次/日/只（kind='raid5p<ev>_<no>'，逐只独立）
+const ACT_BOSS_PAID_COOLDOWN_MS = 5 * 60 * 1000;   // [r113boss] R-113 收费出手冷却 5 分钟（逐只独立，取该 kind 最近一次时间）
+const ACT_BOSS_MAX_BOSSES = 5;                     // [r113boss] R-113 五只 boss 同时出现（event_boss5 五行并存，各自独立血量/次数/冷却）
+const ACT_BOSS_STRIKE_COOLDOWN_MS = 10 * 60 * 1000; // [r113boss] R-113 免费出手冷却 10 分钟（逐只独立，kind='raid5f<ev>_<no>'）
+const ACT_BOSS_HP_GROWTH = 0.5;                    // [r113boss] R-113 第 n 只血量 = 基础 × (1 + 0.5×(n-1))：第 1 只 1× … 第 5 只 3×
 const ACT_BOSS_TALISMAN_DAILY = 2;                 // D 诛妖符 +2 次/日（kind='raid_talisman'，价=1×境界时薪）
 const ACT_BOSS_HP_CYCLE = 20;                      // D 血量期数系数：500,000×1.5^6×20 = 113,906,250
 const ACT_BOSS_TRUCE_MS = 2 * 24 * 60 * 60 * 1000; // D 提前击杀休战期 2 天（结算=击杀时刻+2 天）
@@ -9412,28 +9546,28 @@ app.post('/api/activity/shop/exchange', authenticateToken, rateLimit({ windowMs:
 
 // ── D 万妖巢穴：lazy 建场（同 wbEnsure 口径；血量=WB_HP_BASE×1.5^maxRealm×20）──
 async function actBossEnsure(eventId: number): Promise<any> {
-  let row = await dbGet('SELECT * FROM event_boss WHERE event_id = ?', [eventId]).catch(() => null);
-  if (row) {
-    // [r056boss] R-056 多 boss：上一只已诛且非最终只 ⇒ 就地刷新下一只（killed=1 守卫幂等，
-    //   与 actBossHitOnce 内的当场刷新互斥兜底）；settled=1 不再刷新（结算已落）。刷新同时
-    //   把全员 free_used 归零（每只 5 次免费）。血量按第 n 只 = 基础×(1+0.5×(n-1))。
-    const no0 = Math.max(1, Math.floor(Number(row.boss_no) || 1));
-    if (Number(row.killed) === 1 && no0 < ACT_BOSS_MAX_BOSSES && Number(row.settled) !== 1) {
-      const nextNo = no0 + 1;
-      const topR = await dbGet('SELECT MAX(realm_index) AS ri FROM rankings').catch(() => null);
-      const multR = Math.pow(1.5, Math.min(20, Math.max(0, Number(topR && topR.ri) || 0)));
-      const hpNext = Math.floor(WB_HP_BASE * multR * ACT_BOSS_HP_CYCLE * (1 + ACT_BOSS_HP_GROWTH * (nextNo - 1)));
-      const up = await dbRun('UPDATE event_boss SET boss_no = ?, hp_max = ?, hp_cur = ?, killed = 0, killer_id = NULL WHERE event_id = ? AND killed = 1', [nextNo, hpNext, hpNext, eventId]).catch(() => null);
-      if (up && up.changes) await dbRun('UPDATE event_boss_hits SET free_used = 0 WHERE event_id = ?', [eventId]).catch(() => { });
-      row = await dbGet('SELECT * FROM event_boss WHERE event_id = ?', [eventId]).catch(() => null) || row;
-    }
-    return row;
-  }
+  // [r113boss] R-113 五只 boss 同时出现：event_boss 行降级为「聚合/结算行」（血量求和；五只全诛才
+  //   killed=1），真正血量在 event_boss5 五行（各自独立）。R-056「诛一只刷下一只」顺序逻辑整体移除。
+  //   ★ 基础血量行（hp = floor(WB_HP_BASE × mult × ACT_BOSS_HP_CYCLE)）逐字保留，
+  //     不改 reward089 冻结锚「万妖巢穴血量未动」；逐只血量在其上乘成长系数。
   const top = await dbGet('SELECT MAX(realm_index) AS ri FROM rankings').catch(() => null);
   const mult = Math.pow(1.5, Math.min(20, Math.max(0, Number(top && top.ri) || 0)));
   const hp = Math.floor(WB_HP_BASE * mult * ACT_BOSS_HP_CYCLE);
-  await dbRun('INSERT OR IGNORE INTO event_boss (event_id, hp_max, hp_cur) VALUES (?, ?, ?)', [eventId, hp, hp]).catch(() => { });
-  return await dbGet('SELECT * FROM event_boss WHERE event_id = ?', [eventId]);
+  let row = await dbGet('SELECT * FROM event_boss WHERE event_id = ?', [eventId]).catch(() => null);
+  if (!row) {
+    const sum0 = Math.floor(hp * (ACT_BOSS_MAX_BOSSES + ACT_BOSS_HP_GROWTH * ACT_BOSS_MAX_BOSSES * (ACT_BOSS_MAX_BOSSES - 1) / 2));
+    await dbRun('INSERT OR IGNORE INTO event_boss (event_id, hp_max, hp_cur) VALUES (?, ?, ?)', [eventId, sum0, sum0]).catch(() => { });
+    row = await dbGet('SELECT * FROM event_boss WHERE event_id = ?', [eventId]).catch(() => null);
+  }
+  // 五只槽位幂等建场（各自血量 = 基础 × (1 + 0.5×(n-1))；建场即定血，跨请求不漂移）
+  for (let no = 1; no <= ACT_BOSS_MAX_BOSSES; no++) {
+    const slot = await dbGet('SELECT boss_no FROM event_boss5 WHERE event_id = ? AND boss_no = ?', [eventId, no]).catch(() => null);
+    if (!slot) {
+      const hpN = Math.floor(hp * (1 + ACT_BOSS_HP_GROWTH * (no - 1)));
+      await dbRun('INSERT OR IGNORE INTO event_boss5 (event_id, boss_no, hp_max, hp_cur) VALUES (?, ?, ?, ?)', [eventId, no, hpN, hpN]).catch(() => { });
+    }
+  }
+  return row;
 }
 async function actNameOf(userIdRaw: unknown): Promise<string> {
   const uid = Math.floor(Number(userIdRaw) || 0);
@@ -9445,47 +9579,49 @@ async function actFunUsedToday(userId: number, kind: string): Promise<number> {
   const c = await dbGet('SELECT COUNT(*) AS c FROM fun_daily WHERE player_id = ? AND date = ? AND kind = ?', [userId, utcDateStr(), kind]).catch(() => null);
   return Math.max(0, Number(c && c.c) || 0);
 }
+// [r113boss] R-113：逐只 boss 的当日计数 / 最近一次时间（kind = 'raid5' + f|p + eventId + '_' + bossNo）
+function actBossKind(eventId: number, bossNo: number, slot: string): string {
+  return 'raid5' + slot + eventId + '_' + bossNo;
+}
+async function actBossUsedToday(userId: number, eventId: number, bossNo: number, slot: string): Promise<number> {
+  const c = await dbGet('SELECT COUNT(*) AS c FROM fun_daily WHERE player_id = ? AND date = ? AND kind = ?', [userId, utcDateStr(), actBossKind(eventId, bossNo, slot)]).catch(() => null);
+  return Math.max(0, Number(c && c.c) || 0);
+}
+async function actBossLastAt(userId: number, eventId: number, bossNo: number, slot: string): Promise<number> {
+  const r = await dbGet('SELECT COALESCE(MAX(created_at), 0) AS t FROM fun_daily WHERE player_id = ? AND kind = ?', [userId, actBossKind(eventId, bossNo, slot)]).catch(() => null);
+  return Math.max(0, Math.floor(Number(r && r.t) || 0));
+}
 // 出手公共体：守卫式扣血 + 记分 + 击杀播报（免费/追加同口径；即时灵石恒 0）
-async function actBossHitOnce(userId: number, eventId: number, nowMs: number, isFree: boolean): Promise<{ score: number; total: number; killed: boolean; hpCur: number }> {
+async function actBossHitOnce(userId: number, eventId: number, bossNo: number, nowMs: number, isFree: boolean): Promise<{ score: number; total: number; killed: boolean; hpCur: number }> {
   const cpRow = await dbGet('SELECT combat_power FROM rankings WHERE user_id = ?', [userId]).catch(() => null);
   const cp = Number(cpRow && cpRow.combat_power) || 100;
   const score = Math.max(1, Math.floor(cp * 2 * (0.8 + Math.random() * 0.4)));
-  // 守卫式扣血（killed=0 守卫：SET 表达式全按旧值求值，kill 判定与回写一次完成）
+  // [r113boss] R-113：扣血改打指定槽位 event_boss5（bossNo 由请求体带入）；守卫式扣血口径与单 boss 时代一致。
   const upd = await dbRun(
-    `UPDATE event_boss SET
+    `UPDATE event_boss5 SET
        hp_cur = MAX(0, hp_cur - ?),
        killed = CASE WHEN hp_cur - ? <= 0 THEN 1 ELSE killed END,
-       killer_id = CASE WHEN hp_cur - ? <= 0 THEN ? ELSE killer_id END,
-       killed_at = CASE WHEN hp_cur - ? <= 0 THEN ? ELSE killed_at END
-     WHERE event_id = ? AND killed = 0`,
-    [score, score, score, userId, score, nowMs, eventId]);
+       killer_id = CASE WHEN hp_cur - ? <= 0 THEN ? ELSE killer_id END
+     WHERE event_id = ? AND boss_no = ? AND killed = 0`,
+    [score, score, score, userId, eventId, bossNo]);
   if (!upd.changes) throw new Error('ACT_BOSS_KILLED_RACE');
-  // 记分（PK 幂等 upsert；不发放任何即时灵石——D2 结构保证）
+  // 记分（PK 幂等 upsert；跨 5 只累计到 event_boss_hits ⇒ 结算档位/榜单口径与单 boss 时代一致）
   await dbRun(
-    `INSERT INTO event_boss_hits (event_id, user_id, score, strikes, free_used, last_strike_at) VALUES (?, ?, ?, 1, ?, ?)
-     ON CONFLICT(event_id, user_id) DO UPDATE SET score = score + excluded.score, strikes = strikes + 1,
-       free_used = free_used + excluded.free_used, last_strike_at = excluded.last_strike_at`,
-    [eventId, userId, score, isFree ? 1 : 0, nowMs]);
-  const after = await dbGet('SELECT hp_cur, killed, killer_id FROM event_boss WHERE event_id = ?', [eventId]);
+    `INSERT INTO event_boss_hits (event_id, user_id, score, strikes) VALUES (?, ?, ?, 1)
+     ON CONFLICT(event_id, user_id) DO UPDATE SET score = score + excluded.score, strikes = strikes + 1`,
+    [eventId, userId, score]);
+  // 聚合行重算：血量求和；五只全诛才把 killed=1 / killed_at 落到 event_boss（供结算器判定休战与结算）
+  const agg = await dbGet('SELECT COALESCE(SUM(hp_max),0) AS hm, COALESCE(SUM(hp_cur),0) AS hc, COALESCE(SUM(killed),0) AS kc, COUNT(*) AS n FROM event_boss5 WHERE event_id = ?', [eventId]).catch(() => null);
+  const allDead = Number(agg && agg.n) > 0 && Number(agg && agg.kc) >= Number(agg && agg.n);
+  await dbRun(
+    'UPDATE event_boss SET hp_max = ?, hp_cur = ?, killed = ?, killer_id = CASE WHEN ? = 1 THEN ? ELSE killer_id END, killed_at = CASE WHEN ? = 1 THEN ? ELSE killed_at END WHERE event_id = ?',
+    [Math.max(0, Math.floor(Number(agg && agg.hm) || 0)), Math.max(0, Math.floor(Number(agg && agg.hc) || 0)), allDead ? 1 : 0, allDead ? 1 : 0, userId, allDead ? 1 : 0, nowMs, eventId]).catch(() => { });
+  const after = await dbGet('SELECT hp_cur, killed, killer_id FROM event_boss5 WHERE event_id = ? AND boss_no = ?', [eventId, bossNo]);
   const mine = await dbGet('SELECT score FROM event_boss_hits WHERE event_id = ? AND user_id = ?', [eventId, userId]);
   const killed = Number(after && after.killed) === 1;
-  // [r056boss] R-056：击杀当场刷新下一只（惰性兜底在 actBossEnsure；killed=1 守卫防并发双刷；
-  //   最终只不刷新 ⇒ 休战/结算行为与单 boss 时代完全一致）。
-  if (killed) {
-    const curR = await dbGet('SELECT boss_no, settled FROM event_boss WHERE event_id = ?', [eventId]).catch(() => null);
-    const noR = Math.max(1, Math.floor(Number(curR && curR.boss_no) || 1));
-    if (noR < ACT_BOSS_MAX_BOSSES && Number(curR && curR.settled) !== 1) {
-      const nextR = noR + 1;
-      const topR2 = await dbGet('SELECT MAX(realm_index) AS ri FROM rankings').catch(() => null);
-      const multR2 = Math.pow(1.5, Math.min(20, Math.max(0, Number(topR2 && topR2.ri) || 0)));
-      const hpR = Math.floor(WB_HP_BASE * multR2 * ACT_BOSS_HP_CYCLE * (1 + ACT_BOSS_HP_GROWTH * (nextR - 1)));
-      const upR = await dbRun('UPDATE event_boss SET boss_no = ?, hp_max = ?, hp_cur = ?, killed = 0, killer_id = NULL WHERE event_id = ? AND killed = 1', [nextR, hpR, hpR, eventId]).catch(() => { });
-      if (upR && upR.changes) await dbRun('UPDATE event_boss_hits SET free_used = 0 WHERE event_id = ?', [eventId]).catch(() => { });
-    }
-  }
   if (killed && Number(after && after.killer_id) === userId) {
     const kn = await actNameOf(userId);
-    logChronicle(userId, kn, `【诛妖】「${String((await dbGet('SELECT name FROM events WHERE id = ?', [eventId]).catch(() => null))?.name || '万妖')}」伏诛，最后一击出自「${kn}」之手，全服同贺`);
+    logChronicle(userId, kn, `【诛妖】「${String((await dbGet('SELECT name FROM events WHERE id = ?', [eventId]).catch(() => null))?.name || '万妖')}」第 ${bossNo} 只伏诛，最后一击出自「${kn}」之手，全服同贺`);
   }
   return { score, total: Math.max(0, Math.floor(Number(mine && mine.score) || 0)), killed, hpCur: Math.max(0, Math.floor(Number(after && after.hp_cur) || 0)) };
 }
@@ -9497,16 +9633,34 @@ app.get('/api/eventboss/status', authenticateToken, rateLimit({ windowMs: 60 * 1
     const ev = await actEventOf(req.query?.eventId, 'boss_raid');
     if (!ev) return res.status(400).json({ error: 'eventId 非法' });
     const boss = await actBossEnsure(Number(ev.id));
-    const mine = await dbGet('SELECT score, strikes, free_used, last_strike_at FROM event_boss_hits WHERE event_id = ? AND user_id = ?', [Number(ev.id), userId]).catch(() => null);
+    const mine = await dbGet('SELECT score, strikes FROM event_boss_hits WHERE event_id = ? AND user_id = ?', [Number(ev.id), userId]).catch(() => null);
     const top = await dbAll(
       `SELECT h.user_id AS uid, h.score, COALESCE(NULLIF(r.name, ''), u.username) AS name
        FROM event_boss_hits h JOIN users u ON u.id = h.user_id LEFT JOIN rankings r ON r.user_id = h.user_id
        WHERE h.event_id = ? ORDER BY h.score DESC LIMIT 10`, [Number(ev.id)]);
-    // [r056boss] R-056：freeLeft 改「每只 5 次」口径（free_used）；coolLeft = 免费出手冷却剩余秒。
-    const freeUsed = Math.max(0, Math.floor(Number(mine && mine.free_used) || 0));
-    const lastAtS = Math.max(0, Math.floor(Number(mine && mine.last_strike_at) || 0));
-    const coolLeft = lastAtS > 0 ? Math.max(0, Math.ceil((ACT_BOSS_STRIKE_COOLDOWN_MS - (Date.now() - lastAtS)) / 1000)) : 0;
-    const usedTal = await actFunUsedToday(userId, 'raid_talisman');
+    // [r113boss] R-113：五只 boss 同时出现，逐只回执（各自血量/击杀/免费次数/收费次数/冷却）。
+    const slots = await dbAll('SELECT boss_no, hp_max, hp_cur, killed, killer_id FROM event_boss5 WHERE event_id = ? ORDER BY boss_no ASC', [Number(ev.id)]).catch(() => []);
+    const nowS = Date.now();
+    const bosses: any[] = [];
+    for (const s of (slots || [])) {
+      const no = Math.max(1, Math.floor(Number(s.boss_no) || 1));
+      const kd = Number(s.killed) === 1;
+      const fUsed = await actBossUsedToday(userId, Number(ev.id), no, 'f');
+      const pUsed = await actBossUsedToday(userId, Number(ev.id), no, 'p');
+      const fAt = await actBossLastAt(userId, Number(ev.id), no, 'f');
+      const pAt = await actBossLastAt(userId, Number(ev.id), no, 'p');
+      bosses.push({
+        no,
+        hpMax: Math.max(0, Math.floor(Number(s.hp_max) || 0)),
+        hpCur: Math.max(0, Math.floor(Number(s.hp_cur) || 0)),
+        killed: kd,
+        killerName: kd ? await actNameOf(s.killer_id) : null,
+        freeLeft: Math.max(0, ACT_BOSS_FREE_STRIKES - fUsed),
+        paidLeft: Math.max(0, ACT_BOSS_PAID_LIMIT - pUsed),
+        freeCoolLeft: fAt > 0 ? Math.max(0, Math.ceil((ACT_BOSS_STRIKE_COOLDOWN_MS - (nowS - fAt)) / 1000)) : 0,
+        paidCoolLeft: pAt > 0 ? Math.max(0, Math.ceil((ACT_BOSS_PAID_COOLDOWN_MS - (nowS - pAt)) / 1000)) : 0,
+      });
+    }
     const killed = Number(boss.killed) === 1;
     res.json({
       eventId: Number(ev.id),
@@ -9516,11 +9670,14 @@ app.get('/api/eventboss/status', authenticateToken, rateLimit({ windowMs: 60 * 1
       killerName: killed ? await actNameOf(boss.killer_id) : null,
       myScore: Math.max(0, Math.floor(Number(mine && mine.score) || 0)),
       myStrikes: Math.max(0, Math.floor(Number(mine && mine.strikes) || 0)),
-      freeLeft: Math.max(0, ACT_BOSS_FREE_STRIKES - freeUsed),
-      talismanLeft: Math.max(0, ACT_BOSS_TALISMAN_DAILY - usedTal),
-      bossNo: Math.max(1, Math.floor(Number(boss.boss_no) || 1)),
+      freeLeft: bosses.length ? bosses[0].freeLeft : 0,
+      talismanLeft: bosses.length ? bosses[0].paidLeft : 0,
+      bossNo: 1,
       bossMax: ACT_BOSS_MAX_BOSSES,
-      coolLeft,
+      coolLeft: bosses.length ? bosses[0].freeCoolLeft : 0,
+      freeLimit: ACT_BOSS_FREE_STRIKES,
+      paidLimit: ACT_BOSS_PAID_LIMIT,
+      bosses,
       top10: (top || []).map((x: any, i: number) => ({ userId: Number(x.uid), name: String(x.name || ''), score: Math.max(0, Math.floor(Number(x.score) || 0)), rank: i + 1 })),
       active: actIsActive(ev, Date.now()),
     });
@@ -9541,15 +9698,16 @@ app.post('/api/eventboss/strike', authenticateToken, rateLimit({ windowMs: 60 * 
     if (!actIsActive(ev, now)) return res.status(409).json({ error: '活动未开启或已结束' });
     const boss = await actBossEnsure(Number(ev.id));
     if (Number(boss.killed) === 1) return res.status(409).json({ error: '妖兽已被诛杀' });
-    const used = await actFunUsedToday(userId, 'raid');
-    // [r056boss] R-056：免费次数改「每只 5 次」（event_boss_hits.free_used，随换 boss 归零），
-    //   每日不限次；节奏闸门 = 10 分钟冷却（event_boss_hits.last_strike_at）。
-    const mineQ = await dbGet('SELECT free_used, last_strike_at FROM event_boss_hits WHERE event_id = ? AND user_id = ?', [Number(ev.id), userId]).catch(() => null);
-    const freeUsed = Math.max(0, Math.floor(Number(mineQ && mineQ.free_used) || 0));
+    // [r113boss] R-113：bossNo 由请求体带入；五只同时出现，逐只独立「免费 5 次/日 + 10 分钟冷却」。
+    const bossNo = Math.max(1, Math.min(ACT_BOSS_MAX_BOSSES, Math.floor(Number(req.body?.bossNo) || 1)));
+    const slotRow = await dbGet('SELECT killed FROM event_boss5 WHERE event_id = ? AND boss_no = ?', [Number(ev.id), bossNo]).catch(() => null);
+    if (!slotRow) return res.status(409).json({ error: '该妖兽不存在' });
+    if (Number(slotRow.killed) === 1) return res.status(409).json({ error: '该妖兽已被诛杀' });
+    const freeUsed = await actBossUsedToday(userId, Number(ev.id), bossNo, 'f');
     if (freeUsed >= ACT_BOSS_FREE_STRIKES) {
-      return res.status(409).json({ error: `本只妖兽的免费出手已用尽（${ACT_BOSS_FREE_STRIKES} 次），可用诛妖符追加或等下一只现身` });
+      return res.status(409).json({ error: `本只妖兽的免费出手已用尽（${ACT_BOSS_FREE_STRIKES} 次/日），可用诛妖符追加` });
     }
-    const lastAt = Math.max(0, Math.floor(Number(mineQ && mineQ.last_strike_at) || 0));
+    const lastAt = await actBossLastAt(userId, Number(ev.id), bossNo, 'f');
     const coolMs = lastAt > 0 ? ACT_BOSS_STRIKE_COOLDOWN_MS - (now - lastAt) : 0;
     if (coolMs > 0) {
       return res.status(409).json({ error: `出手冷却中，还需 ${Math.ceil(coolMs / 1000)} 秒` });
@@ -9559,7 +9717,7 @@ app.post('/api/eventboss/strike', authenticateToken, rateLimit({ windowMs: 60 * 
     try {
       ins = await dbRun(
         'INSERT INTO fun_daily (player_id, date, kind, count, cost, payout, detail, created_at) VALUES (?, ?, ?, ?, 0, 0, ?, ?)',
-        [userId, utcDateStr(), 'raid', used + 1, JSON.stringify({ eventId: Number(ev.id) }), now]);
+        [userId, utcDateStr(), actBossKind(Number(ev.id), bossNo, 'f'), freeUsed + 1, JSON.stringify({ eventId: Number(ev.id), bossNo }), now]);
     } catch (e: any) {
       if (String(e?.message || '').includes('UNIQUE')) return res.status(409).json({ error: '手速太快，请再试一次' });
       throw e;
@@ -9567,7 +9725,7 @@ app.post('/api/eventboss/strike', authenticateToken, rateLimit({ windowMs: 60 * 
     // ② 守卫式扣血 + ③ 记分（被他人抢先击杀则补偿撤位）
     let hit: { score: number; total: number; killed: boolean; hpCur: number };
     try {
-      hit = await actBossHitOnce(userId, Number(ev.id), now, true);
+      hit = await actBossHitOnce(userId, Number(ev.id), bossNo, now, true);
     } catch (e: any) {
       if (String(e?.message || '') === 'ACT_BOSS_KILLED_RACE') {
         await dbRun('DELETE FROM fun_daily WHERE id = ?', [ins.lastID]).catch(() => { });
@@ -9580,6 +9738,7 @@ app.post('/api/eventboss/strike', authenticateToken, rateLimit({ windowMs: 60 * 
       ok: true, score: hit.score, total: hit.total, killed: hit.killed,
       killer: hit.killed ? await actNameOf(killerIdRow && killerIdRow.killer_id) : null,
       hpCur: hit.hpCur,
+      bossNo,
       freeLeft: Math.max(0, ACT_BOSS_FREE_STRIKES - freeUsed - 1),
       coolLeft: ACT_BOSS_STRIKE_COOLDOWN_MS,
     });
@@ -9602,9 +9761,19 @@ app.post('/api/eventboss/talisman', authenticateToken, rateLimit({ windowMs: 60 
     if (!actIsActive(ev, now)) return res.status(409).json({ error: '活动未开启或已结束' });
     const boss = await actBossEnsure(Number(ev.id));
     if (Number(boss.killed) === 1) return res.status(409).json({ error: '妖兽已被诛杀' });
-    const used = await actFunUsedToday(userId, 'raid_talisman');
-    if (used >= ACT_BOSS_TALISMAN_DAILY) {
-      return res.status(409).json({ error: `今日诛妖符已用尽（${ACT_BOSS_TALISMAN_DAILY} 张）` });
+    // [r113boss] R-113：收费（诛妖符）逐只 10 次/日 + 5 分钟冷却；bossNo 由请求体带入。
+    const bossNo = Math.max(1, Math.min(ACT_BOSS_MAX_BOSSES, Math.floor(Number(req.body?.bossNo) || 1)));
+    const slotRow = await dbGet('SELECT killed FROM event_boss5 WHERE event_id = ? AND boss_no = ?', [Number(ev.id), bossNo]).catch(() => null);
+    if (!slotRow) return res.status(409).json({ error: '该妖兽不存在' });
+    if (Number(slotRow.killed) === 1) return res.status(409).json({ error: '该妖兽已被诛杀' });
+    const used = await actBossUsedToday(userId, Number(ev.id), bossNo, 'p');
+    if (used >= ACT_BOSS_PAID_LIMIT) {
+      return res.status(409).json({ error: `本只妖兽的收费出手已用尽（${ACT_BOSS_PAID_LIMIT} 次/日）` });
+    }
+    const paidLastAt = await actBossLastAt(userId, Number(ev.id), bossNo, 'p');
+    const paidCoolMs = paidLastAt > 0 ? ACT_BOSS_PAID_COOLDOWN_MS - (now - paidLastAt) : 0;
+    if (paidCoolMs > 0) {
+      return res.status(409).json({ error: `收费出手冷却中，还需 ${Math.ceil(paidCoolMs / 1000)} 秒` });
     }
     const price = await actHourlyOf(userId); // 符价=1×境界时薪
     // ① 占符位
@@ -9612,7 +9781,7 @@ app.post('/api/eventboss/talisman', authenticateToken, rateLimit({ windowMs: 60 
     try {
       ins = await dbRun(
         'INSERT INTO fun_daily (player_id, date, kind, count, cost, payout, detail, created_at) VALUES (?, ?, ?, ?, ?, 0, ?, ?)',
-        [userId, utcDateStr(), 'raid_talisman', used + 1, price, JSON.stringify({ eventId: Number(ev.id) }), now]);
+        [userId, utcDateStr(), actBossKind(Number(ev.id), bossNo, 'p'), used + 1, price, JSON.stringify({ eventId: Number(ev.id), bossNo }), now]);
     } catch (e: any) {
       if (String(e?.message || '').includes('UNIQUE')) return res.status(409).json({ error: '手速太快，请再试一次' });
       throw e;
@@ -9631,7 +9800,7 @@ app.post('/api/eventboss/talisman', authenticateToken, rateLimit({ windowMs: 60 
     // ③ 守卫式扣血 + 记分（被他人抢先击杀则退灵石 + 删行，全或无）
     let hit: { score: number; total: number; killed: boolean; hpCur: number };
     try {
-      hit = await actBossHitOnce(userId, Number(ev.id), now, false);
+      hit = await actBossHitOnce(userId, Number(ev.id), bossNo, now, false);
     } catch (e: any) {
       if (String(e?.message || '') === 'ACT_BOSS_KILLED_RACE') {
         await updatePlayerSave(userId, (sd: any) => {
@@ -9647,7 +9816,9 @@ app.post('/api/eventboss/talisman', authenticateToken, rateLimit({ windowMs: 60 
       ok: true, score: hit.score, total: hit.total, killed: hit.killed,
       killer: hit.killed ? await actNameOf(killerIdRow && killerIdRow.killer_id) : null,
       hpCur: hit.hpCur, spent: price,
-      talismanLeft: Math.max(0, ACT_BOSS_TALISMAN_DAILY - used - 1),
+      bossNo,
+      talismanLeft: Math.max(0, ACT_BOSS_PAID_LIMIT - used - 1),
+      paidCoolLeft: ACT_BOSS_PAID_COOLDOWN_MS,
     });
   } catch (e: any) {
     console.error('act boss talisman error:', e?.message || e);
@@ -9824,7 +9995,7 @@ function actSignDaysInMonth(nowMs: number): number {
   const seg = month.split('-');
   const y = Number(seg[0]);
   const mo = Number(seg[1]);
-  const nextMonth = mo === 12 ? (y + 1) + '-01' : month.slice(0, 4) + String(mo + 1).padStart(2, '0');
+  const nextMonth = mo === 12 ? (y + 1) + '-01' : month.slice(0, 5) + String(mo + 1).padStart(2, '0');
   return Math.max(28, Math.round((Date.parse(nextMonth + '-01T00:00:00+08:00') - Date.parse(month + '-01T00:00:00+08:00')) / 86400000));
 }
 // 当月签到场 lazy 建场：按 (type, start_at, end_at) 精确匹配自然月场；GM 手建的历史 7 天场
@@ -9835,7 +10006,7 @@ async function actSignEnsureMonth(nowMs: number): Promise<any | null> {
   const seg = month.split('-');
   const y = Number(seg[0]);
   const mo = Number(seg[1]);
-  const nextMonth = mo === 12 ? (y + 1) + '-01' : month.slice(0, 4) + String(mo + 1).padStart(2, '0');
+  const nextMonth = mo === 12 ? (y + 1) + '-01' : month.slice(0, 5) + String(mo + 1).padStart(2, '0');
   const endAt = Date.parse(nextMonth + '-01T00:00:00+08:00');
   if (!Number.isFinite(startAt) || !Number.isFinite(endAt) || endAt <= startAt) return null;
   const cur = await dbGet("SELECT id, type, name, start_at, end_at, enabled FROM events WHERE type = 'checkin_fest' AND start_at = ? AND end_at = ? ORDER BY id DESC LIMIT 1", [startAt, endAt]).catch(() => null);
@@ -11716,13 +11887,13 @@ const GREET_STONES_BASE = 200;
 // 0.8.6 每日行乐：掷骰比大小 / 每日一签 / 灵石翻牌（+ 茶馆茶运）
 // 设计红线：任何玩法 EV ≤ 1（见本文件顶部注释）。免费玩法一律设每日次数上限。
 // ─────────────────────────────────────────────────────────
-const FUN_DICE_DAILY = 3;
-const FUN_DICE_MIN = 1000, FUN_DICE_MAX = 20000;
+const FUN_DICE_DAILY = 10; // R-128 [r128fun] 每日 3→10 次（掷骰上限 10 次，台账原文）
+const FUN_DICE_MIN = 20000, FUN_DICE_MAX = 20000; // R-128 [r128fun] 每次固定 2 万注（MIN 1000→20000；赔率 1.95/25 不动，EV=91/96≈0.9479≤1 铁律②）
 const FUN_DICE_PAY = 1.95, FUN_DICE_TRIPLE_PAY = 25;
 const FUN_SIGN_DAILY = 1;
-const FUN_SIGN_BASE = 500; // 一签灵石底数（再乘 realmMultOf 与签档倍率）
-const FUN_CARD_DAILY = 2, FUN_CARD_COST = 2000;
-const FUN_CARD_PAYS = [4500, 1200, 0];
+const FUN_SIGN_BASE = 2000; // R-127 [r127sign]：一签灵石底数 500→2000（每日仅 1 抽，奖励大幅增加；仍再乘 realmMultOf 与签档倍率）
+const FUN_CARD_DAILY = 10, FUN_CARD_COST = 20000; // R-128 [r128fun] 每日 2→10 次 · 单次成本 2000→20000
+const FUN_CARD_PAYS = [0, 2000, 6000, 10000, 14000, 18000, 22000, 28000, 34000, 54000]; // R-128 [r128fun] 3 档→10 档：Σ=188,000，EV=18,800/20,000=0.94≤1；赚(>2万)4 张/亏(<2万)6 张，头奖=2.7x 注额
 const FUN_DICE_PICK_NAME: Record<string, string> = { big: '大', small: '小', triple: '豹子' };
 
 // 茶运：每日由日期哈希定 0/1/2 档。只放大**修为**与**彩头概率**，绝不碰灵石赔率。
@@ -11769,13 +11940,13 @@ function funDicePayout(kind: string, pick: string, bet: number): number {
 // 每日一签：四档签文池（权重合计 100）
 interface FunSignTier { key: string; name: string; weight: number; expRate: number; stonesRate: number; ticketChance: number; texts: string[]; }
 const FUN_SIGN_TIERS: FunSignTier[] = [
-  { key: 'ss', name: '上上签', weight: 10, expRate: 0.020, stonesRate: 4.0, ticketChance: 0.30,
+  { key: 'ss', name: '上上签', weight: 10, expRate: 0.050, stonesRate: 12.0, ticketChance: 0.30, // R-127 [r127sign] expRate .020→.050 · stonesRate 4.0→12.0（权重/彩头率/签文不动）
     texts: ['紫气东来，道基天成。', '云开见月，仙缘自来。', '一念通玄，百脉俱畅。', '天光垂照，此签大吉。'] },
-  { key: 's', name: '上签', weight: 30, expRate: 0.010, stonesRate: 2.4, ticketChance: 0.10,
+  { key: 's', name: '上签', weight: 30, expRate: 0.025, stonesRate: 6.0, ticketChance: 0.10, // R-127 [r127sign] expRate .010→.025 · stonesRate 2.4→6.0
     texts: ['清风入怀，修行顺遂。', '溪山有约，前路可期。', '小有际遇，宜静心守拙。', '云淡风轻，一步一进。'] },
-  { key: 'm', name: '中签', weight: 45, expRate: 0.005, stonesRate: 1.4, ticketChance: 0.02,
+  { key: 'm', name: '中签', weight: 45, expRate: 0.010, stonesRate: 2.5, ticketChance: 0.02, // R-127 [r127sign] expRate .005→.010 · stonesRate 1.4→2.5
     texts: ['不咸不淡，稳中有进。', '行路平平，守常即可。', '无大吉亦无大凶。', '日常如常，即是好签。'] },
-  { key: 'x', name: '下签', weight: 15, expRate: 0.002, stonesRate: 0.7, ticketChance: 0,
+  { key: 'x', name: '下签', weight: 15, expRate: 0.003, stonesRate: 1.0, ticketChance: 0, // R-127 [r127sign] expRate .002→.003 · stonesRate 0.7→1.0
     texts: ['风微云暗，宜少动多思。', '前路稍阻，退一步自有天地。', '小晦而已，不必挂怀。'] },
 ];
 // 抽签档位（纯）：从低档到高档累计区间落点
@@ -12125,11 +12296,11 @@ app.post('/api/fun/card', authenticateToken, rateLimit({ windowMs: 60 * 1000, ma
   try {
     const today = funDateStr();
     const pick = Math.floor(asNum(req.body?.pick));
-    if (!(pick >= 0 && pick <= 2)) return res.status(400).json({ error: '只能翻 1 / 2 / 3 号牌' });
+    if (!(pick >= 0 && pick <= 9)) return res.status(400).json({ error: '只能翻 1 ~ 10 号牌' }); // R-128 [r128fun] 牌号 0..2→0..9（400=业务拒绝，非 403）
     const cnt: any = await dbGet('SELECT COUNT(*) AS c FROM fun_daily WHERE player_id = ? AND date = ? AND kind = ?', [userId, today, 'card']);
     const used = Math.max(0, Number(cnt?.c) || 0);
     if (used >= FUN_CARD_DAILY) return res.status(409).json({ error: `今日已翻 ${FUN_CARD_DAILY} 次，明日再来` });
-    // 洗牌：奖项等概率落三张牌
+    // 洗牌：奖项等概率落十张牌（R-128 [r128fun] 3→10 档）
     const deck = FUN_CARD_PAYS.slice();
     for (let i = deck.length - 1; i > 0; i--) {
       const j = funRandInt(0, i, Math.random);
@@ -12232,16 +12403,16 @@ app.post('/api/worldboss/strike', authenticateToken, rateLimit({ windowMs: 60 * 
 // 活动：7 天滚动排期惰性生成（周五妖兽双倍 / 周日茶馆双倍），妖兽与茶馆读取当日加成。
 // ─────────────────────────────────────────────────────────
 const GUIDE_STEPS = [
-  { id: 'enter', name: '初入江湖', desc: '创建角色存档', reward: 500, check: 'has_save' },
-  { id: 'lv3', name: '炼气三层', desc: '总等级达到 3', reward: 800, check: 'lv', arg: 3 },
-  { id: 'lv9', name: '炼气圆满', desc: '总等级达到 9', reward: 1500, check: 'lv', arg: 9 },
-  { id: 'zhuji', name: '筑基成功', desc: '总等级达到 10', reward: 2000, check: 'lv', arg: 10 },
-  { id: 'friend', name: '结识道友', desc: '添加 1 位好友', reward: 800, check: 'friend' },
-  { id: 'baishi', name: '拜入师门', desc: '拥有师傅', reward: 1500, check: 'has_mentor' },
-  { id: 'jindan', name: '金丹初成', desc: '总等级达到 19', reward: 5000, check: 'lv', arg: 19 },
-  { id: 'daolv', name: '喜结道侣', desc: '结为道侣', reward: 3000, check: 'married' },
-];
-const WEEK_REWARDS = [500, 800, 1200, 1800, 2500, 3500, 5000];
+  { id: 'enter', name: '初入江湖', desc: '创建角色存档', reward: 2000, check: 'has_save' },
+  { id: 'lv3', name: '炼气三层', desc: '总等级达到 3', reward: 3000, check: 'lv', arg: 3 },
+  { id: 'lv9', name: '炼气圆满', desc: '总等级达到 9', reward: 6000, check: 'lv', arg: 9 },
+  { id: 'zhuji', name: '筑基成功', desc: '总等级达到 10', reward: 8000, check: 'lv', arg: 10 },
+  { id: 'friend', name: '结识道友', desc: '添加 1 位好友', reward: 3000, check: 'friend' },
+  { id: 'baishi', name: '拜入师门', desc: '拥有师傅', reward: 6000, check: 'has_mentor' },
+  { id: 'jindan', name: '金丹初成', desc: '总等级达到 19', reward: 20000, check: 'lv', arg: 19 },
+  { id: 'daolv', name: '喜结道侣', desc: '结为道侣', reward: 12000, check: 'married' },
+]; // [r123guide] R-123 指引 8 步加码（0.9.13 数值表 §7）：Σ60,000（旧 15,100，3.97x）；七日礼同批 Σ15,300→50,000
+const WEEK_REWARDS = [2000, 3000, 4000, 6000, 8000, 12000, 15000]; // [r123guide] R-123 七日礼加码：Σ50,000（旧 15,300，3.27x，逐日递增）
 
 // 当日活动（惰性生成 7 天滚动排期：周五妖兽双倍，周日茶馆双倍）
 async function activityOf(today: string): Promise<any> {
@@ -12637,11 +12808,11 @@ app.post('/api/offline/claim', authenticateToken, rateLimit({ windowMs: 60 * 100
 });
 
 // ─────────────────────────────────────────────────────────
-// Y19 成就系统 API（伴生页 /yl/apps/ach/ 用）：五类各 4 项共 20 项，达成从 stats_daily/daily_quests/saves
+// Y19 成就系统 API（伴生页 /yl/apps/ach/ 用）：五类各 10 项共 50 项，达成从 stats_daily/daily_quests/saves
 // 惰性推导（零新增埋点、零新增统计表）；achievement_claimed 主键幂等防重复领奖，奖励走邮件（灵石阶梯）
 // ─────────────────────────────────────────────────────────
 
-// GET /api/achievements — 全 20 项 + 每类进度 + 可领取清单（惰性计算，一页全量）
+// GET /api/achievements — 全 50 项 + 每类进度 + 可领取清单（惰性计算，一页全量）
 app.get('/api/achievements', authenticateToken, rateLimit({ windowMs: 60 * 1000, max: 60, keyFn: (req: any) => `ach:list:${req.user?.id ?? req.ip}` }), async (req: any, res: any) => {
   try {
     const userId = req.user.id;
@@ -12652,16 +12823,22 @@ app.get('/api/achievements', authenticateToken, rateLimit({ windowMs: 60 * 1000,
       dbAll('SELECT ach_id FROM achievement_claimed WHERE user_id = ? LIMIT 100', [userId]),
     ]);
     let realmIndex = -1;
+    let realmLevel = 1; // [r122] 当层层数（save.player.realmLevel，与 rankings 同源；无档=1）
     let realmName = '未开始';
     if (saveRow) {
       try {
-        const r = JSON.parse(String(saveRow.save_data))?.player?.realm;
+        const p = JSON.parse(String(saveRow.save_data))?.player;
+        const r = p?.realm;
         const i = typeof r === 'string' ? REALM_ORDER_FOR_RANKING.indexOf(r) : -1;
-        if (i >= 0) { realmIndex = i; realmName = r; }
+        if (i >= 0) {
+          realmIndex = i; realmName = r;
+          const lv = Math.floor(Number(p?.realmLevel));
+          if (Number.isFinite(lv)) realmLevel = Math.max(1, lv);
+        }
       } catch { /* 坏存档按无境界处理，不阻塞列表 */ }
     }
     const view = buildAchievementsView(
-      achTotalsFrom({ minutes: sum?.m, kills: sum?.k, silver: sum?.s, quests: questCnt?.c, realmIndex }),
+      achTotalsFrom({ minutes: sum?.m, kills: sum?.k, silver: sum?.s, quests: questCnt?.c, realmIndex, totalLevel: realmIndex >= 0 ? realmIndex * 9 + realmLevel : 0 }), // [r122] 总等级=境界序×9+层；无档=0
       (claimedRows || []).map((r: any) => String(r.ach_id))
     );
     res.json({ realm: { name: realmName, index: realmIndex }, ...view });
@@ -12684,14 +12861,20 @@ app.post('/api/achievements/claim', authenticateToken, rateLimit({ windowMs: 60 
       dbAll('SELECT ach_id FROM achievement_claimed WHERE user_id = ? LIMIT 100', [userId]),
     ]);
     let realmIndex = -1;
+    let realmLevel = 1; // [r122] 当层层数（save.player.realmLevel，与 rankings 同源；无档=1）
     if (saveRow) {
       try {
-        const r = JSON.parse(String(saveRow.save_data))?.player?.realm;
+        const p = JSON.parse(String(saveRow.save_data))?.player;
+        const r = p?.realm;
         realmIndex = typeof r === 'string' ? REALM_ORDER_FOR_RANKING.indexOf(r) : -1;
+        if (realmIndex >= 0) {
+          const lv = Math.floor(Number(p?.realmLevel));
+          if (Number.isFinite(lv)) realmLevel = Math.max(1, lv);
+        }
       } catch { /* 坏存档按无境界处理 */ }
     }
     const view = buildAchievementsView(
-      achTotalsFrom({ minutes: sum?.m, kills: sum?.k, silver: sum?.s, quests: questCnt?.c, realmIndex }),
+      achTotalsFrom({ minutes: sum?.m, kills: sum?.k, silver: sum?.s, quests: questCnt?.c, realmIndex, totalLevel: realmIndex >= 0 ? realmIndex * 9 + realmLevel : 0 }), // [r122] 总等级=境界序×9+层；无档=0
       (claimedRows || []).map((r: any) => String(r.ach_id))
     );
     const ids = achPickClaimable(view, req.body?.id);

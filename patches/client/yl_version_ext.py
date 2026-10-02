@@ -46,14 +46,14 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 CHANGELOG_LOCAL = os.path.join(HERE, 'CHANGELOG.md')
 
 # 兜底版本（= 当前线上/本地 CHANGELOG 最新版；_test_version.py 会断言两者一致）
-DEFAULT_VERSION = '0.9.2'
+DEFAULT_VERSION = '0.9.13'
 
 # ---------------------------------------------------------------------------
 # 注入 JS 块（纯 ASCII；构建侧统一 zh()）
 # ---------------------------------------------------------------------------
 INJECT_JS = r'''
 /* == YL_VERSION_DYNAMIC_V28 == */
-var YLVERSION_FALLBACK = "0.9.2";
+var YLVERSION_FALLBACK = "0.9.13";
 var YLVERSION_CACHE = null;
 var YLVERSION_LOADED = false;
 function YlxwVersionParse(text) {
@@ -228,7 +228,21 @@ def apply(p, ctx):
         ('version·Get helper 定义',      'function YlxwVersionGet(',                            1, '==', ''),
         ('version·Parse helper 定义',    'function YlxwVersionParse(',                          1, '==', ''),
         ('version·Load helper 定义',     'function YlxwVersionLoad(',                           1, '==', ''),
-        ('version·兜底常量=0.9.2',       'var YLVERSION_FALLBACK = "0.9.2"',                    1, '==', ''),
+        # ★ 2026-10-01：这一条改成**从 DEFAULT_VERSION 派生**，以后升版只需改一处常量，
+        #   不必再回来手改门禁名/锚点（原来每升一版都要在这里改一次，容易漏）。
+        ('version·兜底常量=%s' % DEFAULT_VERSION,
+         'var YLVERSION_FALLBACK = "%s"' % DEFAULT_VERSION,                                    1, '==', ''),
+        ('version·旧兜底 0.9.12 已清零', 'var YLVERSION_FALLBACK = "0.9.12"',                   0, '==', ''),
+        ('version·旧兜底 0.9.11 已清零', 'var YLVERSION_FALLBACK = "0.9.11"',                   0, '==', ''),
+        ('version·旧兜底 0.9.10 已清零', 'var YLVERSION_FALLBACK = "0.9.10"',                   0, '==', ''),
+        ('version·旧兜底 0.9.9 已清零',  'var YLVERSION_FALLBACK = "0.9.9"',                    0, '==', ''),
+        ('version·旧兜底 0.9.8 已清零',  'var YLVERSION_FALLBACK = "0.9.8"',                    0, '==', ''),
+        ('version·旧兜底 0.9.7 已清零',  'var YLVERSION_FALLBACK = "0.9.7"',                    0, '==', ''),
+        ('version·旧兜底 0.9.6 已清零',  'var YLVERSION_FALLBACK = "0.9.6"',                    0, '==', ''),
+        ('version·旧兜底 0.9.5 已清零',  'var YLVERSION_FALLBACK = "0.9.5"',                    0, '==', ''),
+        ('version·旧兜底 0.9.4 已清零',  'var YLVERSION_FALLBACK = "0.9.4"',                    0, '==', ''),
+        ('version·旧兜底 0.9.3 已清零',  'var YLVERSION_FALLBACK = "0.9.3"',                    0, '==', ''),
+        ('version·旧兜底 0.9.2 已清零',  'var YLVERSION_FALLBACK = "0.9.2"',                    0, '==', ''),
         ('version·旧兜底 0.9.1 已清零',  'var YLVERSION_FALLBACK = "0.9.1"',                    0, '==', ''),
         ('version·旧兜底 0.9.0 已清零',  'var YLVERSION_FALLBACK = "0.9.0"',                    0, '==', ''),
         ('version·旧兜底 0.8.11.13 已清零','var YLVERSION_FALLBACK = "0.8.11.13"',               0, '==', ''),

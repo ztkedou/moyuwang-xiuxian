@@ -111,9 +111,9 @@ FRZ_DOT1 = 'Math.random()<.1'                                          # 无关 
 FRZ_MODAL = 'title:"人物志",titleIcon:e.jsx(um,{size:18})'             # 人物志模态不动
 FRZ_DEX_T6 = 'function YlxwCharDexPanelT6('                            # 图鉴/寻访 UI 不动（主动渠道）
 FRZ_BOND_T6 = 'function YlxwCharBondPanelT6('                          # 缘契 UI 不动
-FRZ_ADV_CD = '}finally{c(!1),d(3)}};'                                  # R-042 自动历练冷却 3s 不动
+FRZ_ADV_CD = '}finally{c(!1),d(10)}};'                                 # R-042 自动历练冷却（R-117 2026-10-02 调 10s）不动
 FRZ_R41_LUCKY = 'B=.05,Y=U*.02'                                        # R-041 已回滚：历练奇遇率 5%（原 15%）
-FRZ_R41_INSIGHT = 'Math.random()<.002'                                 # R-041 已回滚：顿悟率 0.2%（原 1.5%）
+FRZ_R41_INSIGHT = 'Math.random()<.004'                                 # 0.9.8 adv097(R-090) 有意上调：顿悟率 0.4%（R-041 回滚后 0.2%，adv097 再提）
 FRZ_R43_HP = 'hpChange:t.hpChange<0?Math.floor(t.hpChange*u*0.25)'     # R-043 历练掉血口径不动
 FRZ_R59_GAIN = 'function YlxwCharVisitGain('                           # R-059 寻访好感递减不动
 
@@ -168,9 +168,9 @@ def apply(p, ctx):
         ('冻结·寻访按钮文案×2',        ctx['zh']('寻访 · 今日免费'), 2, '==', '死 DexPanel + T6 各 1（r059 同款口径）；每日免费寻访未动'),
         ('冻结·寻访好感递减(R59)',     FRZ_R59_GAIN, 1, '==', 'R-059 产物'),
         # ================= 冻结：相邻需求面（同在历练流，一个字不碰）=================
-        ('冻结·R-042 历练冷却 3s',     FRZ_ADV_CD, 1, '==', '自动历练节奏不归本批管'),
+        ('冻结·R-042 历练冷却 10s',    FRZ_ADV_CD, 1, '==', '自动历练节奏不归本批管（R-117 2026-10-02 定 10s，由属主侧放宽）'),
         ('冻结·R-041 奇遇率 5%(回滚)', FRZ_R41_LUCKY, 1, '==', 'r041 已回滚：B=.05'),
-        ('冻结·R-041 顿悟率 0.2%(回滚)', FRZ_R41_INSIGHT, 1, '==', 'r041 已回滚：.002'),
+        ('冻结·R-041 顿悟率 0.4%(adv097 后)', FRZ_R41_INSIGHT, 1, '==', '0.9.8 adv097(R-090) 有意上调 0.2%→0.4%'),
         ('冻结·R-043 掉血口径',        FRZ_R43_HP, 1, '==', 'r043 产物'),
         ('冻结·T6 产生点 npcId-adventure', 'npcId:`npc-adventure-', 1, '==', 'id 形态未动'),
         ('冻结·T6 产生点 npcId-rescue', 'npcId:`npc-rescue-', 1, '==', ''),

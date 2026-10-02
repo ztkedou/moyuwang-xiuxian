@@ -359,7 +359,10 @@ def apply(p, ctx):
         ('E·旧兜底 150 已清零',       'Math.floor(150*(1+fe.indexOf(l.realm)*.5))', 0, '==', ''),
 
         # ---- (E5) 商店刷新 ----
-        ('E·刷新费已查表',            REFRESH_REPL,                           1, '==', ''),
+        # ★ 2026-10-01 0.9.9：shoprefresh101 改了 handleRefreshShop 的签名与取费行
+        #   （`u=>` → `(u,w)=>`，并支持透传免费/付费），故本模块不再断言该形态；
+        #   最终形态由 shoprefresh101 断言。
+        ('E·刷新费已被 shoprefresh101 接管', REFRESH_REPL,                   0, '==', '0.9.9 由 shoprefresh101 接管'),
         ('E·旧硬编码 1e5 已清零',     'const f=1e5;',                         0, '==', ''),
         ('E·刷新提示文案仍在',        '无法刷新商店。需要',                    1, '==', '模板串保留，仅 f 换来源'),
 

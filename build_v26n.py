@@ -16,6 +16,7 @@ build_v26n.py — yl 客户端 v26n：移植上游 0.3.8「九天通天塔」
   - 挂载：YLXW_COMP.tower + YLXW_TABS.push + YLXW_ICONS.tower + 抽屉入口 YlxwOpen("tower")
 """
 import os
+import subprocess
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -239,6 +240,41 @@ from yl_r077_ext import apply as v28_r077_apply  # noqa: E402
 from yl_r080_ext import apply as v28_r080_apply  # noqa: E402
 from yl_r081_ext import apply as v28_r081_apply  # noqa: E402
 from yl_r079_ext import apply as v28_r079_apply  # noqa: E402  # R-079 补全玩法介绍
+# ---- 0.9.3 客户端小修（R-083 云端刷新弹窗 + 仓库链接指向本仓库；无硬依赖）----
+from yl_r083_ext import apply as v28_r083_apply  # noqa: E402
+# ---- 0.9.4 寿元体系（自动历练温和化 + 扣减可见 + 打坐耗命）----
+from yl_life094_ext import apply as v28_life094_apply  # noqa: E402
+# ---- 0.9.6 突破奖励 + 每点属性加成（用户：升级难、寿命易耗尽）----
+from yl_bt096_ext import apply as v28_bt096_apply  # noqa: E402
+# ---- 0.9.7 属性/寿元/灵根（R-095/096 体魄+气血 · R-099 寿元按小说设定 · R-098 五系灵根被动）----
+from yl_attr097_ext import apply as v28_attr097_apply  # noqa: E402
+from yl_life097_ext import apply as v28_life097_apply  # noqa: E402  # ★ 必须排 bt096 之后（覆盖其 _e 公式）
+from yl_linggen097_ext import apply as v28_linggen097_apply  # noqa: E402
+# ---- 0.9.8（R-085/087 天赋重做 · R-089/090 历练+顿悟 · R-091 悟道面板 · 速度→身法改名）----
+from yl_speedname097_ext import apply as v28_speedname097_apply  # noqa: E402
+from yl_talent097_ext import apply as v28_talent097_apply  # noqa: E402
+from yl_adv097_ext import apply as v28_adv097_apply  # noqa: E402
+from yl_dao097_ext import apply as v28_dao097_apply  # noqa: E402
+# ---- 0.9.9（R-101 历练商店刷新计费 · R-084 人物志与道友图鉴解耦）----
+from yl_shoprefresh101_ext import apply as v28_shoprefresh101_apply  # noqa: E402
+from yl_chardex101_ext import apply as v28_chardex101_apply  # noqa: E402
+# ---- 0.9.10（R-102/103/104 商店三连 · R-105 自动历练结束汇总推送）----
+from yl_shop102_ext import apply as v28_shop102_apply  # noqa: E402
+from yl_advend105_ext import apply as v28_advend105_apply  # noqa: E402  # ★ 必须排 adv097 之后
+# ---- 0.9.11（R-106 折算显示口径 · R-107 道具数值与售价重配 · R-108 商店刷新显示修复 · R-109 加点面板口径）----
+from yl_r106_ext import apply as v28_r106_apply  # noqa: E402  # R-106 道具描述/预览按 $r 折算（只改显示）
+from yl_r107_ext import apply as v28_r107_apply  # noqa: E402  # R-107 数值/售价重配（★ 必须排 r106 之后：r106 的冻结断言认它的定稿值）
+from yl_r108_ext import apply as v28_r108_apply  # noqa: E402  # R-108 刷新显示修复（★ 必须排 shoprefresh101 之后）
+from yl_r109_ext import apply as v28_r109_apply  # noqa: E402  # R-109 加点面板每点增量改读 Ps
+# ---- 2026-10-02 链式自动轮次第 2 批（R-111/R-113/R-114/R-115）----
+from yl_r111_ext import apply as v28_r111_apply  # noqa: E402  # R-111 每日签到可用（★ 服务端配套 = SRV_CHAIN 'srv_patch_111.py'）
+from yl_r113_ext import apply as v28_r113_apply  # noqa: E402  # R-113 万妖巢穴五 boss 同现（★ 服务端配套 = SRV_CHAIN 'srv_patch_113.py'）
+from yl_r114_ext import apply as v28_r114_apply  # noqa: E402  # R-114 历练收获：修 0 值 + 参照打坐丰富化
+from yl_r115_ext import apply as v28_r115_apply  # noqa: E402  # R-115 洞府灵田价格/等阶/扩地/田位/悬停（★ 服务端配套 = SRV_CHAIN 'srv_patch_115.py'）
+# ---- 2026-10-02 0.9.13 第 1 批接线（R-124 = apply 模块；R-116/R-118 = 成员新契约 standalone
+#      --src 脚本，**不进 V28_MODULES**——由装配层（本文件 __main__ / dryrun_087）对最终产物
+#      按序套用，见下方 STANDALONE_CLIENT / apply_standalone()）----
+from yl_r124_ext import apply as v28_r124_apply  # noqa: E402  # R-124 灵田服用预览 spirit→神识（★ 必须排 farm089/speedname097 之后）
 from yl_r042_ext import apply as v28_r042_apply  # noqa: E402  # ★ 必须排在 cooldown 之后
 from yl_r043_ext import apply as v28_r043_apply  # noqa: E402  # ★ 必须排在 r041 之后
 # ---- 0.8.11.2 一模块（R-018 D5 灵纹：战斗层只读 + 换纹行）----
@@ -302,7 +338,7 @@ from yl_r067_ext import apply as v28_r067_apply  # noqa: E402
 from yl_068_ext import apply as v28_r068_apply  # noqa: E402
 
 BASE = os.path.join(HERE, 'build', 'assets', 'index-v26m-20260927.js')
-OUT = os.path.join(HERE, 'build', 'assets', 'index-v292-20261001.js')
+OUT = os.path.join(HERE, 'build', 'assets', 'index-v2913-20261002.js')
 
 # v28 模块调用顺序（锚点稳定性 + num-balance 必须最后）：
 #   saveretry → arb → version → mail → entry → sectgf → char → bond → ui
@@ -469,8 +505,80 @@ V28_MODULES = [
     ('r079', v28_r079_apply),              # R-079 补全玩法介绍
     ('r080', v28_r080_apply),              # R-080 抽奖保底 UI（★ 排 v2810d 之后）
     ('r081', v28_r081_apply),              # R-081 宗门俸禄按职位
+    # ---- 0.9.3（R-083 云端刷新弹窗 + 仓库链接；纯字符串替换，无硬依赖，恒在 numbal 之前）----
+    ('r083', v28_r083_apply),              # R-083 去掉阻塞弹窗 + 2 处 GitHub 链接改指本仓库
+    # ---- 0.9.4（寿元体系；恒在 numbal 之前，冷却值由 r042 负责）----
+    ('life094', v28_life094_apply),        # 自动历练寿元 ×0.05 + 每次报扣减 + 打坐每跳扣寿元
+    # ---- 0.9.6（突破奖励大幅提升 + 每点属性加成提升）----
+    ('bt096', v28_bt096_apply),
+    # ---- 0.9.7 ----
+    ('attr097', v28_attr097_apply),        # R-095 体魄=防御+气血各半 / R-096 气血 1 点=100
+    ('life097', v28_life097_apply),        # R-099 寿元表按《凡人修仙传》+ 50/50 分段（★ 必须排 bt096 之后）
+    ('linggen097', v28_linggen097_apply),  # R-098 五系灵根独有被动（只挂 xt，不动既有灵根口径）
+    # ---- 0.9.8（★ talent097 改 bd 的 expRate 口径，必须排在 numbal 预算重算之前）----
+    ('speedname097', v28_speedname097_apply),  # 「速度」→「身法」文案改名（只动中文，不碰字段名）
+    ('talent097', v28_talent097_apply),        # R-085 天赋数值 ×3 + expRate ×0.5 + 放开压制 / R-087 颜色按点数分档
+    ('adv097', v28_adv097_apply),              # R-089 历练灵石 ×3 + 每次写成果日志 / R-090 顿悟 0.2%→0.4%
+    ('dao097', v28_dao097_apply),              # R-091 悟道面板显示 exp/下级所需（服务端逻辑未动）
+    # ---- 0.9.9 ----
+    ('shoprefresh101', v28_shoprefresh101_apply),  # R-101 历练商店：首次刷新免费、之后 500 灵石
+    ('chardex101', v28_chardex101_apply),          # R-084 人物志与道友图鉴·缘契解耦 + 图鉴里程碑领奖
+    # ---- 0.9.10（★ advend105 必须排 adv097 之后：它挂 adv097 的结算调用点）----
+    ('shop102', v28_shop102_apply),                # R-102 名字后多「0」/ R-103 商店等阶闸门+售价 / R-104 库存上限
+    ('advend105', v28_advend105_apply),            # R-105 自动历练结束汇总推送（时长+成果）
+    # ---- 0.9.11 四模块（R-106~R-109；恒在 numbal 之前）----
+    ('r106', v28_r106_apply),              # R-106 道具描述/预览按 $r 折算显示（只改显示口径，不碰数值表）
+    ('r107', v28_r107_apply),              # R-107 道具数值/售价重配（★ 必须排 r106 之后：r106 的冻结断言认它的定稿值）
+    ('r108', v28_r108_apply),              # R-108 商店刷新：保留首次免费 + 恢复 2 万~8 万分级价 + 显示同步（★ 必须排 shoprefresh101 之后）
+    ('r109', v28_r109_apply),              # R-109 加点面板「每点增量」改读 Ps（原为上游写死副本，0.9.6/0.9.7 抬值后漏改）
+    # ---- 2026-10-02 链式自动轮次第 2 批（R-111/R-113/R-114/R-115；恒在 numbal 之前）----
+    ('r111', v28_r111_apply),              # R-111 每日签到可用（★ 服务端配套 = SRV_CHAIN 'srv_patch_111.py'）
+    ('r113', v28_r113_apply),              # R-113 万妖巢穴五 boss 同现 + 逐只次数/冷却（★ 服务端配套 = SRV_CHAIN 'srv_patch_113.py'；必须排 r056 之后）
+    ('r114', v28_r114_apply),              # R-114 历练收获：修「修为 0 · 灵石 0」+ 参照打坐丰富化（★ 必须排 adv097/advend105 之后）
+    ('r115', v28_r115_apply),              # R-115 洞府灵田：价格/等阶可见/扩地按钮/田位扩容/灵草悬停（★ 服务端配套 = SRV_CHAIN 'srv_patch_115.py'；必须排 farm089/farm2/r048/v2810c 之后）
+    # ---- 2026-10-02 0.9.13 第 1 批接线（R-124 apply 模块；R-116/R-118 standalone 见 STANDALONE_CLIENT）----
+    ('r124', v28_r124_apply),              # R-124 灵田服用预览：FT_ATTR 补 spirit:神识（★ 必须排 farm089/speedname097 之后；服务端配套 = SRV_CHAIN 'srv_patch_r124.py'）
     ('numbal', v28_numbal_apply),
 ]
+
+# ---- 0.9.13 成员新契约：standalone 客户端补丁脚本（lead 装配层接线）----
+#   这两份的契约只有 CLI `--src <装配产物>`（二进制读写、就地原子写回、自带 .bak/幂等/门禁），
+#   不是 apply(p, ctx) 模块 ⇒ **不能进 V28_MODULES**；由装配层在 build() 全模块应用并落盘之后
+#   对最终产物按序套用（顺序 = 列表序，两脚本锚区零交集）。dryrun_087 对 _chainstage 预演产物
+#   做同一套用 ⇒ 「预演==交付」md5 仍逐位成立。门禁表 = 各脚本 gates()（dryrun 收录重跑）。
+#   srv 半边不走这里：srv_patch_r116.py / srv_patch_r124.py 已接线进 chain_build.SRV_CHAIN。
+STANDALONE_CLIENT = [
+    ('r116', os.path.join(HERE, 'localtest', 'yl_r116_ext.py')),   # R-116 抽奖池自回流券权重 15/3/.5 → 4/.6/.08（对产物已展开串替换）
+    ('r118', os.path.join(HERE, 'localtest', 'yl_r118_ext.py')),   # R-118 打坐结束日志加「共打坐 N 次」（锚 medlog 展开块）
+    # ---- 2026-10-02 0.9.13 第 2 批接线（同契约；序=编号序，三脚本锚区互零交集）----
+    ('r119', os.path.join(HERE, 'localtest', 'yl_r119_ext.py')),   # R-119 装备神识/身法重配（改活链 iy/ry 四锚；纯客户端，无 srv 半边）
+    ('r125', os.path.join(HERE, 'localtest', 'yl_r125_ext.py')),   # R-125 洞府可扩每级 +≥1 + 扩地价格表 14→18 档根治 NaN 扣款（纯客户端）
+    ('r126', os.path.join(HERE, 'localtest', 'yl_r126_ext.py')),   # R-126 图鉴 7 档奖励加码 + doClaim 发放接线 stones/exp×YLRF（纯客户端）
+    # ---- 2026-10-02 0.9.13 第 3 批接线（同契约；序=编号序）----
+    ('r120', os.path.join(HERE, 'localtest', 'yl_r120_ext.py')),   # R-120 羁绊作用说明（锚 r018 妖灵卡展开块；纯客户端）
+    ('r121', os.path.join(HERE, 'localtest', 'yl_r121_ext.py')),   # R-121 全局玩法说明补齐 23 处（混合态 rc=4 拒写；纯客户端）
+    ('r123', os.path.join(HERE, 'localtest', 'yl_r123_ext.py')),   # R-123 指引 8 步奖励客户端面（★ 服务端配套 = SRV_CHAIN 'srv_patch_r123.py'）
+    ('r128', os.path.join(HERE, 'localtest', 'yl_r128_ext.py')),   # R-128 掷骰翻牌客户端面（锚 fun086 注入块；★ 服务端配套 = SRV_CHAIN 'srv_patch_r128.py'）
+    ('r131', os.path.join(HERE, 'localtest', 'yl_r131_ext.py')),   # R-131 缘契 DEXMILE 4→7 档+上限 200+UNL59 落修为（锚 chardex101+r059 产物；★ chardex101 装配态门禁不放宽——终态清零断言在本脚本 gates()）
+]
+
+
+def apply_standalone(bundle_path):
+    """对装配产物按序套用 STANDALONE_CLIENT（subprocess --src）。
+
+    退出码语义（两脚本一致）：0=本次补丁成功；3=已是补丁后形态（幂等跳过，不写盘）；
+    其余 = 失败。返回错误串列表（空列表 = 全部成功）。
+    """
+    errs = []
+    for tag, path in STANDALONE_CLIENT:
+        r = subprocess.run([sys.executable, path, '--src', bundle_path],
+                           capture_output=True, text=True, encoding='utf-8', errors='replace')
+        out = (r.stdout or '') + ((('\n[stderr] ' + r.stderr) if r.stderr else ''))
+        for ln in out.strip().splitlines():
+            print('  [standalone/%s] %s' % (tag, ln))
+        if r.returncode not in (0, 3):
+            errs.append('[standalone/%s] rc=%d（--src %s）' % (tag, r.returncode, bundle_path))
+    return errs
 
 # v28 注入块的禁词表（比 build_v26n 自有 6 块的 BAN_PATTERNS 宽松）：
 #   保留真危险项；放行 fetch( / localStorage —— version 模块需读取静态 /yl/CHANGELOG.md
@@ -997,7 +1105,7 @@ def _js_syntax_check(src):
     「我改了我想改的」，不能证明「产物还是合法 JS」。
     """
     import subprocess, tempfile, os as _os
-    node = _os.environ.get('YL_NODE') or r'C:\Users\27026\.workbuddy-ai\binaries\node\versions\22.22.2-3\node.exe'
+    node = _os.environ.get('YL_NODE') or r'<WORKDIR>\.workbuddy-ai\binaries\node\versions\22.22.2-3\node.exe'
     if not _os.path.exists(node):
         print('[WARN] 找不到 node，跳过 JS 语法门禁：%s' % node)
         return
@@ -1255,4 +1363,20 @@ if __name__ == '__main__':
 
         sys.stdout = _QuietGateStdout(sys.stdout)
     from yl_patch import run
-    sys.exit(run(sys.modules[__name__]))
+    _rc = run(sys.modules[__name__])
+    if _rc != 0:
+        sys.exit(_rc)
+    # ---- 0.9.13 成员新契约：standalone 客户端补丁（R-116/R-118）装配后套用 ----
+    #   run() 已把 V28_MODULES 产物二进制落盘 OUT；此处对 OUT 按序套用 standalone 脚本。
+    #   任何失败都以非零码退出（chain_build.build_client 靠 rc 中止；「预演==交付」
+    #   由 dryrun_087 对同一套 standalone 套用保证两侧 md5 逐位一致）。
+    #   ★ --check 模式不落盘 ⇒ 也不能对盘上旧产物套用 standalone（防误补旧包）。
+    if '--check' in sys.argv:
+        print('(--check 模式：不套用 standalone 补丁)')
+        sys.exit(0)
+    _errs = apply_standalone(OUT)
+    if _errs:
+        for _e in _errs:
+            print('[ABORT] %s' % _e)
+        sys.exit(1)
+    sys.exit(0)

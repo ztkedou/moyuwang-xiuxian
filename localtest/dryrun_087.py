@@ -28,6 +28,8 @@ ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 # 客户端补丁模块（yl_*_ext.py）已收进 patches/client/（import yl_version_ext 等需要）
 sys.path.insert(0, os.path.join(ROOT, 'patches', 'client'))
+# 0.9.13 standalone 成员脚本（yl_r116_ext / yl_r118_ext 在 localtest/；append 防抢位 patches/client）
+sys.path.append(HERE)
 
 STAGE = os.path.join(ROOT, '_chainstage')
 os.makedirs(STAGE, exist_ok=True)
@@ -86,6 +88,31 @@ EXPECTED_ORDER = [
     #   r066 ★须晚于 sectgf / r067 ★须晚于 gongfa 且先于 numbal 预算重算 /
     #   r068 ★须晚于 t6chardex），恒在 numbal 之前
     'r064', 'r065', 'r066', 'r067', 'r068', 'r076', 'r077', 'r079', 'r080', 'r081',
+    # 2026-10-01 0.9.3 R-083：云端刷新弹窗去掉 + 游戏内 2 处 GitHub 链接改指本仓库
+    #   （纯字符串替换、无硬依赖；恒在 numbal 之前）
+    'r083',
+    # 2026-10-01 0.9.4 寿元体系（自动历练温和化 + 打坐耗命）
+    'life094',
+    # 2026-10-01 0.9.6 突破奖励 + 每点属性加成
+    'bt096',
+    # 2026-10-01 0.9.7 属性/寿元/灵根（★ life097 必须排 bt096 之后）
+    'attr097', 'life097', 'linggen097',
+    # 2026-10-01 0.9.8 天赋/历练/悟道面板/改名（★ talent097 必须排 numbal 之前）
+    'speedname097', 'talent097', 'adv097', 'dao097',
+    # 2026-10-01 0.9.9 商店刷新 + 人物志解耦
+    'shoprefresh101', 'chardex101',
+    # 2026-10-01 0.9.10 商店三连 + 历练结束推送（★ advend105 必须排 adv097 之后）
+    'shop102', 'advend105',
+    # 2026-10-01 0.9.11 R-106~R-109（★ r107 必须排 r106 之后：r106 的冻结断言认 r107 的定稿数值；
+    #   ★ r108 必须排 shoprefresh101 之后：它改写 r101 的取费/显示形态）
+    'r106', 'r107', 'r108', 'r109',
+    # 2026-10-02 0.9.12 链式自动轮次第 2 批 R-111/R-113/R-114/R-115（★ r113 必须排 r056 之后）
+    'r111', 'r113', 'r114', 'r115',
+    # 2026-10-02 0.9.13 第 1 批接线：R-124 灵田服用预览 spirit→神识（apply 模块，★ 必须排
+    #   farm089/speedname097 之后）。同批 R-116/R-118 为成员新契约 standalone --src 脚本，
+    #   **不进本表 / 不进 V28_MODULES**——由 build_v26n.__main__ 与本文件对产物按序套用
+    #   （build_v26n.STANDALONE_CLIENT），其 gates() 在下方 standalone 段单独重跑。
+    'r124',
     # 2026-09-30 0.8.13：★ 冷却机制真 bug 修复 + 历练冷却还原上游原版
     #   （须晚于 flow083 —— 要改它留下的 d(6)/d(4)/d(.4)/d(1)）
     #   ★ 注意：cooldown 已并入上一行（它在真实 V28_MODULES 里位于 r018 与 r018b 之间），
@@ -111,10 +138,15 @@ NEW_MODULES = ['grotto087', 'farm087', 'xinfa087', 't6chardex',
                'r054', 'r055', 'r056', 'r057', 'r058',  # 2026-10-01 第 2 批 R 批次五模块
                'r059', 'r060', 'r061', 'r062', 'r063',  # 2026-10-01 第 3 批 R 批次五模块
                'r064', 'r065', 'r066', 'r067', 'r068', 'r076', 'r077', 'r079', 'r080', 'r081',  # 2026-10-01 第 4 批 R 批次五模块
-               'cooldown']  # 2026-09-30 0.8.13 ★ 冷却机制修复 + 历练冷却还原上游原版
+               'cooldown',  # 2026-09-30 0.8.13 ★ 冷却机制修复 + 历练冷却还原上游原版
+               'r106', 'r107', 'r108', 'r109',
+               'r111', 'r113', 'r114', 'r115',  # 2026-10-02 0.9.12 R-111 签到 / R-113 万妖五boss / R-114 历练收获 / R-115 洞府灵田
+               'r124']  # 2026-10-02 0.9.13 R-124 灵田服用预览 spirit→神识（r116/r118 standalone 不在此表）
 
-VERSION = '0.9.2'
-BUNDLE_BASENAME = 'index-v292-20261001.js'   # 与 build_v26n.OUT / chain_build.CLIENT_OUT / build/index.html 逐字一致
+VERSION = '0.9.13'
+BUNDLE_BASENAME = 'index-v2913-20261002.js'   # 与 build_v26n.OUT / chain_build.CLIENT_OUT / build/index.html 逐字一致
+# ★ 升版四件套之外的第 5 处：本文件的 VERSION 必须同步（下方 wiring_checks 用它交叉校验
+#   yl_version_ext.DEFAULT_VERSION 与 CHANGELOG 最新条目，两者都对上才算过）。
 
 # ---- T5 EV 红线（数值表-T5T6 §2.3/§2.4 定档，写死；调参只动服务端常量区并回跑验算器）----
 HOURLY_MAX = 229788          # floor(17676×13) 长生境时薪（T2T3 §5.3 同源）
@@ -288,10 +320,50 @@ def main():
     stage_path = os.path.join(STAGE, 'dryrun_087.bundle.js')
     with open(stage_path, 'wb') as f:      # ★ 二进制写盘（\r\n 坑）
         f.write(out.encode('utf-8'))
-    md5 = hashlib.md5(out.encode('utf-8')).hexdigest()
+
+    # ---- 0.9.13 成员新契约：standalone 客户端补丁（R-116/R-118）对预演产物按序套用 ----
+    #   与 build_v26n.__main__ 的装配层同一套（build_v26n.STANDALONE_CLIENT / apply_standalone）
+    #   ⇒ 预演产物与最终交付产物走完全相同的补丁序列，「预演==交付」md5 逐位可比。
+    print('\n=== standalone 补丁套用（R-116/R-118/R-119/R-125/R-126，成员 --src 契约） ===')
+    sa_errs = B.apply_standalone(stage_path)
+    for _e in sa_errs:
+        print('  [SA-FAIL] %s' % _e)
+        fails.append(('standalone·套用失败', '', 0, '==', _e))
+    # standalone 门禁（各脚本 gates() 五元组）重跑在**补丁后**的最终形态上
+    #   2026-10-02 第 2 批接线 +r119/+r125/+r126；第 3 批接线 +r120/+r121/+r123/+r128/+r131
+    #   （与 build_v26n.STANDALONE_CLIENT 同名单）
+    import yl_r116_ext as _sa_r116
+    import yl_r118_ext as _sa_r118
+    import yl_r119_ext as _sa_r119
+    import yl_r125_ext as _sa_r125
+    import yl_r126_ext as _sa_r126
+    import yl_r120_ext as _sa_r120
+    import yl_r121_ext as _sa_r121
+    import yl_r123_ext as _sa_r123
+    import yl_r128_ext as _sa_r128
+    import yl_r131_ext as _sa_r131
+    n_sa_gates = 0
+    with open(stage_path, 'rb') as f:
+        final_bytes = f.read()
+    final_text = final_bytes.decode('utf-8')
+    for _tag, _mod in (('r116', _sa_r116), ('r118', _sa_r118),
+                       ('r119', _sa_r119), ('r125', _sa_r125), ('r126', _sa_r126),
+                       ('r120', _sa_r120), ('r121', _sa_r121), ('r123', _sa_r123),
+                       ('r128', _sa_r128), ('r131', _sa_r131)):
+        for name, s, expect, cmp, note in _mod.gates():
+            n_sa_gates += 1
+            act = final_text.count(s)
+            ok = (act == expect) if cmp == '==' else (act >= expect)
+            print('  [%s] %s' % ('OK' if ok else 'FAIL', name))
+            if not ok:
+                print('        actual=%d expect %s %d  %s' % (act, cmp, expect, note))
+                fails.append((name, s, expect, cmp, note))
+    print('standalone 门禁: %d 条（r116~r126/r131 gates()，跑在补丁后形态）' % n_sa_gates)
+
+    md5 = hashlib.md5(final_bytes).hexdigest()
     print('\n预演产物（未上线）: %s' % os.path.relpath(stage_path, ROOT).replace('\\', '/'))
-    print('  chars=%d  md5=%s' % (len(out), md5))
-    print('  「预演==交付」：此 md5 须等于 build/assets/%s 的 md5' % BUNDLE_BASENAME)
+    print('  chars=%d  md5=%s' % (len(final_text), md5))
+    print('  「预演==交付」：此 md5 须等于 build/assets/%s 的 md5（两侧已同套 standalone）' % BUNDLE_BASENAME)
 
     if fails:
         print('\n失败明细 %d 条:' % len(fails))

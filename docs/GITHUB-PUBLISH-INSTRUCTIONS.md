@@ -25,7 +25,7 @@
 |---|---|
 | **本地仓库路径** | `D:\AIWorkspaces\github-moyuwang-xiuxian\` |
 | **当前 commit** | `main` 分支最新提交（见 `git log --oneline -1`；工作区干净） |
-| **文件数 / 体积** | **173 个文件 / 约 14 MB**（不含 `.git`） |
+| **文件数 / 体积** | **306 个文件 / 约 14.3 MB**（不含 `.git`） |
 | **仓库名（已定）** | **`moyuwang-xiuxian`** |
 | **作者署名** | **`Fipken`**（已写入 `README.md` / `LICENSE`） |
 | **许可** | **MIT**（已含上游 fansj 版权声明） |
@@ -38,7 +38,7 @@
 
 ## 二、项目背景（直接拿去填仓库 About）
 
-- **在线试玩**：**https://moyuwang.online/myxxz/** —— 打开即玩，无需安装、无需注册即可体验；**本仓库版本 0.8.11.1**（线上试玩环境可能滞后于仓库，截至本仓库更新时线上即为 0.8.11.1）
+- **在线试玩**：**https://moyuwang.online/myxxz/** —— 打开即玩，无需安装、无需注册即可体验；**本仓库版本 0.9.13**（线上试玩环境可能滞后于仓库，截至本仓库更新时线上即为 0.8.11.1）
 - **上游开源项目**：**https://github.com/JeasonLoop/react-xiuxian-game**（作者 **fansj**，包名 `cloud-spirit-cultivation`）
   - 上游 **README 声明 MIT 许可**（但上游仓库内**没有 `LICENSE` 文件**）
   - 本改版的**基线提交 = `b822f2d`**（2026-07-31）
@@ -54,13 +54,13 @@
 | `build_v26n.py` + `yl_*.py`（59 个补丁模块 + 引擎） | ★ 前端装配器：冻结基座 → 注入改造 → 最终 bundle |
 | `srv_patch_*.py`（44 个）+ `localtest/chain_build.py` | ★ 服务端链式装配器（32 环串行） |
 | `build/assets/index-v26m-20260927.js` | ★ 前端冻结基座（装配输入，md5 `b315eb1a04e967a66c128861b3a3dadd`） |
-| `build/assets/index-v28111-20260930.js` | ★ 装配产出 = 0.8.11.1 定版产物（md5 `78f16303052233968fdb4bb286a53e15`） |
+| `build/assets/index-v2913-20261002.js` | ★ 装配产出 = 0.9.13 定版产物（md5 `b4586dba4943bf62cc4ca818af31fb66`） |
 | `srv/index_v28.ts` | ★ 服务端单文件 TS，200+ 接口（md5 `8342bedceb171bc922bc5e8c0ef339b1`） |
 | `srv/game-dicts.json`、`srv/*.sql` | 游戏数据字典、建表迁移脚本 |
 | `_v281_base/` | 服务端/前端/字典的冻结基座 |
 | `docs/` | 设计文档、发布清单、扫描报告、部署说明 |
 | `localtest/` | 本地沙盒测试说明 + 链式装配器 |
-| `CHANGELOG.md` | 0.3.8 ~ 0.8.11.1 逐版更新日志 |
+| `CHANGELOG.md` | 0.3.8 ~ 0.9.13 逐版更新日志 |
 
 ---
 
@@ -68,7 +68,7 @@
 
 1. **我自己的 GitHub 公开仓库** —— 名字 **`moyuwang-xiuxian`**，**Public**（公开）
 2. **仓库 About**：描述 + 官网链接 + 标签（见第四节第 3 步的现成命令）
-3. **建一个 Release** —— tag `v0.8.11.1`，标题「摸鱼修仙传 v0.8.11.1」，正文取 `CHANGELOG.md` 的 0.8.11.1 段落
+3. **建一个 Release** —— tag `v0.9.13`，标题「摸鱼修仙传 v0.9.13」，正文取 `CHANGELOG.md` 的 0.9.13 段落
 4. **长期同步能力**：以后我每次改完游戏，你要能把改动推上去，提交信息用**中文**写清楚改了什么
 
 ---
@@ -79,10 +79,10 @@
 
 ```bash
 cd /d/AIWorkspaces/github-moyuwang-xiuxian
-git log --oneline -3          # 应看到本仓库的同步提交（0.8.11.1）
+git log --oneline -3          # 应看到本仓库的同步提交（0.9.13）
 git status                    # 应为 clean
 git remote -v                 # 应为空
-git ls-files | wc -l          # 应为 173
+git ls-files | wc -l          # 应为 306
 ```
 
 > 若 `git status` 不是 clean，**先停下告诉我**，不要自行提交或丢弃改动。
@@ -152,8 +152,8 @@ gh repo edit <我的用户名>/moyuwang-xiuxian \
 ### 第 4 步 · 建 Release
 
 ```bash
-gh release create v0.8.11.1 --title "摸鱼修仙传 v0.8.11.1" \
-  --notes "详见 CHANGELOG.md 的 0.8.11.1 段落。在线试玩：https://moyuwang.online/myxxz/"
+gh release create v0.9.13 --title "摸鱼修仙传 v0.9.13" \
+  --notes "详见 CHANGELOG.md 的 0.9.13 段落。在线试玩：https://moyuwang.online/myxxz/"
 ```
 
 ### 第 5 步 · 给我验收链接
@@ -164,7 +164,7 @@ gh release create v0.8.11.1 --title "摸鱼修仙传 v0.8.11.1" \
 ```
 
 并确认：仓库首页 `README.md` 正常渲染、`LICENSE` 在页面右侧显示为 **MIT**、
-About 区能点到试玩链接、Release 页能看到 `v0.8.11.1`。
+About 区能点到试玩链接、Release 页能看到 `v0.9.13`。
 
 ---
 
@@ -179,7 +179,7 @@ About 区能点到试玩链接、Release 页能看到 `v0.8.11.1`。
 
 ## 六、绝对红线（违反会造成安全事故）
 
-1. **绝不提交任何密钥/隐私**。仓库现已扫描干净（173 文件 / 真实密钥 0 命中），
+1. **绝不提交任何密钥/隐私**。仓库现已扫描干净（306 文件 / 真实密钥 0 命中），
    **但你若新增或修改任何文件，必须重新跑第 2 步的安全闸**。
    禁止入库：`.env`、`*.key`、`*.pem`、`*.p12`、`id_rsa*`、`.jwt_secret`、
    `*.sqlite` / `*.db`（真实玩家数据）、`*DEPLOY_LOG*`、任何 `deploy_*.sh`。
@@ -204,7 +204,7 @@ About 区能点到试玩链接、Release 页能看到 `v0.8.11.1`。
 2. 你把新产物同步进 `D:\AIWorkspaces\github-moyuwang-xiuxian\`。
 3. 跑第 2 步安全闸 → `git add -A` → `git commit -m "<中文说明>"` → `git push`。
 4. 提交信息用中文写清「改了什么、为什么」，例如：
-   - `feat(0.8.11.1): 周里程碑「已领取」显示修复（服务端+客户端两半边）`
+   - `feat(0.9.13): R-116~R-131 数值线重配 + 文案线 + BUG 修（三批 16 项）`
    - `fix: 修复炼丹炉右侧 UI 挤压`
 
 ---
@@ -217,7 +217,7 @@ About 区能点到试玩链接、Release 页能看到 `v0.8.11.1`。
 
 | 事实 | 出处 |
 |---|---|
-| 173 文件 / 14 MB / commit 见 `git log --oneline -1` | `git ls-files \| wc -l` / `du -sh` / `git log --oneline` |
+| 306 文件 / 14.3 MB / commit 见 `git log --oneline -1` | `git ls-files \| wc -l` / `du -sh` / `git log --oneline` |
 | 无 remote | `git remote -v`（空） |
 | 署名 Fipken | `LICENSE`、`README.md` |
 | MIT | `LICENSE` 全文 + 上游版权行 |

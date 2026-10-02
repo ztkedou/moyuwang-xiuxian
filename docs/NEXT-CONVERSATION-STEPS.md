@@ -136,7 +136,7 @@ git push -u origin main
 2. 你把新产物同步进 `D:\AIWorkspaces\github-moyuwang-xiuxian\`。
 3. `git add -A` → `git commit -m "<中文说明改了什么>"` → 执行第 5 节的扫描 → `git push`。
 4. 提交信息用中文，写清「改了什么、为什么」，例如：
-   `feat(0.8.11.1): 周里程碑「已领取」显示修复（服务端+客户端两半边）`
+   `feat(0.9.13): R-116~R-131 数值线重配 + 文案线 + BUG 修（三批 16 项）`
    `fix: 修复炼丹炉右侧 UI 挤压`
 
 ---
@@ -157,7 +157,7 @@ git push -u origin main
 | 项 | 值 |
 |---|---|
 | 仓库目录 | `D:\AIWorkspaces\github-moyuwang-xiuxian\` |
-| 文件数 / 体积 | 173 个 / 约 14 MB（不含 `.git`） |
+| 文件数 / 体积 | 306 个 / 约 14.3 MB（不含 `.git`） |
 | 建议仓库名 | `moyuwang-xiuxian` |
 | 关键文件 | `README.md`、`LICENSE`、`.gitignore`、`.env.example`、`CHANGELOG.md`、`build_v26n.py`、`srv/index_v28.ts` |
 | 前端冻结基座 md5 | `b315eb1a04e967a66c128861b3a3dadd` |

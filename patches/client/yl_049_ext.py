@@ -214,8 +214,8 @@ def apply(p, ctx):
         ('R49·E10 升级缩水判定',           'const k=N.maxHerbSlots+(R.extraSlots||0),_', 1, '==', '扩得的地跨升级保留'),
         ('R49·E11 满槽拦截',              'length>=E.maxHerbSlots+(R.extraSlots||0)', 1, '==', ''),
         # ---- R-049 返工：上限随洞府等级梯度 + 价格阶梯（2026-10-01）----
-        ('R49·E1 上限式随等级',            'const __hr=3+Math.floor((R.level-1)/2);', 1, '==', 'headroom=3+floor((L-1)/2)'),
-        ('R49·E7 上限式随等级',            'const __hr=3+Math.floor((T.level-1)/2),__cur=', 1, '==', ''),
+        ('R49·E1 上限式随等级',            'const __hr=3+Math.floor((R.level-1)/2)+(R.level>=9?7:R.level>=7?4:R.level>=5?2:0);', 1, '==', 'R-115 式在 V28 装配态仍在位；R-125（standalone 阶段）改写为 3+(L-1)+档位奖，终态旧式清零断言归 yl_r125_ext.gates()（接线层修正 2026-10-02：成员把本表当终态评估，实际本表跑在 standalone 之前）'),
+        ('R49·E7 上限式随等级',            'const __hr=3+Math.floor((T.level-1)/2)+(T.level>=9?7:T.level>=7?4:T.level>=5?2:0),__cur=', 1, '==', '同上：装配态在位，终态清零归 yl_r125_ext.gates()'),
         ('R49·E1 上限闸门用__hr',          'if(__cur>=__hr)return a(', 1, '==', '旧 if(__cur>=3) 已废'),
         ('R49·E7 上限闸门用__hr',          'if(__cur>=__hr)return e.jsx(', 1, '==', ''),
         ('R49·价格阶梯 7 档',              '[2000,8000,24000,60000,150000,350000,800000]', 2, '==', 'E1+E7 各 1'),

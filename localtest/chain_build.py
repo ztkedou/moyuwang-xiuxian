@@ -36,7 +36,7 @@ BASE_DIR = os.path.join(ROOT, '_v281_base')
 STAGE = os.path.join(ROOT, '_chainstage')
 
 PY = sys.executable
-NODE = r'C:/Users/27026/.workbuddy-ai/binaries/node/versions/22.22.2-3/node.exe'
+NODE = r'<WORKDIR>/.workbuddy-ai/binaries/node/versions/22.22.2-3/node.exe'
 
 # ---- 冻结基座指纹（改这里 = 改事实源，须有明确理由）----
 BASE_FP = {
@@ -327,10 +327,97 @@ SRV_CHAIN = [
     'srv_patch_r078.py',
     'srv_patch_r077.py',
     'srv_patch_r081.py',
+    # 2026-10-01（本环，第 45 环 / 新末环）：
+    'srv_patch_101.py',          # R-091 悟道体系重规划（服务端半边）：
+                                 #   ① 去重：阵道 攻击→修炼速度(stat=cultivate)、御道 气血→资源产出(stat=gather)，
+                                 #      六道六定位互不重复；
+                                 #   ② 稀有道等阶门槛：阵道元婴期(序3)、御道化神期(序4)起开放（门槛只挡未投入者，
+                                 #      已投入 exp>0 祖父放行，不追溯锁死）；挂机心得只在已开放的系内随机；
+                                 #   ③ 手动顿悟灵石价随境界递增（炼气 5000 → 长生 60000，≈12×）；
+                                 #   ④ ★祖父条款：阵/御定位变更按「改前已投入 exp ×50」一次性返还灵石，
+                                 #      走 insertMail，幂等键 activity_config['r091_wudao_respec:<uid>']（先占键后发信）；
+                                 #      升级曲线刻意不动 ⇒ 存量等级/exp 100% 保留（零降级）。
+                                 #   ★ 锚区（[wudaocore] 块 / wudao 两端点 / tickWudaoIdle）与既有各环零交集，
+                                 #     挂链尾；客户端半边不在本次范围（客户端读服务端下发字段渲染）。
+    # 2026-10-01（本环，第 54 环 / 新末环）：
+    'srv_patch_110.py',          # R-110 悟道十道重做（服务端半边）：
+                                 #   ① 六道 → 十道：新增 锋道(critDamage/暴伤) / 影道(dodge/闪避) /
+                                 #      甲道(damageReduction/减伤) / 噬道(lifeLeech/吸血)；
+                                 #      旧六道只改 name/statName（**key 与 level/exp 全保留 ⇒ 存量零降级**）；
+                                 #   ② 展示顺序 = 气血→攻击→防御→暴击→暴伤→闪避→减伤→吸血→修炼→资源；
+                                 #   ③ WUDAO_REALM_GATE 6→10 项（炼气/筑基/金丹/元婴/化神/长生境逐档开放；
+                                 #      门槛只挡未投入者，exp>0 祖父放行 —— 沿用 R-091 语义）；
+                                 #   ④ 顺手修 GET /api/wudao 的 LIMIT 6 静默截断新增 4 道；
+                                 #   ⑤ 升级曲线 25*(l-1)*l 与 R-091 祖父条款/幂等键逐字未动。
+                                 #   ★ 客户端 bundle 无需为悟道单独改动（纯视图，顺序与名称由服务端下发）。
+    # 2026-10-02 链式自动轮次第 2 批（第 55~57 环 / 新末环）：
+    'srv_patch_111.py',          # R-111 每日签到「当月场永不建立」根因修复（服务端半边）：
+                                 #   actSignDaysInMonth / actSignEnsureMonth 两处
+                                 #   `month.slice(0, 4)` → `month.slice(0, 5)`（"2026-" + "11" = "2026-11"）。
+                                 #   旧写法拼出 "202611" ⇒ Date.parse = NaN ⇒ endAt = NaN
+                                 #   ⇒ actSignEnsureMonth 恒返 null ⇒ events.end_at 绑 NULL
+                                 #   ⇒ GET /api/activity/checkin 恒 409「签到暂未开放」（1~11 月全坏、12 月正常）。
+                                 #   ★ 客户端半边 = V28_MODULES 'r111'；锚区与既有各环零交集。
+    'srv_patch_113.py',          # R-113 万妖巢穴「五 boss 同现 + 逐只次数/冷却」（服务端半边）：
+                                 #   ① 新增常量 PAID_LIMIT=10 / PAID_COOLDOWN_MS=5min；
+                                 #   ② 新表 event_boss5(event_id, boss_no) 复合主键（IF NOT EXISTS，无迁移）；
+                                 #   ③ ensure 去「逐只顺序刷新」、五槽位幂等建场；
+                                 #   ④ strike/talisman 逐只化（免费 5/日/只 + 10min；收费 10/日/只 + 5min），
+                                 #      请求/回执带 bossNo；status 回 bosses[] 逐只状态；
+                                 #   ⑤ event_boss 降为聚合行（血量求和，五只全诛才 killed=1）⇒ 结算器/榜单/邮件零改动。
+                                 #   ★ 客户端半边 = V28_MODULES 'r113'（必须排 r056 之后）；取代 srv_patch_056.py 的
+                                 #     「单只顺序 / 第 X/Y 只 / 单只 coolLeft」形态 ⇒ 其 16 条 gate 已同步改判。
+    'srv_patch_115.py',          # R-115 灵田「加属性作物种子价大幅提升」（服务端半边）：
+                                 #   FARM_CROP_KIND[mix].seed 0.50 → 1.50（×3.00）、
+                                 #   FARM_CROP_KIND[rare].seed 0.56 → 2.00（×3.57）；
+                                 #   money/min/exp 与 FARM_CROP_BASE 一字不动 ⇒ 只改种植成本、不改产出。
+                                 #   ★ 客户端半边 = V28_MODULES 'r115'（等阶需求原本已生效，客户端只补「恒显」）。
+    # 2026-10-02 0.9.13 第 1 批接线（第 58~59 环 / 新末环；两环零锚区交集，按编号序挂链尾）：
+    'srv_patch_r116.py',         # R-116 历练奇遇「抽奖券获取概率大幅压低」（服务端半边）：
+                                 #   ADVENTURE_TIERS：紫档 bonusChance 0.15→0.01；金档 tickets 1→0 /
+                                 #   bonusChance 0.35→0.02 / bonusTickets 2→1 ⇒ 0.0345→0.0009 券/抽（38.3x↓）。
+                                 #   ★ 必须排在第 39 环 srv_patch_057.py 之后（锚含其「// [r057] 灵石 ×30」行尾注释）；
+                                 #   ★ 客户端半边 = standalone 补丁 localtest/yl_r116_ext.py
+                                 #     （build_v26n 装配层 STANDALONE_CLIENT 套用，非 V28_MODULES）。
+    'srv_patch_r124.py',         # R-124 灵田种植 BUG（服务端半边）：
+                                 #   FARM_CROP_ATTRS.zhuangguhua 去重复 defense 项（3 项→2 项）⇒ 服用不再双倍 +30；
+                                 #   培元草防御 8 属凡品基准，数值一字不动。
+                                 #   ★ 必须排在第 15 环 srv_patch_t5_crops.py 之后（锚是其 FARM_CROP_ATTRS 表），
+                                 #     挂链尾满足；★ 客户端半边 = V28_MODULES 'r124'。
+    # 2026-10-02 0.9.13 第 2 批接线（第 60~61 环 / 新末环；按编号序挂链尾）：
+    'srv_patch_r122.py',         # R-122 仙务成就 4 档→10 档（服务端，纯服务端无客户端半边）：
+                                 #   ACH_DEFS 20→50 行（五类通用灵石阶梯
+                                 #   [500..50000]，单类 Σ=144,700）；ACH_REWARD_TIERS 系死常量不碰；
+                                 #   境界组 metric 改 totalLevel=境界序×9+层（两端点就地补算）；
+                                 #   claim 幂等占位/补偿逻辑一字不动；客户端零改动（/api/achievements 自然下发）。
+                                 #   ★ 锚点全在基座段，recon 无既有补丁归属，任意位置可排，挂链尾。
+    'srv_patch_r129.py',         # R-129 灵田纯灵石/纯修为收益大幅提升（服务端，纯服务端无客户端半边）：
+                                 #   FARM_YIELD_MUL 1.85→1.0 + 新增 FARM_STONES_MUL=10（r047 stones 行改乘）+
+                                 #   FARM_CROP_BASE expBase 5 档 → 对标打坐 2h（63,000..5,670,000）+
+                                 #   EXP_PURE/EXP_MIX_ADJ 同步（ADJ 取对照表 {3:378000,4:1209600}，代决已录拍板）；
+                                 #   种子价/时长/attr 三面一字不动（25 键逐键断言）。
+                                 #   ★ 必须排在第 59 环 srv_patch_r124.py 之后（REQUIRES 断言 [r124attrfix]）；
+                                 #   ★ r115「冻结 R-047 产出倍率」为当环基线计数（先于本环评估），保持绿。
+    # 2026-10-02 0.9.13 第 3 批接线（第 62~64 环 / 新末环；按编号序挂链尾，锚全在基座/既有环段）：
+    'srv_patch_r123.py',         # R-123 指引 8 步 + 七日礼奖励加码（服务端半边）：
+                                 #   指引 8 步 reward 常量 + 七日 WEEK 表加码；REQUIRES 断言 guide/claim、
+                                 #   week/claim 端点与幂等占位在位（本环零结构改动，改常量即全生效）。
+                                 #   ★ 客户端半边 = STANDALONE_CLIENT 'r123'。
+    'srv_patch_r127.py',         # R-127 每日一签四签档加码（服务端，纯服务端无客户端半边）：
+                                 #   上上签 expRate .020→.030/stonesRate 4.0→6.0、上签 .010→.015/2.4→3.5、
+                                 #   中签 .005→.008/1.4→2.2、下签 .002→.003/0.7→1.0（weight/赔率面不动）；
+                                 #   FUN_SIGN_BASE=500 底数一行不动。
+                                 #   ★ 锚在 srv_patch_fun086.py（环 5）段，挂链尾满足。
+    'srv_patch_r128.py',         # R-128 掷骰翻牌扩档（服务端半边）：
+                                 #   掷骰日次数 3→10、注额 1000~20000→2000~50000；翻牌日次数 2→10、
+                                 #   成本 2000→4000、奖池 3 档→10 档 [0..54000]（EV=0.94≤1 铁律②）；
+                                 #   赔率 1.95/25 与派彩逻辑一行不动；相对计数冻结（打前==打后）。
+                                 #   ★ 锚在 srv_patch_fun086.py（环 5）段，挂链尾满足；
+                                 #   ★ 客户端半边 = STANDALONE_CLIENT 'r128'。
 ]
 
-# ---- 前端产物路径（0.8.11.8 换名：index-v292-20261001.js，与 build_v26n.py OUT 逐字一致）----
-CLIENT_OUT = os.path.join(ROOT, 'build', 'assets', 'index-v292-20261001.js')
+# ---- 前端产物路径（0.9.13 换名：index-v2913-20261002.js，与 build_v26n.py OUT 逐字一致）----
+CLIENT_OUT = os.path.join(ROOT, 'build', 'assets', 'index-v2913-20261002.js')
 SRV_OUT = os.path.join(ROOT, 'srv', 'index_v28.ts')
 
 

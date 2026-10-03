@@ -10624,6 +10624,49 @@ function isFriend(a: number, b: number): Promise<boolean> {
 }
 
 // ── 好友 ──
+// ── 在线玩家名单（R-144 [r144online]）：最近 5 分钟内有活跃上报的真实玩家 ──
+// 双源 UNION：active_sessions.last_seen（心跳，权威）∪ saves.updated_at（存档，兜底，
+// UTC CURRENT_TIMESTAMP ⇒ 转 epoch ms）。字段/口径与 /api/friends/list 同源。
+const ONLINE_WINDOW_MS = 5 * 60 * 1000;   // 用户拍板：最近 5 分钟内有活跃上报
+const ONLINE_LIST_MAX = 50;
+db.run('CREATE INDEX IF NOT EXISTS idx_active_sessions_last_seen ON active_sessions(last_seen)');
+
+app.get('/api/online/players', authenticateToken, rateLimit({ windowMs: 60 * 1000, max: 60, keyFn: (req: any) => `onl:${req.user?.id ?? req.ip}` }), async (req: any, res: any) => {
+  const selfId = req.user.id;
+  try {
+    const cutoff = Date.now() - ONLINE_WINDOW_MS;
+    const rows = await dbAll(
+      `SELECT o.id AS id, COALESCE(NULLIF(r.name, ''), u.username) AS name,
+              r.realm_index, r.realm_level, r.combat_power, MAX(o.ts) AS ts
+       FROM (
+         SELECT user_id AS id, last_seen AS ts FROM active_sessions WHERE last_seen >= ?
+         UNION ALL
+         SELECT user_id AS id, CAST(strftime('%s', updated_at) AS INTEGER) * 1000 AS ts
+           FROM saves WHERE CAST(strftime('%s', updated_at) AS INTEGER) * 1000 >= ?
+       ) o
+       JOIN users u ON u.id = o.id
+       LEFT JOIN rankings r ON r.user_id = o.id
+       GROUP BY o.id
+       ORDER BY ts DESC
+       LIMIT ?`, [cutoff, cutoff, ONLINE_LIST_MAX]);
+    const fr = await dbAll('SELECT friend_id FROM friendships WHERE user_id = ?', [selfId]);
+    const friendSet = new Set((fr || []).map((x: any) => Number(x.friend_id)));
+    const players = (rows || []).map((r: any) => ({
+      id: Number(r.id),
+      name: String(r.name || ''),
+      realmIndex: r.realm_index == null ? null : Number(r.realm_index),
+      realmName: r.realm_index == null ? '尚未入世' : (REALM_ORDER_FOR_RANKING[Number(r.realm_index)] || ''),
+      realmLevel: r.realm_level == null ? null : Number(r.realm_level),
+      level: r.realm_index == null ? null : Number(r.realm_index) * 9 + Number(r.realm_level || 1),
+      combatPower: r.combat_power == null ? null : Number(r.combat_power),
+      isFriend: Number(r.id) === selfId ? false : friendSet.has(Number(r.id)),
+      isSelf: Number(r.id) === selfId,
+      online: true,
+    }));
+    res.json({ now: Date.now(), windowMs: ONLINE_WINDOW_MS, total: players.length, players });
+  } catch (e: any) { console.error('online players error:', e?.message || e); res.status(500).json({ error: '服务器繁忙' }); }
+});
+
 app.post('/api/friends/add', authenticateToken, rateLimit({ windowMs: 60 * 1000, max: 15, keyFn: (req: any) => `fr:add:${req.user?.id ?? req.ip}` }), async (req: any, res: any) => {
   const userId = req.user.id;
   try {

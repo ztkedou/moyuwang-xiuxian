@@ -432,10 +432,26 @@ SRV_CHAIN = [
                                  #   ③ 修正上方已失效注释。rogue 半边（rogue_last_ts，只由 entry 写）零改动；
                                  #      /api/dungeon/entry 的读→判→写与 403/200 语义、DDL 全部不动。
                                  #   ★ 挂链尾：本环只改 r063 之后仍为原形态的两行，链上无后继环。
+    'srv_patch_r144.py',         # R-144 真实在线玩家名单（0.9.20 / 第 67 环 / 新末环）：
+                                 #   新增唯一端点 GET /api/online/players（真名单来源）。
+                                 #   在线判据（用户 2026-10-03 23:20 拍板）= 最近 5 分钟内有活跃上报
+                                 #   （ONLINE_WINDOW_MS = 5*60*1000）；
+                                 #   双源 UNION 去重取 MAX(ts)：
+                                 #     ① active_sessions.last_seen（客户端每 15s 心跳写，ms epoch，权威）
+                                 #     ② saves.updated_at（存档兜底；SQLite CURRENT_TIMESTAMP 是 **UTC**
+                                 #        ⇒ CAST(strftime('%s',updated_at) AS INTEGER)*1000 转 epoch）
+                                 #   名字/境界口径与 /api/friends/list **逐字一致**
+                                 #   （COALESCE(NULLIF(r.name,''),u.username) / REALM_ORDER_FOR_RANKING /
+                                 #    level = realmIndex*9 + realmLevel）；响应含 isFriend / isSelf；
+                                 #   新增幂等索引 idx_active_sessions_last_seen。
+                                 #   锚点 = app.post('/api/friends/add', authenticateToken, 之前
+                                 #   （好友域第一条路由，实测 count==1）；纯插入零改基线行。
+                                 #   ★ 挂链尾：只**新增**端点/索引，不改任何既有语义。
+                                 #   ★ 客户端半边 = STANDALONE_CLIENT 'r144'（localtest/yl_r144_ext.py）。
 ]
 
-# ---- 前端产物路径（0.9.19 换名：index-v2919-20261003.js，与 build_v26n.py OUT 逐字一致）----
-CLIENT_OUT = os.path.join(ROOT, 'build', 'assets', 'index-v2919-20261003.js')
+# ---- 前端产物路径（0.9.20 换名：index-v2920-20261003.js，与 build_v26n.py OUT 逐字一致）----
+CLIENT_OUT = os.path.join(ROOT, 'build', 'assets', 'index-v2920-20261003.js')
 SRV_OUT = os.path.join(ROOT, 'srv', 'index_v28.ts')
 
 

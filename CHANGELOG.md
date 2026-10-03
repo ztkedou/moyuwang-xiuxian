@@ -1,5 +1,38 @@
 # 摸鱼修仙传 · 更新日志
 
+## [0.9.20] - 2026-10-03 23:55
+### 在线人物真名单（R-144 服务端面）
+
+**新增服务端端点 `GET /api/online/players`**（SRV_CHAIN 新末环 `patches/server/srv_patch_r144.py`）
+
+- 在线判据（用户 2026-10-03 拍板）：「**最近 5 分钟内有活跃上报**」⇒ `ONLINE_WINDOW_MS = 5 * 60 * 1000`。
+- **双源 UNION 去重**（取 `MAX(ts)`，任一源新鲜即算在线）：
+  1. `active_sessions.last_seen` —— 客户端每 15s 心跳（`YLSync.beat()` → `POST /api/session/heartbeat`）写入，**权威源**；
+  2. `saves.updated_at` —— 存档兜底；该列是 SQLite `CURRENT_TIMESTAMP`（**UTC**），
+     故必须 `CAST(strftime('%s', updated_at) AS INTEGER) * 1000` 转毫秒 epoch。
+- `JOIN users` + `LEFT JOIN rankings` 取名与境界，口径与 `/api/friends/list` **逐字一致**：
+  `COALESCE(NULLIF(r.name, ''), u.username)` / `REALM_ORDER_FOR_RANKING[idx]` / `level = realmIndex*9 + realmLevel`。
+- 响应体：`{ now, windowMs, total, players: [{ id, name, realmIndex, realmName, realmLevel, level,
+  combatPower, isFriend, isSelf, online }] }` —— **包含自己**（`isSelf: true`），按最近活跃倒序，上限 `ONLINE_LIST_MAX = 50`。
+- 新增幂等索引 `CREATE INDEX IF NOT EXISTS idx_active_sessions_last_seen ON active_sessions(last_seen)`。
+- 插入锚点 = `app.post('/api/friends/add', authenticateToken,` 之前（实测 count == 1）。
+- 鉴权 `authenticateToken` + 限流 60/min；业务拒绝一律 **409**（绝不 403 —— 客户端 `Xc()` 见 403 会强制登出）。
+
+**客户端 `localtest/yl_r144_ext.py` 改造**（standalone 原位改；在位标记仍 `YLXW_R144_V2919`）
+
+- 在线页签由「最近 60 条公聊发言去重（近似）」改为读 `GET /online/players`（**真名单**）。
+- 行内三按钮（**仅 `!isSelf` 时渲染**）：
+  - **加好友** `POST /friends/add {name}`（`isFriend` 为真则禁用，文案「已好友」）；
+  - **拜师** `POST /mentor/apprentice {userId}`（★ 用 `userId` 不是 `name`）；
+  - **切磋** `POST /arena/challenge {name}`（★ 用 `name`，服务端 `findUserByName`）。
+- 行副标题显示 `realmName + " Lv." + level`，有战力则追加。
+- 文案改为「在线道友（最近 5 分钟内有活跃，共 N 人）」，**删除原「可能不全」的近似说明**。
+- 「好友列表」页签（`/friends/list` + 赠丹 / 删除）**保持原样**。
+- 门禁变更：**删** `kk(0,60)` 一条；**新增** `/online/players`、`mentor/apprentice`、
+  `arena/challenge`、`"最近 5 分钟内有活跃"` 四条。
+
+**本批为服务端链重建批**（新增一环 ⇒ **不能** `--skip-server`）：`SRV_CHAIN` 由 66 环 → **67 环**。
+
 ## [0.9.19] - 2026-10-03 23:00
 ### 数值调参（R-140 / R-141）+ 在线人物面板（R-144）+ 历练收益与展示（R-145 / R-146）
 

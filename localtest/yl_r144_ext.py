@@ -26,10 +26,10 @@ yl_r144_ext.py — R-144 在线人物徽章 → 可点按钮 → 在线人物 / 
       消息类型**只有** `onlineCountUpdate` / `welcome`；实测 `sendMessage(` 调用点 0 个
       ⇒ party **只给人数、不给名单**（与需求侦察一致）。
 
-【3】「在线人物」可用的真实名单来源 = **服务端聊天**（已存在、无需登录态）：
-      `async function kk(t=0,r=50)` → GET `${u1()}/messages?after=&limit=`
-      返回 `{messages:[{id,type:"chat",user,text,timestamp}]}`，`user` = 角色名。
-      ⇒ 用「最近发言者去重」近似「在线人物」（下方已注明该近似性）。
+【3】「在线人物」真名单来源 = 服务端端点 `GET /api/online/players`（R-144 服务端新增）：
+      返回 `{now,windowMs,total,players:[{id,name,realmIndex,realmName,realmLevel,level,
+      combatPower,isFriend,isSelf,online}]}`，口径 = 最近 5 分钟内有活跃上报。
+      ⇒ 客户端直接渲染真名单，不再用聊天「最近发言者去重」近似。
 
 【4】交友 API（服务端已有，客户端此前 0 处调用，实测 `/api/friends/*` count==0）：
       GET  /api/friends/list            → {max,giftsLeftToday,friends:[{id,name,realmName,level,giftedToday}]}
@@ -50,8 +50,9 @@ yl_r144_ext.py — R-144 在线人物徽章 → 可点按钮 → 在线人物 / 
   E2 尾部渲染入口后 append 面板 IIFE（监听 open-online-panel）
 
   ★ 只改客户端；服务端 srv/** 零改动；不改 party / 聊天面板 / 战斗 / 存档。
-  ★ 取舍 = 方案 (a)：上半「最近在线道友」（近似），下半「好友列表 + 加/删/赠」。
-    party 无名单 ⇒ 名单改用服务端聊天最近发言者；人数仍用 party 实时值。
+  ★ 取舍 = 上半「在线道友」（服务端真名单，仅 !isSelf 行渲染 加好友/拜师/切磋），
+    下半「好友列表 + 加/删/赠」。header「在线 N」仍取 party 实时值 Dr（与徽章同源），
+    名单人数取服务端 `players.length`。
 
 ==============================================================================
 三、契约（standalone，同 localtest/yl_r143_ext.py）
@@ -99,8 +100,7 @@ PANEL = r'''
 /*YLXW_R144_V2919*/
 (function(){
 if(window.__ylR144)return;window.__ylR144=1;
-var onl=(typeof Dr==="number"?Dr:0),selfName="";
-try{var _es=Et&&Et.getState&&Et.getState();selfName=(_es&&_es.user&&(_es.user.name||_es.user.username))||"";}catch(e){}
+var onl=(typeof Dr==="number"?Dr:0);
 try{Lr.push(function(n){onl=n;var b=document.getElementById("yl-r144-onl");if(b)b.textContent="在线 "+n;});}catch(e){}
 function MK(tag,cls,txt){var d=document.createElement(tag);if(cls)d.className=cls;if(txt!=null)d.textContent=String(txt);return d;}
 var ov=null,bodyEl=null,tabsEl=null,statusEl=null,tab="online",recent=[],friends=[],fmeta={};
@@ -108,18 +108,20 @@ function st(m){if(statusEl)statusEl.textContent=m||"";}
 function closeP(){if(ov&&ov.parentNode)ov.parentNode.removeChild(ov);ov=null;bodyEl=null;tabsEl=null;statusEl=null;}
 function btn(label,cls,fn){var b=MK("button",cls||"text-xs px-2 py-1 rounded bg-amber-500/20 text-amber-200 border border-amber-500/30 cursor-pointer active:scale-95",label);b.type="button";b.onclick=function(ev){if(ev)ev.preventDefault();try{fn();}catch(e){st("出错："+(e&&e.message||e));}};return b;}
 function row(name,sub,acts){var r=MK("div","flex items-center justify-between gap-2 px-2 py-1 mb-1 rounded bg-stone-800/60");var L=MK("div","flex flex-col min-w-0");L.appendChild(MK("span","text-xs text-amber-200 truncate",name));if(sub)L.appendChild(MK("span","text-[10px] text-stone-400 truncate",sub));r.appendChild(L);var R=MK("div","flex items-center gap-1");(acts||[]).forEach(function(x){R.appendChild(x);});r.appendChild(R);return r;}
+function dis(label){var b=MK("button","text-xs px-2 py-1 rounded bg-stone-800 text-stone-500 border border-stone-700 cursor-not-allowed",label);b.type="button";b.disabled=true;return b;}
+function onlineRow(p){p=p||{};var u=p.name||"";var nm=u+(p.isSelf?"（我）":"");var sub=(p.realmName||"")+(p.level!=null?" Lv."+p.level:"");if(p.combatPower!=null)sub=sub+"　战力 "+p.combatPower;var acts=[];if(!p.isSelf){if(p.isFriend){acts.push(dis("已好友"));}else{acts.push(btn("加好友",null,function(){YlxwPost("/friends/add",{name:u}).then(function(){st("已加 "+u+" 为好友");loadOnline();loadFriends();}).catch(function(e){st(e&&e.message||"添加失败");});}));}acts.push(btn("拜师",null,function(){YlxwPost("/mentor/apprentice",{userId:p.id}).then(function(){st("已向 "+u+" 发送拜师申请");}).catch(function(e){st(e&&e.message||"拜师失败");});}));acts.push(btn("切磋",null,function(){YlxwPost("/arena/challenge",{name:u}).then(function(){st("已向 "+u+" 下战书");}).catch(function(e){st(e&&e.message||"下战书失败");});}));}return row(nm,sub,acts);}
 function renderBody(){
 if(!bodyEl)return;bodyEl.innerHTML="";
 if(tab==="online"){
-bodyEl.appendChild(MK("div","text-[10px] text-stone-400 mb-2","最近在线道友（取自最近发言，可能不全）"));
+bodyEl.appendChild(MK("div","text-[10px] text-stone-400 mb-2","在线道友（最近 5 分钟内有活跃，共 "+recent.length+" 人）"));
 if(!recent.length){bodyEl.appendChild(MK("div","text-xs text-stone-500 p-2","暂无在线道友信息"));return;}
-recent.forEach(function(u){if(u===selfName)return;bodyEl.appendChild(row(u,"",[btn("加好友",null,function(){YlxwPost("/friends/add",{name:u}).then(function(){st("已加 "+u+" 为好友");loadFriends();}).catch(function(e){st(e&&e.message||"添加失败");});})]));});
+recent.forEach(function(p){bodyEl.appendChild(onlineRow(p));});
 }else{
 bodyEl.appendChild(MK("div","text-[10px] text-stone-400 mb-2","好友 "+(friends.length||0)+"/"+(fmeta.max||"?")+"　今日可赠丹 "+(fmeta.left==null?"?":fmeta.left)));
 if(!friends.length){bodyEl.appendChild(MK("div","text-xs text-stone-500 p-2","还没有好友，去在线人物里加一个吧"));return;}
 friends.forEach(function(f){var sub=(f.realmName||"")+(f.level?" Lv."+f.level:"");var g=btn(f.giftedToday?"今日已赠":"赠灵石",null,function(){if(f.giftedToday)return;YlxwPost("/friends/gift",{friendId:f.id}).then(function(d){st("赠丹成功："+(d&&d.quality||"")+" 灵石 x"+(d&&d.stones||0));loadFriends();}).catch(function(e){st(e&&e.message||"赠丹失败");});});var rm=btn("删除","text-xs px-2 py-1 rounded bg-stone-800 text-red-400 border border-stone-600 cursor-pointer active:scale-95",function(){YlxwPost("/friends/remove",{friendId:f.id}).then(function(){st("已删除 "+f.name);loadFriends();}).catch(function(e){st(e&&e.message||"删除失败");});});bodyEl.appendChild(row(f.name,sub,[g,rm]));});
 }}
-function loadOnline(){st("加载在线人物…");try{kk(0,60).then(function(ms){var seen={},out=[];(ms||[]).forEach(function(m){var u=m&&m.user;if(u&&!seen[u]){seen[u]=1;out.push(u);}});recent=out.slice(-40).reverse();renderBody();st("");}).catch(function(){renderBody();st("在线人物加载失败");});}catch(e){st("在线人物加载失败");}}
+function loadOnline(){st("加载在线人物…");try{YlxwGet("/online/players").then(function(d){recent=(d&&d.players)||[];renderBody();st("");}).catch(function(e){recent=[];renderBody();st("在线人物加载失败："+((e&&e.message)||e));});}catch(e){st("在线人物加载失败");}}
 function loadFriends(){st("加载好友…");try{YlxwGet("/friends/list").then(function(d){friends=(d&&d.friends)||[];fmeta={max:d&&d.max,left:d&&d.giftsLeftToday};renderBody();st("");}).catch(function(e){st(e&&e.message||"好友加载失败");renderBody();});}catch(e){st(e&&e.message||"好友加载失败");}}
 function tabBtn(label,key){var b=MK("button","text-xs px-3 py-1 rounded cursor-pointer "+(tab===key?"bg-amber-500/20 text-amber-200 border border-amber-500/30":"text-stone-400 border border-transparent"),label);b.type="button";b.onclick=function(){tab=key;renderTabs();renderBody();if(key==="online")loadOnline();else loadFriends();};return b;}
 function renderTabs(){if(!tabsEl)return;tabsEl.innerHTML="";tabsEl.appendChild(tabBtn("在线人物","online"));tabsEl.appendChild(tabBtn("好友列表","friends"));}
@@ -161,7 +163,11 @@ M_LISTEN = 'window.addEventListener("open-online-panel",open);'
 M_OPEN = 'ov=MK("div","fixed inset-0 z-[70] bg-black/70 flex items-center justify-center p-4");'
 M_TITLE = '"在线人物 · 好友"'
 M_ONLINE_FN = 'function loadOnline(){st("加载在线人物…")'
-M_KK = 'kk(0,60)'
+M_KK = 'kk(0,60)'  # 已废弃（近似来源），保留常量仅作历史对照，不再入门禁
+M_ONL = '/online/players'
+M_MENTOR = 'YlxwPost("/mentor/apprentice",{userId:'
+M_ARENA = 'YlxwPost("/arena/challenge",{name:'
+M_RECENT5 = '最近 5 分钟内有活跃'
 M_LIST = 'YlxwGet("/friends/list")'
 M_ADD = 'YlxwPost("/friends/add",{name:u})'
 M_RM = 'YlxwPost("/friends/remove",{friendId:f.id})'
@@ -193,7 +199,10 @@ def gates():
         ('R144·面板根节点已注入', M_OPEN, 1, '==', 'fixed inset-0 遮罩'),
         ('R144·面板标题已注入', M_TITLE, 1, '==', '在线人物 · 好友'),
         ('R144·在线人物加载已注入', M_ONLINE_FN, 1, '==', ''),
-        ('R144·复用聊天拉取 kk(0,60)', M_KK, 1, '==', '最近发言者来源'),
+        ('R144·真名单来源已接', M_ONL, 1, '==', 'GET /online/players'),
+        ('R144·拜师 API 已接', M_MENTOR, 1, '==', 'YlxwPost(/mentor/apprentice) 入参 userId'),
+        ('R144·切磋 API 已接', M_ARENA, 1, '==', 'YlxwPost(/arena/challenge) 入参 name'),
+        ('R144·在线口径文案已改', M_RECENT5, 1, '==', '最近 5 分钟内有活跃'),
         ('R144·好友列表 API 已接', M_LIST, 1, '==', 'YlxwGet(/friends/list)'),
         ('R144·加好友 API 已接', M_ADD, 1, '==', 'YlxwPost(/friends/add)'),
         ('R144·删好友 API 已接', M_RM, 1, '==', 'YlxwPost(/friends/remove)'),
@@ -222,13 +231,16 @@ def _precheck():
     # 新增 needle 落在 NEW 内、且不在 OLD 内
     assert MARK in TAIL_NEW and M_BTN in NEW_BADGE and M_LISTEN in TAIL_NEW
     assert M_OPEN in TAIL_NEW and M_TITLE in TAIL_NEW and M_ONLINE_FN in TAIL_NEW
-    assert M_KK in TAIL_NEW and M_LIST in TAIL_NEW and M_ADD in TAIL_NEW
+    assert M_ONL in TAIL_NEW and M_MENTOR in TAIL_NEW and M_ARENA in TAIL_NEW and M_RECENT5 in TAIL_NEW
+    assert M_LIST in TAIL_NEW and M_ADD in TAIL_NEW
     assert M_RM in TAIL_NEW and M_GIFT in TAIL_NEW
     assert M_BTN not in OLD_BADGE and MARK not in OLD_BADGE
+    assert M_KK not in PANEL, '注入块不得再含 kk(0,60) 近似来源'
     assert TAIL_NEW.startswith(TAIL) and TAIL_NEW.count(TAIL) == 1, 'TAIL 必须为前缀且仅一次'
     # 每个新增 needle 在 NEW 中恰出现一次
     for nm, s in (('MARK', MARK), ('M_LISTEN', M_LISTEN), ('M_OPEN', M_OPEN),
-                  ('M_TITLE', M_TITLE), ('M_ONLINE_FN', M_ONLINE_FN), ('M_KK', M_KK),
+                  ('M_TITLE', M_TITLE), ('M_ONLINE_FN', M_ONLINE_FN), ('M_ONL', M_ONL),
+                  ('M_MENTOR', M_MENTOR), ('M_ARENA', M_ARENA), ('M_RECENT5', M_RECENT5),
                   ('M_LIST', M_LIST), ('M_ADD', M_ADD), ('M_RM', M_RM), ('M_GIFT', M_GIFT)):
         assert TAIL_NEW.count(s) == 1, '%s 在 NEW 中必须恰出现一次' % nm
     assert NEW_BADGE.count(M_BTN) == 1, 'M_BTN 在 NEW_BADGE 中必须恰出现一次'
@@ -302,7 +314,8 @@ def main() -> int:
             return 2
     # 新增 needle 在补丁前必须为 0（防重复注入 / 混入其它补丁）
     for nm, s in (('在位标记', MARK), ('按钮 needle', M_BTN), ('监听 needle', M_LISTEN),
-                  ('面板根节点', M_OPEN), ('好友列表 needle', M_LIST)):
+                  ('面板根节点', M_OPEN), ('真名单 needle', M_ONL), ('拜师 needle', M_MENTOR),
+                  ('切磋 needle', M_ARENA), ('口径文案', M_RECENT5), ('好友列表 needle', M_LIST)):
         if txt0.count(s) != 0:
             print('[FAIL] %s 已存在（疑部分补丁态）' % nm)
             return 2

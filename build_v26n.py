@@ -338,7 +338,7 @@ from yl_r067_ext import apply as v28_r067_apply  # noqa: E402
 from yl_068_ext import apply as v28_r068_apply  # noqa: E402
 
 BASE = os.path.join(HERE, 'build', 'assets', 'index-v26m-20260927.js')
-OUT = os.path.join(HERE, 'build', 'assets', 'index-v2916-20261003.js')
+OUT = os.path.join(HERE, 'build', 'assets', 'index-v2917-20261003.js')
 
 # v28 模块调用顺序（锚点稳定性 + num-balance 必须最后）：
 #   saveretry → arb → version → mail → entry → sectgf → char → bond → ui
@@ -572,6 +572,10 @@ STANDALONE_CLIENT = [
     ('r137', os.path.join(HERE, 'localtest', 'yl_r137_ext.py')),   # R-137 地宫「再次探索」冷却中弹 toast（YlxwToast，addLog 保留；纯客户端）
     ('r138', os.path.join(HERE, 'localtest', 'yl_r138_ext.py')),   # R-138 自动历练：单次结算行补数量/事件名 + 会话结束多行汇总块（纯客户端）
     ('r139', os.path.join(HERE, 'localtest', 'yl_r139_ext.py')),   # R-139 隐藏标签不停摆：打坐/历练/冷却倒计时三处定时器改 Worker 心跳驱动（CSP 失败自动回退；纯客户端）
+    # ---- 2026-10-03 0.9.17 工作流批（R-140 消耗品数值重构 + R-141 装备稀有属性；序=编号序，锚区经全量 standalone 门禁实证零交集）----
+    ('r140', os.path.join(HERE, 'localtest', 'yl_r140_ext.py')),   # R-140 批1 数值：fg 品质地板大砍 + Rr/mw 仙品地板下调 + Ic 缩放重配 + 丹药/草药表逐条重做 + 死键清理（纯客户端）
+    ('r140b', os.path.join(HERE, 'localtest', 'yl_r140b_ext.py')), # R-140 批1 经济 + 批2 硬顶：消耗品售价品质阶梯（装备沿用 R-135 三元逐字不动）+ hw/xw/gw/bw 掉率收紧 + vg 升档减半 + $r 下限 .10 + 永久属性 ZS×1.0 硬顶（★ 必须排在 r135 之后——B 组锚点是 R-135 改后形态）
+    ('r141', os.path.join(HERE, 'localtest', 'yl_r141_ext.py')),   # R-141 装备稀有属性：vs() 授予管道注入 innateAffixes（境界凸曲线 × 品质条数 × K=0.35）+ YlxwStatExtras/YlxwBattleBonus 合并消费（纯客户端）
 ]
 
 

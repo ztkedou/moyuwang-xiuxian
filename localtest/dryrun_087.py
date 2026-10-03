@@ -143,8 +143,8 @@ NEW_MODULES = ['grotto087', 'farm087', 'xinfa087', 't6chardex',
                'r111', 'r113', 'r114', 'r115',  # 2026-10-02 0.9.12 R-111 签到 / R-113 万妖五boss / R-114 历练收获 / R-115 洞府灵田
                'r124']  # 2026-10-02 0.9.13 R-124 灵田服用预览 spirit→神识（r116/r118 standalone 不在此表）
 
-VERSION = '0.9.18'
-BUNDLE_BASENAME = 'index-v2918-20261003.js'   # 与 build_v26n.OUT / chain_build.CLIENT_OUT / build/index.html 逐字一致
+VERSION = '0.9.19'
+BUNDLE_BASENAME = 'index-v2919-20261003.js'   # 与 build_v26n.OUT / chain_build.CLIENT_OUT / build/index.html 逐字一致
 # ★ 升版四件套之外的第 5 处：本文件的 VERSION 必须同步（下方 wiring_checks 用它交叉校验
 #   yl_version_ext.DEFAULT_VERSION 与 CHANGELOG 最新条目，两者都对上才算过）。
 
@@ -324,7 +324,7 @@ def main():
     # ---- 0.9.13 成员新契约：standalone 客户端补丁（R-116/R-118）对预演产物按序套用 ----
     #   与 build_v26n.__main__ 的装配层同一套（build_v26n.STANDALONE_CLIENT / apply_standalone）
     #   ⇒ 预演产物与最终交付产物走完全相同的补丁序列，「预演==交付」md5 逐位可比。
-    print('\n=== standalone 补丁套用（r116~r139，19 脚本，成员 --src 契约） ===')
+    print('\n=== standalone 补丁套用（r116~r146，27 脚本，成员 --src 契约） ===')
     sa_errs = B.apply_standalone(stage_path)
     for _e in sa_errs:
         print('  [SA-FAIL] %s' % _e)
@@ -359,6 +359,10 @@ def main():
     # ---- 2026-10-03 0.9.18 修 bug 批接线（R-142 灵田属性接线 / R-143 技能吸血）----
     import yl_r142_ext as _sa_r142
     import yl_r143_ext as _sa_r143
+    # ---- 2026-10-03 0.9.19 批接线（R-140/R-141 原位调参 + R-144 在线面板 + R-145 历练灵石 + R-146 日志合并）----
+    import yl_r144_ext as _sa_r144
+    import yl_r145_ext as _sa_r145
+    import yl_r146_ext as _sa_r146
     n_sa_gates = 0
     with open(stage_path, 'rb') as f:
         final_bytes = f.read()
@@ -372,7 +376,8 @@ def main():
                        ('r136', _sa_r136), ('r137', _sa_r137), ('r138', _sa_r138),
                        ('r139', _sa_r139),
                        ('r140', _sa_r140), ('r140b', _sa_r140b), ('r141', _sa_r141),
-                       ('r142', _sa_r142), ('r143', _sa_r143)):
+                       ('r142', _sa_r142), ('r143', _sa_r143),
+                       ('r144', _sa_r144), ('r145', _sa_r145), ('r146', _sa_r146)):
         for _t in _mod.gates():
             name, s, expect, cmp, note = _t[:5]
             _within = _t[5] if len(_t) > 5 else None
@@ -389,7 +394,7 @@ def main():
             if not ok:
                 print('        actual=%d expect %s %d  %s' % (act, cmp, expect, note))
                 fails.append((name, s, expect, cmp, note))
-    print('standalone 门禁: %d 条（r116~r143 共 24 脚本 gates()，跑在补丁后形态）' % n_sa_gates)
+    print('standalone 门禁: %d 条（r116~r146 共 27 脚本 gates()，跑在补丁后形态）' % n_sa_gates)
 
     md5 = hashlib.md5(final_bytes).hexdigest()
     print('\n预演产物（未上线）: %s' % os.path.relpath(stage_path, ROOT).replace('\\', '/'))

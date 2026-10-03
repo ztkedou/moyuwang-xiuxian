@@ -268,7 +268,10 @@ function YlxwSP_CapEffects(ef) {
   }
   return o;
 }
-var YlxwBattleCapCfg = { critRate: 0.35, critDamage: 1.0, dodgeRate: 0.35, lifeLeech: 0.25, damageReduction: 0.5 };
+/* R-141 稀有属性封顶 ≤80%：用户要求「稀有属性整体数值不能太多，就算装备满配也不能超过 80%」。
+   4 类稀有键 critRate/critDamage/dodgeRate/lifeLeech 中仅 critDamage 原为 1.0(100%) 超 80% ⇒ 收到 0.8；
+   critRate 0.35 / dodgeRate 0.35 / lifeLeech 0.25 本就 ≤80% ⇒ 保持；damageReduction 不属这 4 类稀有属性，保持 0.5。 */
+var YlxwBattleCapCfg = { critRate: 0.35, critDamage: 0.8, dodgeRate: 0.35, lifeLeech: 0.25, damageReduction: 0.5 };
 function YlxwBattleCap(o) {
   var k;
   for (k in YlxwBattleCapCfg) { if (o[k] > YlxwBattleCapCfg[k]) o[k] = YlxwBattleCapCfg[k]; }
@@ -416,7 +419,7 @@ PATCHES = [
         '    if (e2.lifeLeech) o.lifeLeech += e2.lifeLeech;\n    if (e2.damageReduction) o.damageReduction += e2.damageReduction;\n  }\n  return o;\n}',
         '    if (e2.lifeLeech) o.lifeLeech += e2.lifeLeech;\n    if (e2.damageReduction) o.damageReduction += e2.damageReduction;\n  }\n  return YlxwBattleCap(o);\n}',
         1,
-        '洗炼+神通战斗增益总封顶（会心35%/暴伤100%/闪避35%/噬灵25%/减伤50%）',
+        '洗炼+神通战斗增益总封顶（会心35%/暴伤80%/闪避35%/噬灵25%/减伤50%）',
     ),
     # ---------------- 通天塔每日扫荡 ----------------
     (

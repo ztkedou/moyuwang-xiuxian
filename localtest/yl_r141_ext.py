@@ -46,15 +46,23 @@ yl_r141_ext.py — R-141 高品质装备天生稀有属性（吸血 / 暴击率 
 ==============================================================================
   【A】常量 + 生成函数（紧邻 `YlxwRF_SPECIAL` @1495248 之后插入）
        YlxwInnateRealmFactor（7 档境界因子 0.05→1.00 凸曲线）
-       YlxwInnateCount（普通0/稀有1/传说2/仙品3）
-       YlxwInnateK = 0.35
-       YlxwInnate_Roll(rarity, realm)（复用 YlxwRF_Cfg/TYPES/DEFS/SPECIAL，同件去重）
+       YlxwInnateCount（稀有池条数：普通0/稀有1/传说2/仙品4）
+       YlxwInnatePctTable（攻%/防%/气血% 三类按境界查表独立区间）
+       YlxwInnatePctRarity（三类品质倍率 稀有0.6/传说0.8/仙品1.0）
+       YlxwInnateRarePool（稀有池 = 仅 4 类战斗稀有键 critRate/critDamage/dodgeRate/lifeLeech）
+       YlxwInnateK = 0.5
+       YlxwInnatePctRows(rarity, realm)（攻%/防%/气血% 随机属性条：类型/数值/条数(1~3) 全随机，所有品质都给）
+       YlxwInnate_Roll(rarity, realm)（稀有池 4 类抽取 + 随机属性条拼接，同件去重）
   【B】`vs()` 的 `if(b)` 分支注入（幂等：r.innateAffixes 已存在则沿用）
   【C】`YlxwStatExtras` 装备层合并读取
   【D】`YlxwBattleBonus` 装备层合并读取
 
-  数值 = randInt区间(YlxwRF_RARITY[rarity].minV~maxV)
-        × YlxwRF_SPECIAL[type] × YlxwInnateRealmFactor[realm] × YlxwInnateK(0.35)
+  2026-10-03 0.9.19 调参：K 0.35→0.5；仙品条数 3→4；锋芒/玄甲/长生改按境界查表独立区间。
+  2026-10-03 R-141 重做（用户拍板）：稀有池收为「只 4 类战斗稀有键」；攻%/防%/气血%
+     不算稀有属性，改为随机属性条（随机类型/数值/条数 1~3，所有品质都给）。
+
+  数值（稀有池 4 类）= rand(区间) × YlxwRF_SPECIAL[type] × YlxwInnateRealmFactor[realm] × YlxwInnateK(0.5)
+  数值（攻%/防%/气血% 随机条）= 随机(境界独立区间) × YlxwInnatePctRarity[rarity]
 
   ★ 不改：`iy`(神识/身法独立分支) / `ry` / `xs` / `YlxwRF_*` 既有函数 /
      `YlxwBattleCap` / `YlxwBattleCapCfg` / 战斗核心公式 / 服务端。
@@ -92,34 +100,64 @@ SPECIAL_OLD = (
 
 INNATE_BLOCK = (
     '\n\n'
-    '/* == YLXW_R141_V2916[r141] innate rare affixes for high-quality equipment ==\n'
-    '   \u54c1\u8d28\u95e8\u69db\uff1a\u666e\u901a0 / \u7a00\u67091 / \u4f20\u8bf42 / \u4ed9\u54c13\uff1b'
-    '\u5883\u754c\u56e0\u5b50 0.05\u21921.00 \u51f8\u66f2\uff1b'
-    '\u540c\u4ef6\u53bb\u91cd\u62bd\u53d6\u3002'
-    '\u4e0d\u6539\u4efb\u4f55 YlxwRF_* \u65e2\u6709\u51fd\u6570\u3002 */\n'
+    '/* == YLXW_R141_V2919[r141] innate rare affixes for high-quality equipment ==\n'
+    '   \u7a00\u6709\u8bcd\u6761\u6c60 = \u53ea 4 \u7c7b\u6218\u6597\u7a00\u6709\u952e\uff1a'
+    'critRate/critDamage/dodgeRate/lifeLeech\uff1b\u6761\u6570 \u666e\u901a0 / \u7a00\u67091 / \u4f20\u8bf42 / \u4ed9\u54c14\u3002\n'
+    '   \u653b%/\u9632%/\u6c14\u8840% \u4e0d\u7b97\u7a00\u6709\u5c5e\u6027\uff0c\u6539\u4e3a\u300c\u968f\u673a\u5c5e\u6027\u6761\u300d\uff1a'
+    '\u968f\u673a\u7c7b\u578b / \u968f\u673a\u6570\u503c / \u968f\u673a\u6761\u6570(1~3)\uff0c\u6240\u6709\u54c1\u8d28\u90fd\u7ed9\u3002\n'
+    '   \u7a00\u6709\u952e\u6570\u503c = \u533a\u95f4 \u00d7 YlxwRF_SPECIAL \u00d7 \u5883\u754c\u56e0\u5b50(0.05\u21921.00) \u00d7 YlxwInnateK\uff1b'
+    '\u540c\u4ef6\u53bb\u91cd\u62bd\u53d6\u3002\n'
+    '   \u4e0d\u6539\u4efb\u4f55 YlxwRF_* \u65e2\u6709\u51fd\u6570\u3002 */\n'
     'var YlxwInnateRealmFactor = {\n'
     '  "\u70bc\u6c14\u671f": 0.05, "\u7b51\u57fa\u671f": 0.10, "\u91d1\u4e39\u671f": 0.20, "\u5143\u5a74\u671f": 0.35,\n'
     '  "\u5316\u795e\u671f": 0.55, "\u5408\u9053\u671f": 0.80, "\u957f\u751f\u5883": 1.00\n'
     '};\n'
-    'var YlxwInnateCount = { "\u666e\u901a": 0, "\u7a00\u6709": 1, "\u4f20\u8bf4": 2, "\u4ed9\u54c1": 3 };\n'
-    'var YlxwInnateK = 0.35;\n'
+    'var YlxwInnateCount = { "\u666e\u901a": 0, "\u7a00\u6709": 1, "\u4f20\u8bf4": 2, "\u4ed9\u54c1": 4 };\n'
+    'var YlxwInnatePctTable = {\n'
+    '  "\u70bc\u6c14\u671f": { attackPercent: [0.01, 0.05], defensePercent: [0.01, 0.05], hpPercent: [0.01, 0.10] },\n'
+    '  "\u7b51\u57fa\u671f": { attackPercent: [0.02, 0.08], defensePercent: [0.02, 0.08], hpPercent: [0.02, 0.15] },\n'
+    '  "\u91d1\u4e39\u671f": { attackPercent: [0.03, 0.12], defensePercent: [0.03, 0.12], hpPercent: [0.04, 0.22] },\n'
+    '  "\u5143\u5a74\u671f": { attackPercent: [0.05, 0.16], defensePercent: [0.05, 0.16], hpPercent: [0.06, 0.28] },\n'
+    '  "\u5316\u795e\u671f": { attackPercent: [0.07, 0.20], defensePercent: [0.07, 0.20], hpPercent: [0.09, 0.33] },\n'
+    '  "\u5408\u9053\u671f": { attackPercent: [0.09, 0.23], defensePercent: [0.09, 0.23], hpPercent: [0.12, 0.37] },\n'
+    '  "\u957f\u751f\u5883": { attackPercent: [0.10, 0.25], defensePercent: [0.10, 0.25], hpPercent: [0.15, 0.40] }\n'
+    '};\n'
+    'var YlxwInnatePctRarity = { "\u7a00\u6709": 0.6, "\u4f20\u8bf4": 0.8, "\u4ed9\u54c1": 1.0 };\n'
+    'var YlxwInnateRarePool = ["critRate", "critDamage", "dodgeRate", "lifeLeech"];\n'
+    'var YlxwInnateK = 0.5;\n'
+    'function YlxwInnatePctRows(rarity, realm) {\n'
+    '  var row = YlxwInnatePctTable[realm];\n'
+    '  if (!row) return [];\n'
+    '  var keys = ["attackPercent", "defensePercent", "hpPercent"], pool = keys.slice(), out = [];\n'
+    '  var n = 1 + Math.floor(Math.random() * 3);          // \u968f\u673a\u6761\u6570\uff1a1~3\n'
+    '  var rq = YlxwInnatePctRarity[rarity] || 1;\n'
+    '  for (var i = 0; i < n && pool.length > 0; i++) {\n'
+    '    var idx = Math.floor(Math.random() * pool.length);\n'
+    '    var ty = pool[idx]; pool.splice(idx, 1);\n'
+    '    var iv = row[ty];\n'
+    '    if (!iv) continue;\n'
+    '    var raw = (iv[0] + Math.random() * (iv[1] - iv[0])) * rq;\n'
+    '    var d = YlxwRF_DEFS[ty] || {};\n'
+    '    out.push({ type: ty, name: d.name || ty, value: Math.round(raw * 1000) / 1000, src: "innate" });\n'
+    '  }\n'
+    '  return out;\n'
+    '}\n'
     'function YlxwInnate_Roll(rarity, realm) {\n'
-    '  var n = YlxwInnateCount[rarity] || 0;\n'
-    '  if (n <= 0) return [];\n'
     '  var R = YlxwInnateRealmFactor[realm];\n'
-    '  if (typeof R !== "number" || R <= 0) return [];\n'
+    '  var out = YlxwInnatePctRows(rarity, realm);          // \u653b/\u9632/\u6c14\u8840 \u968f\u673a\u6761\uff08\u6240\u6709\u54c1\u8d28\u90fd\u7ed9\uff09\n'
+    '  var n = YlxwInnateCount[rarity] || 0;                // \u7a00\u6709\u6c60\u6761\u6570\uff1a\u666e\u901a0/\u7a00\u67091/\u4f20\u8bf42/\u4ed9\u54c14\n'
+    '  if (n <= 0 || typeof R !== "number" || R <= 0) return out;\n'
     '  var cfg = YlxwRF_Cfg(rarity);\n'
-    '  var pool = YlxwRF_TYPES.slice(), chosen = [], i, idx, ty;\n'
+    '  var pool = YlxwInnateRarePool.slice(), i, idx, ty;\n'
     '  for (i = 0; i < n && pool.length > 0; i++) {\n'
     '    idx = Math.floor(Math.random() * pool.length);\n'
-    '    chosen.push(pool[idx]); pool.splice(idx, 1);\n'
-    '  }\n'
-    '  return chosen.map(function (ty) {\n'
+    '    ty = pool[idx]; pool.splice(idx, 1);\n'
     '    var d = YlxwRF_DEFS[ty] || {};\n'
     '    var raw = (cfg.minV + Math.random() * (cfg.maxV - cfg.minV))\n'
     '            * (YlxwRF_SPECIAL[ty] || 1) * R * YlxwInnateK;\n'
-    '    return { type: ty, name: d.name || ty, value: Math.round(raw * 1000) / 1000, src: "innate" };\n'
-    '  });\n'
+    '    out.push({ type: ty, name: d.name || ty, value: Math.round(raw * 1000) / 1000, src: "innate" });\n'
+    '  }\n'
+    '  return out;\n'
     '}\n'
 )
 
@@ -199,12 +237,17 @@ EDITS = [
 
 # --------------------------------------------------------------------------- 在位标记 / 新增 needle / 冻结门禁串
 
-MARK = 'YLXW_R141_V2916'
+MARK = 'YLXW_R141_V2919'
 
 M_FN = 'function YlxwInnate_Roll(rarity, realm) {'
 M_RF = 'var YlxwInnateRealmFactor = {'
 M_CNT = 'var YlxwInnateCount = {'
-M_K = 'var YlxwInnateK = 0.35;'
+M_K = 'var YlxwInnateK = 0.5;'
+M_PCT = 'var YlxwInnatePctTable = {'
+M_PCTR = 'var YlxwInnatePctRarity = {'
+M_POOL = 'var YlxwInnateRarePool = ["critRate", "critDamage", "dodgeRate", "lifeLeech"];'
+M_PCTROWS = 'function YlxwInnatePctRows(rarity, realm) {'
+M_NO7 = 'YlxwRF_TYPES.slice()'
 M_INN = 'const _inn=(r.innateAffixes&&r.innateAffixes.length)'
 M_KEY = '_innKey=JSON.stringify(_inn)'
 M_STACK = 'JSON.stringify(h.innateAffixes||[])===_innKey'
@@ -217,7 +260,7 @@ FRZ_IY = ('if(N==="spirit"||N==="speed"){const PK={\u666e\u901a:1,\u7a00\u6709:1
           'SK={\u6b66\u5668:.5,\u62a4\u7532:.5,\u6212\u6307:2.5,\u9996\u9970:2.5,\u6cd5\u5b9d:2.5}[ty]||1,'
           'BV=(([2,4,8,16,30,55,100][$]||2)*PK*SK)*(N==="speed"?2/3:1);')
 # 冻结：封顶表 / 封顶函数 / 战斗核心暴击公式 / 吸血分支 / 洗炼既有函数
-FRZ_CAPCFG = 'var YlxwBattleCapCfg = { critRate: 0.35, critDamage: 1.0, dodgeRate: 0.35, lifeLeech: 0.25, damageReduction: 0.5 };'
+FRZ_CAPCFG = 'var YlxwBattleCapCfg = { critRate: 0.35, critDamage: 0.8, dodgeRate: 0.35, lifeLeech: 0.25, damageReduction: 0.5 };'
 FRZ_CAPFN = 'function YlxwBattleCap(o) {'
 FRZ_CRITFORM = 'F=.1+(G?te:ee)/ne*.1+(G?YlxwPB.critRate:0),W=Math.max(0,Math.min(.35,F))'
 FRZ_LEECH = 'YlxwPB.lifeLeech>0'
@@ -230,9 +273,14 @@ def gates():
         # ===================== 【A】常量 + 生成函数 =====================
         ('R141A·在位标记存在', MARK, 1, '==', ''),
         ('R141A·境界因子表已注入', M_RF, 1, '==', '7 档 0.05→1.00'),
-        ('R141A·品质条数表已注入', M_CNT, 1, '==', '普通0/稀有1/传说2/仙品3'),
-        ('R141A·折扣常数已注入', M_K, 1, '==', 'YlxwInnateK=0.35'),
+        ('R141A·品质条数表已注入', M_CNT, 1, '==', '普通0/稀有1/传说2/仙品4'),
+        ('R141A·折扣常数已注入', M_K, 1, '==', 'YlxwInnateK=0.5'),
         ('R141A·生成函数已注入', M_FN, 1, '==', 'YlxwInnate_Roll'),
+        ('R141A·三类区间表已注入', M_PCT, 1, '==', '攻%/防%/气血% 按境界查表'),
+        ('R141A·三类品质倍率已注入', M_PCTR, 1, '==', '稀有0.6/传说0.8/仙品1.0'),
+        ('R141A·稀有池 4 类已注入', M_POOL, 1, '==', 'critRate/critDamage/dodgeRate/lifeLeech'),
+        ('R141A·随机属性条函数已注入', M_PCTROWS, 1, '==', 'YlxwInnatePctRows（攻%/防%/气血% 随机条）'),
+        ('R141A·旧 7 类抽取已清零', M_NO7, 0, '==', 'YlxwRF_TYPES.slice() 必须为 0'),
 
         # ===================== 【B】vs() 注入（两条出口） =====================
         ('R141B·词条生成/沿用已注入', M_INN, 1, '==', '幂等：r.innateAffixes 已存在则沿用'),
@@ -266,6 +314,9 @@ def _precheck():
         assert old != new, '%s 新旧锚点相同（恒等替换）' % name
     # 新增 needle 必须落在对应 NEW 内，且不在 OLD 内
     assert M_FN in SPECIAL_NEW and M_RF in SPECIAL_NEW and M_CNT in SPECIAL_NEW and M_K in SPECIAL_NEW
+    assert M_PCT in SPECIAL_NEW and M_PCTR in SPECIAL_NEW
+    assert M_POOL in SPECIAL_NEW and M_PCTROWS in SPECIAL_NEW
+    assert M_NO7 not in SPECIAL_NEW, '旧的 7 类抽取 YlxwRF_TYPES.slice() 必须消失'
     assert MARK in SPECIAL_NEW
     assert M_INN in VS_NEW and M_KEY in VS_NEW and M_STACK in VS_NEW and M_PUSH in VS_NEW
     assert M_STAT in STAT_NEW and M_STAT not in STAT_OLD
@@ -277,7 +328,11 @@ def _precheck():
     assert VS_NEW.count('for(let h=0;h<a;h++)c.push({') == 1, 'push 出口必须保留'
     # 数值方案锚点（设计 §2/§3）
     assert '"\u70bc\u6c14\u671f": 0.05' in INNATE_BLOCK and '"\u957f\u751f\u5883": 1.00' in INNATE_BLOCK
-    assert '"\u666e\u901a": 0, "\u7a00\u6709": 1, "\u4f20\u8bf4": 2, "\u4ed9\u54c1": 3' in INNATE_BLOCK
+    assert '"\u666e\u901a": 0, "\u7a00\u6709": 1, "\u4f20\u8bf4": 2, "\u4ed9\u54c1": 4' in INNATE_BLOCK
+    # 三类独立区间表（锋芒/玄甲/长生）按境界查表
+    assert '"\u70bc\u6c14\u671f": { attackPercent: [0.01, 0.05]' in INNATE_BLOCK
+    assert '"\u957f\u751f\u5883": { attackPercent: [0.10, 0.25]' in INNATE_BLOCK
+    assert 'hpPercent: [0.15, 0.40]' in INNATE_BLOCK
     # 注入块不得引入网络调用
     for _n, _o, nw in EDITS:
         assert 'fetch(' not in nw, '注入块不得含 fetch('
@@ -306,7 +361,7 @@ def main() -> int:
 
     # 1) 幂等：全部新增 needle 齐备且旧形态清零 → rc=3 不写盘
     txt0 = src.decode('utf-8', errors='replace')
-    markers = [MARK, M_FN, M_RF, M_CNT, M_K, M_INN, M_KEY, M_STACK, M_PUSH, M_STAT, M_BATTLE]
+    markers = [MARK, M_FN, M_RF, M_CNT, M_K, M_PCT, M_PCTR, M_INN, M_KEY, M_STACK, M_PUSH, M_STAT, M_BATTLE]
     if all(m in txt0 for m in markers):
         if all(o.decode('utf-8') not in txt0 for o in (olds[1], olds[2], olds[3])):
             print('[SKIP] source looks already patched（R-141 新增 needle 齐备且旧形态清零）')

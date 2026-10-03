@@ -15,6 +15,8 @@ yl_r140b_ext.py — R-140 消耗品数值重构 · 经济部分（批 1）+ 永�
 基线 = build/assets/index-v2916-20261003.js（2,285,822 B，md5 a59ac4496ab0e8ab81fdb147b45488ec）
 所有锚点均已在该基线上逐字复核，count==1。
 
+2026-10-03 0.9.19：按用户拍板 1.0 → 2.0（炼气期每属性永久加成上限 +60 → +120）。
+
 ==============================================================================
 改动清单（14 处锚点）
 ==============================================================================
@@ -33,7 +35,7 @@ yl_r140b_ext.py — R-140 消耗品数值重构 · 经济部分（批 1）+ 永�
 
 【批 2 · 硬顶】§3.4
   C1  $r 递减下限   0.25 → 0.10
-  C2  ZS 声明前注入常量 YLXW_R140_PERM_CAP_RATIO=1.0 + 助手 YlxwR140PermRoom / YlxwR140AddPerm
+  C2  ZS 声明前注入常量 YLXW_R140_PERM_CAP_RATIO=2.0 + 助手 YlxwR140PermRoom / YlxwR140AddPerm
   C3  六个永久属性分支（attack/defense/spirit/physique/speed/maxHp）改为硬顶调用；
       初始化 u.permGain={...(u.permGain||{})}
   C4  存档归一化：permGain:t.permGain||{}（旧档 undefined → {}，零崩溃）
@@ -58,13 +60,13 @@ from datetime import datetime
 
 # --------------------------------------------------------------------------- 在位标记
 
-MARK = 'YLXW_R140B_V2916'   # ★ 带 B 的裸串：与 r140a 的 '/*YLXW_R140_V2916*/'、r141 的 'YLXW_R141_V2916' 互不包含（集成时实测：旧裸串 'YLXW_R140_V2916' 是 r140a 标记的子串 ⇒ 串行叠加误判部分补丁态）
+MARK = 'YLXW_R140B_V2919'   # ★ 带 B 的裸串：与 r140a 的 '/*YLXW_R140_V2916*/'、r141 的 'YLXW_R141_V2916' 互不包含（集成时实测：旧裸串 'YLXW_R140_V2916' 是 r140a 标记的子串 ⇒ 串行叠加误判部分补丁态）
 
 # =========================================================================== 【A1】售价常量
 A1_OLD = 'var YLXW_R135_RARE_KEYS = ["spirit", "speed", "physique"];'
 A1_NEW = (
     A1_OLD + '\n'
-    '/* YLXW_R140B_V2916[r140b] R-140 batch1: consumable price ladder (Pill/Herb only). */\n'
+    '/* YLXW_R140B_V2919[r140b] R-140 batch1: consumable price ladder (Pill/Herb only). */\n'
     '/* == YL_R140 == Consumables get a rarity ladder; equipment keeps the R-135 x6/x1.5\n'
     '   ternary verbatim (else-branch) so R-141 equipment economy is bit-identical. */\n'
     'var YLXW_R140_CONSUM_PRICE_MUL = { "普通": 1.5, "稀有": 3, "传说": 6, "仙品": 12 };\n'
@@ -117,7 +119,7 @@ C1_NEW = 'const d=Math.max(.10,Math.min(1,c/l));'
 C2_OLD = 'const ZS=(t,r)=>{const a=Cs[t.realm]||Cs[ae.QiRefining]'
 C2_DEFS = (
     '/* R-140 batch2: per-attribute permanent-gain hard cap. */\n'
-    'var YLXW_R140_PERM_CAP_RATIO = 1.0;\n'
+    'var YLXW_R140_PERM_CAP_RATIO = 2.0;\n'
     'function YlxwR140PermRoom(p, key) {\n'
     '  var cap = YLXW_R140_PERM_CAP_RATIO * ZS(p, key);\n'
     '  var used = (p.permGain && Number(p.permGain[key])) || 0;\n'
@@ -215,7 +217,7 @@ FR_R135_RARE_MUL = 'var YLXW_R135_RARE_PRICE_MUL = 6;'
 FR_R135_BASE_MUL = 'var YLXW_R135_BASE_PRICE_MUL = 1.5;'
 FR_PRICE_FN = 'function YlxwShopPriceOf(it, player) {'
 
-FR_CAP_RATIO = 'var YLXW_R140_PERM_CAP_RATIO = 1.0;'
+FR_CAP_RATIO = 'var YLXW_R140_PERM_CAP_RATIO = 2.0;'
 FR_CAP_ROOM = 'function YlxwR140PermRoom(p, key) {'
 FR_CAP_ADD = 'function YlxwR140AddPerm(p, key, raw, label, logs, isBatch, addLog, itemName) {'
 FR_CAP_INIT = 'u.permGain={...(u.permGain||{})};'
@@ -269,7 +271,7 @@ def gates():
         # ===================== 【C】硬顶 =====================
         ('R140C1·$r下限已降至.10', FR_SR_NEW, 1, '==', ''),
         ('R140C1·旧$r下限已清零', FR_SR_OLD, 0, '==', ''),
-        ('R140C2·硬顶比例常量已注入', FR_CAP_RATIO, 1, '==', '1.0 × ZS'),
+        ('R140C2·硬顶比例常量已注入', FR_CAP_RATIO, 1, '==', '2.0 × ZS'),
         ('R140C2·余量助手已注入', FR_CAP_ROOM, 1, '==', ''),
         ('R140C2·累加助手已注入', FR_CAP_ADD, 1, '==', ''),
         ('R140C3·permGain 已初始化', FR_CAP_INIT, 1, '==', '浅拷贝防污染入参'),
@@ -335,7 +337,7 @@ def simulate_cap():
     cs = {'baseMaxHp': 100, 'baseAttack': 10, 'baseDefense': 5,
           'baseSpirit': 5, 'basePhysique': 10, 'baseSpeed': 10}
     realm_level = 1
-    ratio = 1.0
+    ratio = 2.0   # 0.9.19：与 YLXW_R140_PERM_CAP_RATIO 同步（1.0 → 2.0）
 
     def ZS(key):
         c = 1 + (max(1, realm_level) - 1) * 0.14

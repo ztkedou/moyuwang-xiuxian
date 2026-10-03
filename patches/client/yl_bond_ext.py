@@ -27,7 +27,7 @@ yl_bond_ext.py — v28 P2-⑫ 羁绊（synergy）百分比词条「死数值」�
 2. 【补消费点】在属性层 `YlxwStatExtras(p, r)` 接 攻%/防%/血%，在战斗层 `YlxwBattleBonus(p)`
    接 会心/暴伤/闪避/吸血/减伤；两处各自 `Pm(` 一次 → 全库 `Pm(` 调用点 4 → 6。
 3. 【封顶复用，不新造】战斗层封顶**已就位**（已核实，见下），直接吃：
-     · `YlxwBattleCapCfg = {critRate:0.35, critDamage:1.0, dodgeRate:0.35, lifeLeech:0.25, damageReduction:0.5}`
+     · `YlxwBattleCapCfg = {critRate:0.35, critDamage:0.8, dodgeRate:0.35, lifeLeech:0.25, damageReduction:0.5}`
      · 回合制：`W=Math.max(0,Math.min(.35,F))`（会心）/ `Math.min(.6, damageReduction)` /
        `M=Math.min(S, M+Math.floor(X*lifeLeech))`（吸血，S=maxHp）
    本模块只额外加一层「羁绊自身聚合上限」`YlxwBondCap`（与 §7.2 三条上限一致），作为防呆。
@@ -53,7 +53,7 @@ yl_bond_ext.py — v28 P2-⑫ 羁绊（synergy）百分比词条「死数值」�
 INJECT_JS = r'''
 /* ===== yl-v28 P2-⑫ 羁绊（synergy）百分比词条生效 ===== */
 /* 羁绊 8 个百分比字段的**聚合上限**（= 数值重规划案 §7.2 的三条硬上限 + 其余同比例收敛后的防呆值）。
-   战斗层另有 YlxwBattleCap（会心35%/暴伤100%/闪避35%/噬灵25%/减伤50%）统一封顶，两者叠加安全。 */
+   战斗层另有 YlxwBattleCap（会心35%/暴伤80%/闪避35%/噬灵25%/减伤50%）统一封顶，两者叠加安全。 */
 var YlxwBondCapCfg = {
   attackPercent: 0.30, hpPercent: 0.40, critRate: 0.15,
   defensePercent: 0.15, critDamage: 0.40, dodgeRate: 0.15,
@@ -197,7 +197,7 @@ GATES += [
     ('bond·flat 值未动(防御)',   'effects:{defense:150,hpPercent:.067,damageReduction:.033}', 1, '==', 'flat defense=150 保持'),
     ('bond·flat 值未动(生命)',   'effects:{hpPercent:.1,hp:1e3,lifeLeech:.017}',              1, '==', 'flat hp=1e3 保持'),
     ('bond·flat 值未动(反击)',   'effects:{expRate:.1,dodgeRate:.027,counter:15}',            1, '==', 'flat counter=15 保持'),
-    ('bond·战斗层封顶表未被改',  'var YlxwBattleCapCfg = { critRate: 0.35, critDamage: 1.0, dodgeRate: 0.35, lifeLeech: 0.25, damageReduction: 0.5 };', 1, '==', 'numbal 的封顶表原样保留'),
+    ('bond·战斗层封顶表未被改',  'var YlxwBattleCapCfg = { critRate: 0.35, critDamage: 0.8, dodgeRate: 0.35, lifeLeech: 0.25, damageReduction: 0.5 };', 1, '==', 'numbal 的封顶表（0.9.19 起 critDamage 1.0→0.8）'),
     ('bond·未动心法预算表',      'YlxwArtBudgetByCell',                  2, '>=', ''),
 ]
 

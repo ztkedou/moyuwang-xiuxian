@@ -36,7 +36,7 @@ yl_r142_ext.py — R-142 灵田稀有草是「白种」的（玩家暴击率/闪
 
 【1】封顶不会撞顶（证明只需一处）
 --------------------------------------------------------------------------
-  YlxwBattleCapCfg = { critRate: 0.35, critDamage: 1.0, dodgeRate: 0.35,
+  YlxwBattleCapCfg = { critRate: 0.35, critDamage: 0.8, dodgeRate: 0.35,
                        lifeLeech: 0.25, damageReduction: 0.5 }
   灵田上限（小数比例）0.08 / 0.06 / 0.04 远低于封顶 0.35 / 0.35 / 0.25 ⇒ 不会撞顶。
 
@@ -116,7 +116,7 @@ M_C3 = 'if (typeof p.lifeLeech === "number" && p.lifeLeech > 0) o.lifeLeech += p
 M_ANCHOR = 'YlxwR18bRuneBattle(o, p);'
 
 # 冻结：封顶表 / 封顶函数 / 灵纹战斗层调用点 / 装备层循环 / hitRate 无消费点
-FRZ_CAPCFG = 'var YlxwBattleCapCfg = { critRate: 0.35, critDamage: 1.0, dodgeRate: 0.35, lifeLeech: 0.25, damageReduction: 0.5 };'
+FRZ_CAPCFG = 'var YlxwBattleCapCfg = { critRate: 0.35, critDamage: 0.8, dodgeRate: 0.35, lifeLeech: 0.25, damageReduction: 0.5 };'
 FRZ_CAPFN = 'function YlxwBattleCap(o) {'
 FRZ_EQ = 'var eq = YlxwEqItems(p), i, j, af;'
 FRZ_R18B = 'YlxwR18bRuneBattle(o, p);'

@@ -1,5 +1,21 @@
 # 摸鱼修仙传 · 更新日志
 
+## [0.9.21] - 2026-10-04 02:30
+### 修复：全新数据库无法启动（R-148）
+
+**回归来源**：0.9.20 的 R-144 把 `CREATE INDEX IF NOT EXISTS idx_active_sessions_last_seen ON active_sessions(last_seen)` 写在**模块加载期顶层**，执行时机早于 `db.serialize` 块内的 `CREATE TABLE active_sessions`。
+
+**症状**：在**全新 / 空数据库**上启动服务端，进程直接崩溃退出：
+```
+[Error: SQLITE_ERROR: no such table: main.active_sessions
+Emitted 'error' event on Statement instance at: ]
+```
+线上库因 `active_sessions` 表早已存在而未暴露；本机全栈沙盒（pristine 库不含此表）因此全部起不来。
+
+**修法**（SRV_CHAIN 第 68 环 `patches/server/srv_patch_r148.py`）：把该索引语句**移入建表块内**、紧跟 `active_sessions` 的 `CREATE TABLE` 之后。语义完全等价（`IF NOT EXISTS`），仅执行时机后移。
+
+**验证**：空库启动对照实验 —— 0.9.19 服务端正常（84 表）／0.9.20 崩溃／删该行正常／移入建表块正常且索引就位。修后空库启动 84 表 + `idx_active_sessions_last_seen` 存在。
+
 ## [0.9.20] - 2026-10-03 23:55
 ### 在线人物真名单（R-144 服务端面）
 

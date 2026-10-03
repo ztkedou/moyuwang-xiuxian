@@ -448,10 +448,21 @@ SRV_CHAIN = [
                                  #   （好友域第一条路由，实测 count==1）；纯插入零改基线行。
                                  #   ★ 挂链尾：只**新增**端点/索引，不改任何既有语义。
                                  #   ★ 客户端半边 = STANDALONE_CLIENT 'r144'（localtest/yl_r144_ext.py）。
+    'srv_patch_r148.py',         # R-148 修 0.9.20 回归：空库启动崩溃（0.9.21 / 第 68 环 / 新末环）：
+                                 #   R-144 把 CREATE INDEX idx_active_sessions_last_seen 写成
+                                 #   **模块加载期顶层语句**，早于 db.serialize 块内的
+                                 #   CREATE TABLE active_sessions ⇒ 全新/空库启动即
+                                 #   SQLITE_ERROR: no such table: main.active_sessions（unhandled
+                                 #   'error' 直接退出）。线上库因表已存在未暴露；本机沙盒全废。
+                                 #   修法 = 把该索引语句**移入建表块内**、紧跟 active_sessions 的
+                                 #   CREATE TABLE 之后（语义等价，仅执行时机后移）。
+                                 #   锚点①（删除处）= 顶层那句 count==1；锚点②（插入处）= 建表整块 count==1。
+                                 #   ★ 挂链尾：纯时机修正，端点/字段/口径零改动。
+                                 #   ★ 客户端零改动（本批客户端仅版本号 0.9.21）。
 ]
 
-# ---- 前端产物路径（0.9.20 换名：index-v2920-20261003.js，与 build_v26n.py OUT 逐字一致）----
-CLIENT_OUT = os.path.join(ROOT, 'build', 'assets', 'index-v2920-20261003.js')
+# ---- 前端产物路径（0.9.21 换名：index-v2921-20261004.js，与 build_v26n.py OUT 逐字一致）----
+CLIENT_OUT = os.path.join(ROOT, 'build', 'assets', 'index-v2921-20261004.js')
 SRV_OUT = os.path.join(ROOT, 'srv', 'index_v28.ts')
 
 

@@ -194,6 +194,8 @@ const db = new sqlite3.Database(dbPath, (err) => {
           last_seen INTEGER NOT NULL
         )
       `);
+      // [r148boot] R-148：在线索引从模块顶层移到建表之后，空库启动不再 no such table
+      db.run(`CREATE INDEX IF NOT EXISTS idx_active_sessions_last_seen ON active_sessions(last_seen)`);
 
       // 添加索引加速查询
       db.run(`CREATE INDEX IF NOT EXISTS idx_saves_user_id ON saves(user_id)`);
@@ -10629,7 +10631,6 @@ function isFriend(a: number, b: number): Promise<boolean> {
 // UTC CURRENT_TIMESTAMP ⇒ 转 epoch ms）。字段/口径与 /api/friends/list 同源。
 const ONLINE_WINDOW_MS = 5 * 60 * 1000;   // 用户拍板：最近 5 分钟内有活跃上报
 const ONLINE_LIST_MAX = 50;
-db.run('CREATE INDEX IF NOT EXISTS idx_active_sessions_last_seen ON active_sessions(last_seen)');
 
 app.get('/api/online/players', authenticateToken, rateLimit({ windowMs: 60 * 1000, max: 60, keyFn: (req: any) => `onl:${req.user?.id ?? req.ip}` }), async (req: any, res: any) => {
   const selfId = req.user.id;

@@ -338,7 +338,7 @@ from yl_r067_ext import apply as v28_r067_apply  # noqa: E402
 from yl_068_ext import apply as v28_r068_apply  # noqa: E402
 
 BASE = os.path.join(HERE, 'build', 'assets', 'index-v26m-20260927.js')
-OUT = os.path.join(HERE, 'build', 'assets', 'index-v2913-20261002.js')
+OUT = os.path.join(HERE, 'build', 'assets', 'index-v2915-20261002.js')
 
 # v28 模块调用顺序（锚点稳定性 + num-balance 必须最后）：
 #   saveretry → arb → version → mail → entry → sectgf → char → bond → ui
@@ -560,6 +560,10 @@ STANDALONE_CLIENT = [
     ('r123', os.path.join(HERE, 'localtest', 'yl_r123_ext.py')),   # R-123 指引 8 步奖励客户端面（★ 服务端配套 = SRV_CHAIN 'srv_patch_r123.py'）
     ('r128', os.path.join(HERE, 'localtest', 'yl_r128_ext.py')),   # R-128 掷骰翻牌客户端面（锚 fun086 注入块；★ 服务端配套 = SRV_CHAIN 'srv_patch_r128.py'）
     ('r131', os.path.join(HERE, 'localtest', 'yl_r131_ext.py')),   # R-131 缘契 DEXMILE 4→7 档+上限 200+UNL59 落修为（锚 chardex101+r059 产物；★ chardex101 装配态门禁不放宽——终态清零断言在本脚本 gates()）
+    # ---- 2026-10-02 0.9.14 第 1 批接线（序=编号序；R-112 走 SRV_CHAIN，客户端墓碑不接线）----
+    ('r132', os.path.join(HERE, 'localtest', 'yl_r132_ext.py')),   # R-132 天赋金红互换（8点=红/6点=金）+ 种类梯度重排（锚 r087 swap 行+boost 调用行；★ talent097「对调==1」终态清零断言在本脚本 gates()）
+    # ---- 2026-10-02 0.9.15 热修接线（单点显示缺陷；纯客户端，服务端零改动）----
+    ('r131fix', os.path.join(HERE, 'localtest', 'yl_r131fix_ext.py')),   # R131 灵玉阁余额恒 0 热修（bal 读值 d.balance→d.jadeBalance 优先+旧字段兜底；服务端 [v2810] 已改名，锚=全语句唯一）
 ]
 
 

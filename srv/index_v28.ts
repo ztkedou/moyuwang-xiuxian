@@ -1955,6 +1955,46 @@ function calcOfflineGainV2(p: any, fromMs: number | null): { exp: number; stones
 // 计数器差值：只认正增量（回档/多端旧档不倒扣，同 Y15/DG 口径）
 function e2Delta(a: number, b: number): number { return b > a ? Math.floor(b) - Math.floor(a) : 0; }
 
+// [r112] R-112 打坐/历练掉玉（服务端环，2026-10-02）：打坐每跳 0.4%、历练每次 0.9%（打坐最低、历练略高），命中 1 玉/次。
+// 口径：Δ 差值只在 POST /api/save 的 UPDATE 分支结算（服务端权威）；首存（INSERT 分支）与基线坏 JSON 不 roll；
+// Δ 为负（回档/采纳器回调）按 e2Delta 语义 = 0，绝不扣玉；发放走 actDropTokens —— 日上限 300（ACT_TOKEN_DAILY_CAP）、
+// activity_token_daily 守卫钳制、活跃 token_shop 场次门槛全部复用既有口径；玉/命中经 stones 当量换算（RATE=50 ⇒ 200 石/玉，floor 恰 1:1）。
+// ★ 防刷钳 cMed/cAdv 为 settleSaveEconV2 计数器时间钳的逐字镜像（那边改公式必须同步这边）。
+const R112_JADE_MED_CHANCE = 0.004; // 打坐 每跳（约 2s/跳 ⇒ 期望 ≈7.2 玉/时）
+const R112_JADE_ADV_CHANCE = 0.009; // 历练 每次（约 4s/次 ⇒ 期望 ≈8.1 玉/时，略高于打坐）
+function ylR112RollHits(n: number, chance: number): number {
+  const total = Math.floor(Number(n) || 0);
+  const c = Number(chance);
+  if (!(total > 0) || !(c > 0)) return 0;
+  let hits = 0;
+  for (let i = 0; i < total; i++) { if (Math.random() < c) hits++; }
+  return hits;
+}
+function ylR112JadeDrop(userId: number, oldSaveJson: unknown, newSd: any, prevUpdatedAt: unknown): void {
+  try {
+    if (!oldSaveJson) return; // 无上次基线（首存/行缺失）⇒ 不 roll
+    let oldSd: any = null;
+    try { oldSd = JSON.parse(String(oldSaveJson)); } catch { return; } // 基线坏 JSON ⇒ 不 roll（防历史计数一次性全额入账）
+    const os = (oldSd && oldSd.player && oldSd.player.statistics) || {};
+    const ns = (newSd && newSd.player && newSd.player.statistics) || {};
+    const t = prevUpdatedAt == null ? NaN : Date.parse(String(prevUpdatedAt).replace(' ', 'T') + 'Z');
+    const realMins = Number.isFinite(t) ? Math.max(0, (Date.now() - t) / 60000) : NaN;
+    const cntCap = (c: number): number => (Number.isFinite(c) && c >= 0 ? c : 0); // 镜像 settleSaveEconV2 KI-001 K3
+    let dMed = e2Delta(Number(os.meditateCount) || 0, Number(ns.meditateCount) || 0);
+    let dAdv = e2Delta(Number(os.adventureCount) || 0, Number(ns.adventureCount) || 0);
+    const cMed = cntCap(Math.ceil(realMins * 300) + 30); // 镜像：自动打坐 200ms/次 → 300 次/分
+    const cAdv = cntCap(Math.ceil(realMins * 130) + 30); // 镜像：自动历练 500ms/次 → 120 次/分
+    if (dMed > cMed) dMed = cMed;
+    if (dAdv > cAdv) dAdv = cAdv;
+    const hits = ylR112RollHits(dMed, R112_JADE_MED_CHANCE) + ylR112RollHits(dAdv, R112_JADE_ADV_CHANCE);
+    if (hits <= 0) return;
+    const stonesEq = hits * Math.ceil(10000 / ACT_TOKEN_RATE_PER_10K); // 1 玉/命中（RATE=50 ⇒ 200 石/玉，floor 换算恰 1:1）
+    actDropTokens(userId, stonesEq, Date.now()).catch((e: any) => console.error('r112 act drop tokens error:', e?.message || e));
+  } catch (e: any) {
+    console.error('r112 jade drop error:', e?.message || e); // 掉玉旁路，绝不影响存档主路径
+  }
+}
+
 // v28 P0-2b: `mins` is gone from the cap path. Every time-scaled allowance uses REAL
 // elapsed minutes (no floor); the per-save CEILING comes from the persisted allowance
 // ledger (saves.econ_win_*) instead of `rate * max(0.5, dt)` -- that per-request floor
@@ -2436,6 +2476,7 @@ app.post('/api/save', authenticateToken, rateLimit({ windowMs: 60 * 1000, max: 1
             if (prevCounters) tickMentorTax(req.user.id, computeStatsDeltas(prevCounters, extractCounters(saveData))).catch((e: any) => console.error('mentor tax error:', (e as any)?.message || e)); // Y6B 师徒抽成：师傅得在门徒弟收益 5%，fire-and-forget
             if (prevCounters) tickDungeonTracker(req.user.id, computeDungeonDeltas(prevCounters, extractCounters(saveData))).catch((e: any) => console.error('dungeon tick error:', (e as any)?.message || e)); // DG 埋点：秘境观测差值，fire-and-forget
             if (prevCounters) tickWudaoIdle(req.user.id, ylWudaoIdleDelta(prevCounters, saveData)).catch((e: any) => console.error('wudao idle error:', (e as any)?.message || e)); // WUDAO 埋点：打坐时长差值→随机系心得，fire-and-forget
+            if (prevCounters) ylR112JadeDrop(req.user.id, row.save_data, saveData, row.updated_at); // [r112] R-112 打坐/历练掉玉：Δmeditate/Δadventure 服务端 roll → actDropTokens（行存在=有上次基线；prevCounters=null=基线坏不 roll；首存走 INSERT 分支无此行=结构性不 roll；Δ负按 e2Delta=0 不扣玉）
             if (!econSkip) writeEconomyMirror(req.user.id, prevEcon ?? EMPTY_ECON_SNAPSHOT, extractEconSnapshot(saveData), saveStreak); // E1 镜像记账（旁路 fire-and-forget，不 await 不影响响应）；SEC 规则③传上传频次
             if (clampedFields.length) { dbRun("INSERT INTO economy_ledger (player_id, kind, anomaly_json) VALUES (?, 'clamp', ?)", [req.user.id, clampedFields.join('|').slice(0, 500)]).catch((e: any) => console.error('clamp ledger error:', e?.message || e)); }
             res.json({ message: 'Save updated successfully', rankingSynced, clamped: clampedFields, settledExp: Math.floor(Number(saveData && saveData.player && saveData.player.exp) || 0), gm_revision: curRev + 1 }); // S2 v26c：回传新修订号供客户端回填 base

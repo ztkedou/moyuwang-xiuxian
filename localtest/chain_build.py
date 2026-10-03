@@ -414,10 +414,18 @@ SRV_CHAIN = [
                                  #   赔率 1.95/25 与派彩逻辑一行不动；相对计数冻结（打前==打后）。
                                  #   ★ 锚在 srv_patch_fun086.py（环 5）段，挂链尾满足；
                                  #   ★ 客户端半边 = STANDALONE_CLIENT 'r128'。
+    'srv_patch_r112.py',         # R-112 打坐/历练产出灵玉（服务端唯一实现，客户端半边=墓碑零改动）：
+                                 #   POST /api/save UPDATE 分支按 Δmeditate/Δadventure roll 掉落
+                                 #   （打坐 0.004/跳 < 历练 0.009/次），actDropTokens 发放
+                                 #   （RATE=50 ⇒ 200石/玉；日上限 300 全复用既有通道）；纯插入零改基线行，
+                                 #   E1 锚=e2Delta 定义行 / E2 锚=UPDATE 分支 tickWudaoIdle 行（均唯一），
+                                 #   v2810 的 tickWudaoIdle==2 门禁保持绿（追加独立行不含该子串）。
+                                 #   ★ 挂链尾满足（E2 锚在 srv_patch_v2810.py 段之后即可）；
+                                 #   ★ patches/client/yl_r112_ext.py 已墓碑（apply() 即 AssertionError），禁接客户端。
 ]
 
-# ---- 前端产物路径（0.9.13 换名：index-v2913-20261002.js，与 build_v26n.py OUT 逐字一致）----
-CLIENT_OUT = os.path.join(ROOT, 'build', 'assets', 'index-v2913-20261002.js')
+# ---- 前端产物路径（0.9.15 换名：index-v2915-20261002.js，与 build_v26n.py OUT 逐字一致）----
+CLIENT_OUT = os.path.join(ROOT, 'build', 'assets', 'index-v2915-20261002.js')
 SRV_OUT = os.path.join(ROOT, 'srv', 'index_v28.ts')
 
 

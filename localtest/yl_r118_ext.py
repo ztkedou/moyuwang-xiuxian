@@ -44,7 +44,7 @@ yl_r118_ext.py — R-118「自动打坐结束日志加『共打坐 N 次』」�
   ('R118·R23灵石串逐字保留', '" \\u00b7 \\u7075\\u77f3 +" + ds.toLocaleString()', 1, '==', 'R-023 门禁不破坏')
   ('R118·R23平均每跳串逐字保留', '" \\u00b7 \\u5e73\\u5747\\u6bcf\\u8df3 \\u4fee\\u4e3a +"', 1, '==', 'R-023 门禁不破坏')
   ('R118·tk 作用域在位', 'var a = YLXW_MED_ACC, tk = a.ticks;', 1, '==', 'medlog 会话结算局部变量')
-  ('R118·打坐基线 interval 未动', '},200);return()=>{clearInterval(U),w.current.forEach(B=>clearTimeout(B)),w.current=[]}},[t])', 1, '==', '不改打坐循环')
+  ('R118·打坐基线 interval 未动', '},200);return()=>{YlxwBgClear(U),w.current.forEach(B=>clearTimeout(B)),w.current=[]}},[t])', 1, '==', '节拍/清理结构不动；驱动源已移交 R-139')
 """
 
 import os
@@ -62,22 +62,36 @@ ANC_NEW = NEW_SEG + b'\n      ' + ANC  # 新行插在锚点行之前，6 空格�
 PRE_TK = rb'var a = YLXW_MED_ACC, tk = a.ticks;'
 FR_R23_STONE = rb'" \u00b7 \u7075\u77f3 +" + ds.toLocaleString()'
 FR_R23_AVG = rb'" \u00b7 \u5e73\u5747\u6bcf\u8df3 \u4fee\u4e3a +"'
-FR_MED_INTERVAL = (rb'},200);return()=>{clearInterval(U),'
+# ★ 2026-10-03 「约束权移交」（R-139）：打坐主循环的**驱动源**由 R-139 接管
+#   （setInterval → YlxwBgInterval、clearInterval(U) → YlxwBgClear(U)，见 localtest/yl_r139_ext.py）。
+#   本门禁的语义是「不改打坐循环的**节拍与清理结构**」⇒ 断言改判为 R-139 后的最终形态，
+#   200ms 节拍 + w.current 清理链**仍逐字保留**。
+#   ⚠ 两个常量必须分开：本脚本跑在 R-139 **之前**（STANDALONE_CLIENT 序），
+#     所以「前置检查」用的是**原形态**，「门禁」用的是**终态**。
+FR_MED_INTERVAL_PRE = (rb'},200);return()=>{clearInterval(U),'
+                       rb'w.current.forEach(B=>clearTimeout(B)),w.current=[]}},[t])')
+FR_MED_INTERVAL = (rb'},200);return()=>{YlxwBgClear(U),'
                    rb'w.current.forEach(B=>clearTimeout(B)),w.current=[]}},[t])')
 
 # V28_BAN_PATTERNS（交接手册 §2.4）：注入串不得含
 BAN = [b'iframe', b'postMessage', b'XMLHttpRequest', b'auth_token', b'X-YL-']
 
 
-def gates():
-    """补丁后形态的门禁五元组（name, needle, count, op, note）——供 dryrun 表收录。"""
+def gates(terminal=True):
+    """补丁后形态的门禁五元组（name, needle, count, op, note）——供 dryrun 表收录。
+
+    terminal=True  → 跑在**全链终态**（R-139 已接管打坐循环驱动源）——dryrun 用这个；
+    terminal=False → 跑在本脚本刚补完的中间态——本脚本内存自检用这个。
+    """
     return [
         ('R118·日志含共打坐次数', NEW_SEG.decode('ascii'), 1, '==', '本轮总跳数=YLXW_MED_ACC.ticks'),
         ('R118·R23顿悟串逐字保留', ANC.decode('ascii'), 1, '==', 'R-023 门禁不破坏'),
         ('R118·R23灵石串逐字保留', FR_R23_STONE.decode('ascii'), 1, '==', 'R-023 门禁不破坏'),
         ('R118·R23平均每跳串逐字保留', FR_R23_AVG.decode('ascii'), 1, '==', 'R-023 门禁不破坏'),
         ('R118·tk 作用域在位', PRE_TK.decode('ascii'), 1, '==', 'medlog 会话结算局部变量'),
-        ('R118·打坐基线 interval 未动', FR_MED_INTERVAL.decode('ascii'), 1, '==', '不改打坐循环'),
+        ('R118·打坐基线 interval 未动',
+         (FR_MED_INTERVAL if terminal else FR_MED_INTERVAL_PRE).decode('ascii'), 1, '==',
+         '节拍/清理结构不动；驱动源已移交 R-139'),
     ]
 
 
@@ -118,7 +132,7 @@ def main(argv=None):
     if b.count(PRE_TK) != 1:
         return fail(2, '前置失败：`var a = YLXW_MED_ACC, tk = a.ticks;` count=%d（期望 1）' % b.count(PRE_TK))
     # 前置：改前 R23 相邻门禁串应各恰 1（否则补丁后计数口径不可信）
-    for nm, nd in (('R23灵石', FR_R23_STONE), ('R23平均每跳', FR_R23_AVG), ('打坐interval', FR_MED_INTERVAL)):
+    for nm, nd in (('R23灵石', FR_R23_STONE), ('R23平均每跳', FR_R23_AVG), ('打坐interval', FR_MED_INTERVAL_PRE)):
         if b.count(nd) != 1:
             return fail(2, '前置失败：%s 串 count=%d（期望 1）' % (nm, b.count(nd)))
 
@@ -127,7 +141,7 @@ def main(argv=None):
         return fail(1, '替换未产生变化（不应发生）')
 
     # 内存自检：门禁全过才写盘
-    for name, needle, want, op, _note in gates():
+    for name, needle, want, op, _note in gates(terminal=False):
         nd = needle.encode('ascii')
         got = patched.count(nd)
         if op == '==' and got != want:
@@ -148,7 +162,7 @@ def main(argv=None):
         back = f.read()
     if back != patched:
         return fail(1, '落盘复核失败：磁盘字节 != 预期补丁结果')
-    for name, needle, want, op, _note in gates():
+    for name, needle, want, op, _note in gates(terminal=False):
         got = back.count(needle.encode('ascii'))
         if got != want:
             return fail(1, '落盘门禁 FAIL：%s count=%d（期望 %d）' % (name, got, want))

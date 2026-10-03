@@ -36,7 +36,7 @@ BASE_DIR = os.path.join(ROOT, '_v281_base')
 STAGE = os.path.join(ROOT, '_chainstage')
 
 PY = sys.executable
-NODE = r'<WORKDIR>/.workbuddy-ai/binaries/node/versions/22.22.2-3/node.exe'
+NODE = r'C:/Users/27026/.workbuddy-ai/binaries/node/versions/22.22.2-3/node.exe'
 
 # ---- 冻结基座指纹（改这里 = 改事实源，须有明确理由）----
 BASE_FP = {
@@ -422,10 +422,20 @@ SRV_CHAIN = [
                                  #   v2810 的 tickWudaoIdle==2 门禁保持绿（追加独立行不含该子串）。
                                  #   ★ 挂链尾满足（E2 锚在 srv_patch_v2810.py 段之后即可）；
                                  #   ★ patches/client/yl_r112_ext.py 已墓碑（apply() 即 AssertionError），禁接客户端。
+    'srv_patch_r136.py',         # R-136B 新开局「普通秘境冷却 800+ 秒」根因修复（0.9.16 / 第 66 环）：
+                                 #   根因 = dungeon_tracker.last_ts 有两个写入者，而 tickDungeonTracker
+                                 #   （由 /api/save 差值驱动）在**任何历练/观测增量**下都无条件刷 last_ts
+                                 #   ⇒ 没进过秘境的玩家 cdLeftMs 恒在 800~900 秒回满 ⇒ 普通秘境永远进不去。
+                                 #   ① tickDungeonTracker 观测累加不再触碰 last_ts（ON CONFLICT 删该赋值 +
+                                 #      VALUES 传 null；列清单/占位符数 6+2=8 一字不动）
+                                 #   ② dungeonStatusView 的 cdLeftMs 加 `count > 0` 前置（兜底 0.9.15 前历史脏数据）
+                                 #   ③ 修正上方已失效注释。rogue 半边（rogue_last_ts，只由 entry 写）零改动；
+                                 #      /api/dungeon/entry 的读→判→写与 403/200 语义、DDL 全部不动。
+                                 #   ★ 挂链尾：本环只改 r063 之后仍为原形态的两行，链上无后继环。
 ]
 
-# ---- 前端产物路径（0.9.15 换名：index-v2915-20261002.js，与 build_v26n.py OUT 逐字一致）----
-CLIENT_OUT = os.path.join(ROOT, 'build', 'assets', 'index-v2915-20261002.js')
+# ---- 前端产物路径（0.9.15 换名：index-v2916-20261003.js，与 build_v26n.py OUT 逐字一致）----
+CLIENT_OUT = os.path.join(ROOT, 'build', 'assets', 'index-v2916-20261003.js')
 SRV_OUT = os.path.join(ROOT, 'srv', 'index_v28.ts')
 
 

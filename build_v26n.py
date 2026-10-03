@@ -338,7 +338,7 @@ from yl_r067_ext import apply as v28_r067_apply  # noqa: E402
 from yl_068_ext import apply as v28_r068_apply  # noqa: E402
 
 BASE = os.path.join(HERE, 'build', 'assets', 'index-v26m-20260927.js')
-OUT = os.path.join(HERE, 'build', 'assets', 'index-v2915-20261002.js')
+OUT = os.path.join(HERE, 'build', 'assets', 'index-v2916-20261003.js')
 
 # v28 模块调用顺序（锚点稳定性 + num-balance 必须最后）：
 #   saveretry → arb → version → mail → entry → sectgf → char → bond → ui
@@ -564,6 +564,14 @@ STANDALONE_CLIENT = [
     ('r132', os.path.join(HERE, 'localtest', 'yl_r132_ext.py')),   # R-132 天赋金红互换（8点=红/6点=金）+ 种类梯度重排（锚 r087 swap 行+boost 调用行；★ talent097「对调==1」终态清零断言在本脚本 gates()）
     # ---- 2026-10-02 0.9.15 热修接线（单点显示缺陷；纯客户端，服务端零改动）----
     ('r131fix', os.path.join(HERE, 'localtest', 'yl_r131fix_ext.py')),   # R131 灵玉阁余额恒 0 热修（bal 读值 d.balance→d.jadeBalance 优先+旧字段兜底；服务端 [v2810] 已改名，锚=全语句唯一）
+    # ---- 2026-10-03 0.9.16 工作流批（R-133~R-139；序=编号序，七脚本锚区经全量 standalone 门禁实证零交集）----
+    ('r133', os.path.join(HERE, 'localtest', 'yl_r133_ext.py')),   # R-133 历练抽奖券：数量恒 1 + 触发率 2.7%→0.27%（池内 1/37 × case 内 10% 门；纯客户端）
+    ('r134', os.path.join(HERE, 'localtest', 'yl_r134_ext.py')),   # R-134 奇遇修为 300~799→200~300（xw() 的 expChange；灵石/掉落/HP 冻结；纯客户端）
+    ('r135', os.path.join(HERE, 'localtest', 'yl_r135_ext.py')),   # R-135 历练商店：稀有属性物品售价 ×6、普通 ×1.5 + 高稀有度掉落概率大幅下调（纯客户端）
+    ('r136', os.path.join(HERE, 'localtest', 'yl_r136_ext.py')),   # R-136A 秘境手札加「地宫冷却」行（读 /dungeon/status 的 rogueCdLeftMs；★ B 半 = SRV_CHAIN 'srv_patch_r136.py'）
+    ('r137', os.path.join(HERE, 'localtest', 'yl_r137_ext.py')),   # R-137 地宫「再次探索」冷却中弹 toast（YlxwToast，addLog 保留；纯客户端）
+    ('r138', os.path.join(HERE, 'localtest', 'yl_r138_ext.py')),   # R-138 自动历练：单次结算行补数量/事件名 + 会话结束多行汇总块（纯客户端）
+    ('r139', os.path.join(HERE, 'localtest', 'yl_r139_ext.py')),   # R-139 隐藏标签不停摆：打坐/历练/冷却倒计时三处定时器改 Worker 心跳驱动（CSP 失败自动回退；纯客户端）
 ]
 
 
@@ -1109,7 +1117,7 @@ def _js_syntax_check(src):
     「我改了我想改的」，不能证明「产物还是合法 JS」。
     """
     import subprocess, tempfile, os as _os
-    node = _os.environ.get('YL_NODE') or r'<WORKDIR>\.workbuddy-ai\binaries\node\versions\22.22.2-3\node.exe'
+    node = _os.environ.get('YL_NODE') or r'C:\Users\27026\.workbuddy-ai\binaries\node\versions\22.22.2-3\node.exe'
     if not _os.path.exists(node):
         print('[WARN] 找不到 node，跳过 JS 语法门禁：%s' % node)
         return

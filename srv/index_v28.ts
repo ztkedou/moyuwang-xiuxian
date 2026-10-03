@@ -5123,7 +5123,8 @@ function dungeonStatusView(
   const observed = Math.max(0, Math.floor(Number(row?.observed) || 0));
   const adventure = Math.max(0, Math.floor(Number(row?.adventure) || 0));
   const lastTs = row?.last_ts != null && Number.isFinite(Number(row.last_ts)) ? Number(row.last_ts) : null;
-  const cdLeftMs = lastTs != null ? Math.max(0, cdMs - (nowMs - lastTs)) : 0;
+  /* [r136dg] last_ts 只由 /api/dungeon/entry 写入（观测累加不再刷它）；count=0 = 今天没进过 = 无冷却 */
+  const cdLeftMs = lastTs != null && count > 0 ? Math.max(0, cdMs - (nowMs - lastTs)) : 0;
   // [r063] roguelike 独立账本字段（rogueCap 由 status 端点挂在 row.__rogueCap；缺省兜底 DUNGEON_DAILY_CAP）
   const rogueCount = Math.max(0, Math.floor(Number(row?.rogue_count) || 0));
   const rogueLastTs = row?.rogue_last_ts != null && Number.isFinite(Number(row.rogue_last_ts)) ? Number(row.rogue_last_ts) : null;
@@ -7064,7 +7065,7 @@ async function tickStatsDaily(userId: number, d: StatsDelta): Promise<void> {
 }
 
 // DG 秘境观测累加：单语句 upsert（PRIMARY KEY(player_id,date)，RHS 按旧行求值防并发丢更新）；
-// 无增量的存档上传不落行不刷 last_ts（last_ts 只反映秘境/历练活动，不是存档活跃）；
+// [r136dg] 观测累加**不再触碰 last_ts**（last_ts 写权收归 /api/dungeon/entry，即真正的「上次进入」）；
 // anomaly 语句内 CASE 判定（observed 累计或既有 count 超阈置 1，粘滞不清除）；
 // 绑定数必须与占位符精确相等（VALUES 6 + CASE 2 = 8：驱动对缺参静默绑 NULL 会废掉 count>阈 分支）
 async function tickDungeonTracker(userId: number, d: { realm: number; adventure: number }): Promise<void> {
@@ -7075,11 +7076,10 @@ async function tickDungeonTracker(userId: number, d: { realm: number; adventure:
   await dbRun(
     `INSERT INTO dungeon_tracker (player_id, date, count, observed, adventure, last_ts, anomaly) VALUES (?, ?, 0, ?, ?, ?, ?)
      ON CONFLICT(player_id, date) DO UPDATE SET
-       observed = observed + excluded.observed,
+       observed = observed + excluded.observed,   /* [r136dg] */
        adventure = adventure + excluded.adventure,
-       last_ts = excluded.last_ts,
        anomaly = CASE WHEN observed + excluded.observed > ? OR count > ? THEN 1 ELSE anomaly END`,
-    [userId, bjDate(nowMs), realm, adventure, nowMs, realm > DUNGEON_ANOMALY_THRESHOLD ? 1 : 0, DUNGEON_ANOMALY_THRESHOLD, DUNGEON_ANOMALY_THRESHOLD]
+    [userId, bjDate(nowMs), realm, adventure, null, realm > DUNGEON_ANOMALY_THRESHOLD ? 1 : 0, DUNGEON_ANOMALY_THRESHOLD, DUNGEON_ANOMALY_THRESHOLD]
   );
 }
 

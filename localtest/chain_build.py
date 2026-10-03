@@ -434,8 +434,8 @@ SRV_CHAIN = [
                                  #   ★ 挂链尾：本环只改 r063 之后仍为原形态的两行，链上无后继环。
 ]
 
-# ---- 前端产物路径（0.9.15 换名：index-v2917-20261003.js，与 build_v26n.py OUT 逐字一致）----
-CLIENT_OUT = os.path.join(ROOT, 'build', 'assets', 'index-v2917-20261003.js')
+# ---- 前端产物路径（0.9.15 换名：index-v2918-20261003.js，与 build_v26n.py OUT 逐字一致）----
+CLIENT_OUT = os.path.join(ROOT, 'build', 'assets', 'index-v2918-20261003.js')
 SRV_OUT = os.path.join(ROOT, 'srv', 'index_v28.ts')
 
 

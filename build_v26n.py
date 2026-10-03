@@ -338,7 +338,7 @@ from yl_r067_ext import apply as v28_r067_apply  # noqa: E402
 from yl_068_ext import apply as v28_r068_apply  # noqa: E402
 
 BASE = os.path.join(HERE, 'build', 'assets', 'index-v26m-20260927.js')
-OUT = os.path.join(HERE, 'build', 'assets', 'index-v2917-20261003.js')
+OUT = os.path.join(HERE, 'build', 'assets', 'index-v2918-20261003.js')
 
 # v28 模块调用顺序（锚点稳定性 + num-balance 必须最后）：
 #   saveretry → arb → version → mail → entry → sectgf → char → bond → ui
@@ -576,6 +576,9 @@ STANDALONE_CLIENT = [
     ('r140', os.path.join(HERE, 'localtest', 'yl_r140_ext.py')),   # R-140 批1 数值：fg 品质地板大砍 + Rr/mw 仙品地板下调 + Ic 缩放重配 + 丹药/草药表逐条重做 + 死键清理（纯客户端）
     ('r140b', os.path.join(HERE, 'localtest', 'yl_r140b_ext.py')), # R-140 批1 经济 + 批2 硬顶：消耗品售价品质阶梯（装备沿用 R-135 三元逐字不动）+ hw/xw/gw/bw 掉率收紧 + vg 升档减半 + $r 下限 .10 + 永久属性 ZS×1.0 硬顶（★ 必须排在 r135 之后——B 组锚点是 R-135 改后形态）
     ('r141', os.path.join(HERE, 'localtest', 'yl_r141_ext.py')),   # R-141 装备稀有属性：vs() 授予管道注入 innateAffixes（境界凸曲线 × 品质条数 × K=0.35）+ YlxwStatExtras/YlxwBattleBonus 合并消费（纯客户端）
+    # ---- 2026-10-03 0.9.18 修 bug 批（R-142 灵田死字段 + R-143 技能吸血；序=编号序）----
+    ('r142', os.path.join(HERE, 'localtest', 'yl_r142_ext.py')),   # R-142 灵田稀有草接线：YlxwBattleBonus 追加读 player.critRate/dodgeRate/lifeLeech（此前服务端写档但客户端从不读=死字段；末尾由 YlxwBattleCap 封顶）
+    ('r143', os.path.join(HERE, 'localtest', 'yl_r143_ext.py')),   # R-143 回合制技能补吸血分支：zy() 结算后按 km 语义回血（仅玩家、取最强单条 lifeLeech；纯客户端）
 ]
 
 

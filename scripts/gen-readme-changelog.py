@@ -24,6 +24,13 @@ README.md 里由下面两行标记包住的内容是**自动生成**的：
 
 标记之外的内容一个字都不会动。第一次使用时请先手工把这两行标记放进 README。
 
+除了更新日志段，本脚本还会同步**正文里的版本号**：凡是被
+
+    <!--VER-->0.9.22<!--/VER-->
+
+包住的内容，会被替换成 CHANGELOG.md 的最新版本号。这样「正文里写的版本号」也不会再漂移。
+（若 README 里没有这个标记，脚本会跳过，不报错。）
+
 用法
 ----
     python scripts/gen-readme-changelog.py                  # 就地更新 README.md
@@ -42,6 +49,15 @@ from pathlib import Path
 
 BEGIN = "<!-- BEGIN:CHANGELOG -->"
 END = "<!-- END:CHANGELOG -->"
+
+# 版本号内联标记：A 与 B 之间的内容会被替换成 CHANGELOG 的最新版本号。
+# 例：本仓库版本为 **<!--VER-->0.9.22<!--/VER-->**;  发版后自动跟进，不再手改。
+# 这样「正文里的版本号」也和「更新日志段」一样，永远由 CHANGELOG.md 派生，不会再漂移。
+VER_BEGIN = "<!--VER-->"
+VER_END = "<!--/VER-->"
+VER_TOKEN_RE = re.compile(
+    re.escape(VER_BEGIN) + r".*?" + re.escape(VER_END), re.S
+)
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_CHANGELOG = REPO_ROOT / "CHANGELOG.md"
@@ -244,6 +260,17 @@ def splice(readme: str, region: str) -> str:
     return readme[:i] + region + readme[j + len(END):]
 
 
+def sync_ver_tokens(readme: str, latest: str) -> str:
+    """把正文里 <!--VER-->…<!--/VER--> 包住的版本号替换成最新版。
+
+    标记不存在时原样返回（不报错）—— 版本号内联是可选项，不强制每个仓库都加。
+    """
+    def _sub(_m):
+        return f"{VER_BEGIN}{latest}{VER_END}"
+
+    return VER_TOKEN_RE.sub(_sub, readme)
+
+
 def newest_ver_in_region(region: str) -> str:
     m = re.search(r"^###\s+([0-9][^\s（(]*)", region, re.M)
     return m.group(1) if m else ""
@@ -273,10 +300,13 @@ def main() -> int:
     region = render(entries, args.limit, args.max_bullets)
     readme = read_text(rd_path)
     new_readme = splice(readme, region)
+    new_readme = sync_ver_tokens(new_readme, entries[0]["ver"])
 
     old_region_start = readme.find(BEGIN)
     old_region_end = readme.find(END)
     old_region = readme[old_region_start:old_region_end + len(END)] if old_region_start != -1 else ""
+    old_ver_tokens = VER_TOKEN_RE.findall(readme)
+    new_ver_tokens = VER_TOKEN_RE.findall(new_readme)
 
     latest = entries[0]["ver"]
     old_latest = newest_ver_in_region(old_region)
@@ -292,18 +322,18 @@ def main() -> int:
         print(f"[WARN] {msg}", file=sys.stderr)
 
     if args.check:
-        if old_region == region:
+        if old_region == region and old_ver_tokens == new_ver_tokens:
             print(f"[OK] README 已与 CHANGELOG.md 一致（最新 {latest}）。")
             return 0
-        print(f"[DIFF] README 的更新日志段与 CHANGELOG.md 不一致（最新 {latest}），请运行脚本重新生成。", file=sys.stderr)
+        print(f"[DIFF] README 的更新日志段 / 版本号标记与 CHANGELOG.md 不一致（最新 {latest}），请运行脚本重新生成。", file=sys.stderr)
         return 1
 
-    if old_region == region:
+    if old_region == region and old_ver_tokens == new_ver_tokens:
         print(f"[OK] 无需改动，README 已与 CHANGELOG.md 一致（最新 {latest}）。")
         return 0
 
     write_text(rd_path, new_readme)
-    print(f"[DONE] 已用 {cl_path} 重新生成 {rd_path} 的更新日志段（最新 {latest}）。")
+    print(f"[DONE] 已用 {cl_path} 重新生成 {rd_path} 的更新日志段 + 版本号标记（最新 {latest}）。")
     return 0
 
 

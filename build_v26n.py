@@ -583,6 +583,7 @@ STANDALONE_CLIENT = [
     ('r144', os.path.join(HERE, 'localtest', 'yl_r144_ext.py')),   # R-144 在线人数徽章 → 按钮 + 在线/好友面板（覆盖层；近似在线名单 = 最近 60 条发言去重；纯客户端）
     ('r145', os.path.join(HERE, 'localtest', 'yl_r145_ext.py')),   # R-145 自动历练灵石收益 ×5→×15 + 零灵石兜底 min(50,max(1,floor(修为收益×0.5)))（纯客户端）
     ('r146', os.path.join(HERE, 'localtest', 'yl_r146_ext.py')),   # R-146 自动历练结算展示合并成一行 + 去重（同帧微批 flush；纯客户端）
+    ('r155', os.path.join(HERE, 'localtest', 'yl_r155_ext.py')),   # R-155 自动历练「结束汇总」7 条 → 1 条（收集 YLXW_ADV156_LINES + join(" · ") 单次 add；★ 必须排 r138/r146 之后——锚点是 R-138 的 YlxwAdvSummary 与 R-105 的 YlxwAdvSession）（纯客户端）
 ]
 
 

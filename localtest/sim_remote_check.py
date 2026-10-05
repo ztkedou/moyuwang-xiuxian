@@ -34,7 +34,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # remote_check 里的 shell 变量 → 本地交付产物（相对仓库根）
 FILE_MAP = {
-    '$B': 'build/assets/index-v2921-20261004.js',
+    '$B': 'build/assets/index-v2922-20261005.js',
     '$S': 'srv/index_v28.ts',
 }
 # 远端专有（本地无对应物）：一律 SKIP

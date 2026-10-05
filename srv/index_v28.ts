@@ -5523,9 +5523,22 @@ app.post('/api/session/presence', authenticateToken, async (req: any, res: any) 
     const st = req.body && req.body.state;
     if (st !== 'away' && st !== 'back') return res.status(400).json({ error: 'state must be away|back' });
     if (st === 'away') {
-      const row: any = await dbGet('SELECT updated_at FROM saves WHERE user_id = ?', [req.user.id]);
+      // [r149anchor] R-149：away 不得丢弃「尚未领取」的离线窗口。
+      //   旧口径无条件把 last_seen_at 前移到当前 updated_at ⇒ 登录后只要切走一次再切回
+      //   （visibilitychange hidden→visible / pagehide / 刷新），之前攒下的离线窗口就被压成
+      //   几十秒 ⇒ /api/offline/report 恒 0（真 bug）。
+      //   新口径：若存在未领取的待结算窗口（last_seen_at 有效且 > offline_claimed_until），
+      //   保持较早锚点；否则照旧前移。
+      //   ★ 红线：offlineRewards()/offlineWindow()/offlineAnchor()/OFFLINE_* 常量 一行未动。
+      const row: any = await dbGet('SELECT updated_at, last_seen_at, offline_claimed_until FROM saves WHERE user_id = ?', [req.user.id]);
       const at = parseDbTimeMs(row && row.updated_at);
-      if (row && at != null) await dbRun('UPDATE saves SET last_seen_at = ? WHERE user_id = ?', [at, req.user.id]);
+      if (row && at != null) {
+        const prev = Number(row.last_seen_at);
+        const cl = Number(row.offline_claimed_until);
+        const hasPending = Number.isFinite(prev) && prev > 0 && (!Number.isFinite(cl) || prev > cl);
+        const anchor = hasPending ? Math.min(prev, at) : at;
+        await dbRun('UPDATE saves SET last_seen_at = ? WHERE user_id = ?', [anchor, req.user.id]);
+      }
     } else {
       await dbRun('UPDATE saves SET last_resume_at = ? WHERE user_id = ?', [Date.now(), req.user.id]);
     }

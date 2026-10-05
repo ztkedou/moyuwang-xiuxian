@@ -1,5 +1,37 @@
 # 摸鱼修仙传 · 更新日志
 
+## [0.9.22] - 2026-10-06 00:44
+### 修复：挂机收益恒 0（R-149）
+
+**现象**：玩家离线两天后上线，打开「挂机收益」面板，收益恒为 0。
+
+**根因**（服务端离线窗口锚点被客户端一次「切走 / 切回」冲掉）：
+- 客户端在 `visibilitychange→hidden` / `pagehide` / `beforeunload` 时上报 `POST /api/session/presence {state:'away'}`，
+  回到页面时上报 `{state:'back'}`。
+- 服务端 `away` 分支把 `last_seen_at` 写成**本行当前 `updated_at`**；而客户端在线时每 10s 心跳存档会刷新
+  `updated_at` ⇒ **在线状态下的一次切走 / 切回（或刷新页面）就会把 `last_seen_at` 前移到「现在」**，
+  紧接着 `back` 又把 `last_resume_at` 设为「现在」，离线窗口被压成几十秒 < `OFFLINE_MIN_MS`（5 分钟）⇒ 面板恒 0。
+- 更关键：客户端**只在打开「挂机收益」面板时才取报告**，所以上一个**尚未领取**的离线窗口会被这对事件
+  永久丢弃 —— 玩家根本来不及领。
+
+**实证**（新机线上实测 + 迁移快照对账）：
+- 迁移快照 `opt-yl_sqlsnap_20261004`：`user_id=13` 的 `last_seen_at = 2026-10-03 07:04:53Z`（= 本地 15:04:53，正是「两天前」）
+  ⇒ **迁移没有破坏状态**，锚点本来是健康的。
+- 线上库现况：`last_seen_at = 2026-10-05 15:52:39Z`、`last_resume_at = 2026-10-05 15:53:14Z`（相隔 35 秒）。
+- nginx `access.log`：`23:52:42 presence` → `23:53:14 presence` → `23:53:49 GET /api/offline/report` → 0。
+- 测试账号复现：造「锚点 = 2 天前 + `updated_at` = 现在」→ 报告 `hours=8 / expGain=2304 / claimable=true`；
+  再发一次 `away` + `back` → `hours=0 / claimable=false`。**100% 复现**。
+
+**修法**（SRV_CHAIN 第 69 环 `patches/server/srv_patch_r149.py`，1 处精确替换）：
+`away` 分支若存在**尚未领取**的待结算窗口（`last_seen_at` 有效且 > `offline_claimed_until`），
+则保持较早锚点 `min(last_seen_at, 当前 updated_at)`；否则照旧前移。
+领取过之后（`offline_claimed_until` 已覆盖旧锚点）行为**逐位不变**。
+
+**红线**：`offlineRewards()` / `offlineWindow()` / `offlineAnchor()` / `OFFLINE_*` 常量 / 月卡判定 /
+入账与钳制逻辑**一行未动**；端点与响应结构零改动。
+
+**客户端**：零功能改动（本批仅版本号 0.9.22）。
+
 ## [0.9.21] - 2026-10-04 02:30
 ### 修复：全新数据库无法启动（R-148）
 

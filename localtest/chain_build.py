@@ -459,10 +459,24 @@ SRV_CHAIN = [
                                  #   锚点①（删除处）= 顶层那句 count==1；锚点②（插入处）= 建表整块 count==1。
                                  #   ★ 挂链尾：纯时机修正，端点/字段/口径零改动。
                                  #   ★ 客户端零改动（本批客户端仅版本号 0.9.21）。
+    'srv_patch_r149.py',         # R-149 修「挂机收益恒 0」（0.9.22 / 第 69 环 / 新末环）：
+                                 #   away（POST /api/session/presence）旧口径无条件把 last_seen_at
+                                 #   前移到「本行当前 updated_at」；而客户端在线时每 10s 心跳存档会刷新
+                                 #   updated_at ⇒ 玩家登录后只要「切走一次再切回」（visibilitychange
+                                 #   hidden→visible / pagehide / 刷新）就产生一对 away/back，把**尚未领取**
+                                 #   的离线窗口压成几十秒 < OFFLINE_MIN_MS(5min) ⇒ /api/offline/report 恒 0。
+                                 #   客户端只在打开「挂机收益」面板时才取报告 ⇒ 玩家根本来不及领。
+                                 #   修法 = away 分支：若存在未领取窗口（last_seen_at 有效且 >
+                                 #   offline_claimed_until），保持较早锚点 min(last_seen_at, updated_at)；
+                                 #   否则照旧前移。领取过之后行为逐位不变。
+                                 #   锚点①（替换处）= away 分支整块 count==1。
+                                 #   ★ 挂链尾：offlineRewards()/offlineWindow()/offlineAnchor()/OFFLINE_*
+                                 #     常量/月卡判定/入账钳制 **一行未动**，端点与响应结构零改动。
+                                 #   ★ 客户端零改动（本批客户端仅版本号 0.9.22）。
 ]
 
-# ---- 前端产物路径（0.9.21 换名：index-v2921-20261004.js，与 build_v26n.py OUT 逐字一致）----
-CLIENT_OUT = os.path.join(ROOT, 'build', 'assets', 'index-v2921-20261004.js')
+# ---- 前端产物路径（0.9.22 换名：index-v2922-20261005.js，与 build_v26n.py OUT 逐字一致）----
+CLIENT_OUT = os.path.join(ROOT, 'build', 'assets', 'index-v2922-20261005.js')
 SRV_OUT = os.path.join(ROOT, 'srv', 'index_v28.ts')
 
 

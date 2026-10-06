@@ -338,7 +338,7 @@ from yl_r067_ext import apply as v28_r067_apply  # noqa: E402
 from yl_068_ext import apply as v28_r068_apply  # noqa: E402
 
 BASE = os.path.join(HERE, 'build', 'assets', 'index-v26m-20260927.js')
-OUT = os.path.join(HERE, 'build', 'assets', 'index-v2924-20261006.js')
+OUT = os.path.join(HERE, 'build', 'assets', 'index-v2929-20261007.js')
 
 # v28 模块调用顺序（锚点稳定性 + num-balance 必须最后）：
 #   saveretry → arb → version → mail → entry → sectgf → char → bond → ui
@@ -587,6 +587,20 @@ STANDALONE_CLIENT = [
     ('r161', os.path.join(HERE, 'localtest', 'yl_r161_ext.py')),   # R-161 日志：寿元行与历练收获行拆分 + R-155 汇总行去重（★ 必须排 r146/r155 之后——锚点是 R-146 flush 与 R-155 的 _l155 汇总）（纯客户端）
     ('r162', os.path.join(HERE, 'localtest', 'yl_r162_ext.py')),   # R-162 日志：宠物消息/[灵石]来源跳过 R-146 合并 blob（★ 必须排 r146/r161 之后）（纯客户端）
     ('r163', os.path.join(HERE, 'localtest', 'yl_r163_ext.py')),   # R-163 灵田：一键收取确认文案 + 玩法说明口径（服务端数值见 srv_patch_r163.py 第 71 环）（纯客户端）
+    # ---- 2026-10-06 0.9.25 批（R-165 悟道顿悟点 + R-166 妖灵放生确认；序=编号序，锚区经全量 standalone 门禁实证零交集）----
+    ('r165', os.path.join(HERE, 'localtest', 'yl_r165_ext.py')),   # R-165 打坐「顿悟」同一触发点产生悟道心得（新增助手 YlxwWudaoEnlighten 走 YlxwPost；★ 服务端配套 = SRV_CHAIN 'srv_patch_r165.py' 第 72 环新端点 POST /api/wudao/enlighten）（纯客户端半边）
+    ('r166', os.path.join(HERE, 'localtest', 'yl_r166_ext.py')),   # R-166 仙务·妖灵「放生妖灵」补确认弹窗（唯一无确认入口 YlxwR18AwayReleaseRow；包一层 window.confirm，取消不发请求）（纯客户端，无服务端半边）
+    # ---- 2026-10-06 0.9.26 批（R-167 妖灵面板合并 + R-169 旧草药名别名；序=编号序，锚区零交集）----
+    ('r167', os.path.join(HERE, 'localtest', 'yl_r167_ext.py')),   # R-167 仙务·妖灵：删掉重复的独立「喂养/嬉戏」按钮并入进食/互动两行 + 「今日互动」标题自解释（★ 服务端配套 = SRV_CHAIN 'srv_patch_r167.py' 第 73 环：喂养当日首次免费）
+    ('r169', os.path.join(HERE, 'localtest', 'yl_r169_ext.py')),   # R-169 洞府灵草：__halias 别名表补齐改名前的旧名（血参草→血参 等 5 条）⇒ 旧存档收菜不再走「配置缺失折算回收」兜底（纯客户端）
+    # ---- 2026-10-06 0.9.27 批（R-169 二环·根治；★ 必须排 r169 之后——锚点是 r169 改后的 __halias 形态）----
+    ('r169b', os.path.join(HERE, 'localtest', 'yl_r169b_ext.py')), # R-169 二环：收获路径与种植路径对称化（四级查找全落空时调同一个 f() 合成灵草定义 ⇒ 「补上道具」）+ 空名条目从灵田列表过滤（⇒「删掉选项」）+ **彻底删除「折算回收」分支**（纯客户端，无服务端半边）
+    # ---- 2026-10-06 0.9.28 批（R-174/R-175/R-176/R-177/R-179；序=编号序，五脚本锚区经全量 standalone 门禁实证零交集）----
+    ('r174', os.path.join(HERE, 'localtest', 'yl_r174_ext.py')),   # R-174 活动中心：签到行从面板最底部前移到标题之后、其它活动块之前（纯渲染顺序调整，原位留 /*[r174act]*/ 哨兵；纯客户端）
+    ('r175', os.path.join(HERE, 'localtest', 'yl_r175_ext.py')),   # R-175 万妖巢穴：排行榜由合计榜改为读 top10ByBoss **逐只渲染 5 段** + 缺失/空数组时回落旧 top10（★ 服务端半边 = SRV_CHAIN 'srv_patch_r175.py' 第 78 环）
+    ('r176', os.path.join(HERE, 'localtest', 'yl_r176_ext.py')),   # R-176 抽奖券抽奖：奖品池按「玩家境界 ↔ 奖品境界」差 d 收敛（倍率 1e7/1e4/1e2/1）**+ 删除「越阶→折算灵石」兜底段**（★ 真对象是客户端；服务端 srv_patch_r176.py 经判定越界、不接线）
+    ('r177', os.path.join(HERE, 'localtest', 'yl_r177_ext.py')),   # R-177+R-178 历练：①节奏统一冷却到 9s（主路 10→9 / 商店路 2→9，消除 5.2 倍带宽）②三档权重改为 高档×0.5 / 中档×0.88（阈值 200→100，原中档是死代码）/ 低档×1（纯客户端）
+    ('r179', os.path.join(HERE, 'localtest', 'yl_r179_ext.py')),   # R-179 历练结算信息：去 3 处重复（时长/次数/奇遇）+ 按「时长·次数·修为·灵石·寿命·气血·物品」重排 + 「——— 明细 ———」分割 + 新增寿命变化累加与条件渲染（纯客户端）
 ]
 
 

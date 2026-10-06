@@ -136,8 +136,24 @@ FRZ_RESLOG_CALL = 'YlxwAdvResultLog(t,m,d),YlxwAdvAcc(t),'
 OTHER_MARKS = ['YLXW_R146_V2919', 'YLXW_R155_V2923']
 
 
+# ★ 0.9.28（R-179）交接：R-179 重写了自动历练「结束汇总」的装配，去重**改由构造保证**
+#   （不再需要本环「从 _l155[0] 取头行总计 + 剥前缀」那套字符串去重）⇒ 下列针脚在**最终产物**上已不成立。
+#   断言**已移交** `yl_r179_ext.py`（承接 gate：时长·次数·奇遇各只出现 1 次 / 单次 add / 数组每会话重置）。
+#   ★ 非静默删除：needle 原文与原因仍保留在本文件，只是不再进入 gates()。
+SUPERSEDED_BY_R179 = (
+    'R161·去重标记',
+    'R161·去重取头行总计',
+    'R161·去重剥前缀',
+    '冻结·R155发送后清空',
+)
+
+
 def gates():
-    """补丁后形态的门禁五元组 (name, needle, count, op, note)。"""
+    """补丁后形态的门禁五元组 (name, needle, count, op, note)。★ 0.9.28：过滤 SUPERSEDED_BY_R179。"""
+    return [g for g in _gates_all() if g[0] not in SUPERSEDED_BY_R179]
+
+
+def _gates_all():
     return [
         # ===== E1 寿元行拆分 =====
         ('R161·在位标记唯一', MARK, 1, '==', 'YLXW_R161_V2924'),

@@ -475,10 +475,40 @@ SRV_CHAIN = [
                                  #   ★ 客户端零改动（本批客户端仅版本号 0.9.22）。
     'srv_patch_r160.py',   # R-160 离线结算时长上限按境界递增：基准 8h->24h(练气1层) + 每层 +1h + 月卡 x1.5（第 70 环）
     'srv_patch_r163.py',   # R-163 灵田数值重定档：种子 3000 起 / 卖钱草净赚收敛 / 其余净亏换修为（第 71 环）
+    'srv_patch_r165.py',   # R-165 打坐顿悟点联动悟道心得：新增免费端点 POST /api/wudao/enlighten（第 72 环）
+                           #   · 复用既有 wudaoAddExp(...,'idle') 与 wudaoDaoGateRealm；零新表 / 零新列 / 零改既有端点
+                           #   · 三层 rateLimit（5s 最小间隔 / 小时 60 / 日 200）复用既有 rateLimit()（429，非 401/403）
+                           #   · 客户端半边 = STANDALONE_CLIENT 'r165'（打坐顿悟分支挂一次 YlxwPost）
+                           #   · ★ 锚点 = /api/wudao/insight 路由行（0.8.x 起在位），与 r160/r163 锚区零交集
+    # ---- 2026-10-06 0.9.26 批（R-167 喂养首免 + R-168 灵田重构 + R-170 成就重定档 + R-172 指引重定档
+    #      + R-173 离线时长权威化；序=编号序，五环锚区经各自 REQUIRES/EDITS 实证零交集）----
+    'srv_patch_r167.py',   # R-167 仙务·妖灵「喂养」当日首次免费：新建 pet_feed_log + 单语句原子闸门
+                           #   （第 73 环；★ 客户端半边 = STANDALONE_CLIENT 'r167'；REQUIRES [r165wudao]）
+    'srv_patch_r168.py',   # R-168 灵田数值重构：sell 净赚恒 300/h + mix 回本(×1.10) + cult 修为重定档
+                           #   15000/45000/150000/600000/3000000（第 74 环；R-169 结论留档于本环文件头）
+    'srv_patch_r170.py',   # R-170/R-171 成就奖励按需求次数正比重定档（每组首档 2000）（第 75 环）
+    'srv_patch_r172.py',   # R-172 仙途指引奖励按「累计升级所需修为」重定档（Σ 60,000→105,500）（第 76 环）
+    'srv_patch_r173.py',   # R-173 离线时长服务端权威化：新增 saves.last_active_at + res.on('finish') 打点
+                           #   （60s 节流），offlineAnchor 加可选第 6 参、老行逐位回落（第 77 环）
+    # ---- 2026-10-06 0.9.28 批（R-175 万妖巢穴逐只榜；★ 锚区与 r173 零交集）----
+    'srv_patch_r175.py',   # R-175 万妖巢穴「五只同现」排行榜改按每只 boss 单独计算（第 78 环 / 新末环）
+                           #   · 新表 event_boss_hits5(event_id,boss_no,user_id,score,strikes) 逐只记分
+                           #   · status 响应**向后兼容**新增 top10ByBoss（旧 top10 逐位不变）
+                           #   · ★ 既有合计口径（event_boss_hits 建表/记分/结算/strike/talisman）逐字节未动（独立复核实证）
+                           #   · 客户端半边 = STANDALONE_CLIENT 'r175'（读 top10ByBoss 逐只渲染 + 缺失回落）
+                           #   · ★ 注意：R-176 的**服务端**环（srv_patch_r176.py，改奇遇抽品阶）经判定**越界**，
+                           #     本批**不接线**（R-176 的真对象「抽奖券抽奖」是纯客户端，见 STANDALONE_CLIENT 'r176'）
+    # ---- 2026-10-07 0.9.29 批（R-170 二环：成就境界组奖励重定档；★ 锚区与 r175 零交集）----
+    'srv_patch_r170b.py',  # R-170 二环：成就「境界组」奖励重定档（第 79 环 / 新末环）
+                           #   · 用户拍板「最顶级 = 1 亿，其他按等级设置」⇒ 等比数列：首档 2000（守 R-171）
+                           #     → 末档 100,000,000，公比 r = 50000^(1/9) ≈ 3.3274（≈每档 ×3.33），Σ 249,470 → 142,904,450
+                           #   · ★ 只改境界组 10 条 reward；修行/战斗/财富/任务 四组一行未动（用户「财富组先不压」）
+                           #   · ★ target 一行未动 ⇒ 不影响玩家已有进度判定；发放式（reward 一律累加成灵石）未动
+                           #   · 纯服务端环（客户端本批仅版本号 0.9.29）
 ]
 
-# ---- 前端产物路径（0.9.22 换名：index-v2924-20261006.js，与 build_v26n.py OUT 逐字一致）----
-CLIENT_OUT = os.path.join(ROOT, 'build', 'assets', 'index-v2924-20261006.js')
+# ---- 前端产物路径（0.9.29 换名：index-v2929-20261007.js，与 build_v26n.py OUT 逐字一致）----
+CLIENT_OUT = os.path.join(ROOT, 'build', 'assets', 'index-v2929-20261007.js')
 SRV_OUT = os.path.join(ROOT, 'srv', 'index_v28.ts')
 
 

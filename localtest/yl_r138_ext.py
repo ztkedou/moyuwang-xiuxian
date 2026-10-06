@@ -282,8 +282,26 @@ FRZ_R114_EMPTY = r'if (!parts.length) parts.push("\u65e0\u6536\u76ca");'
 FRZ_LOG_WRITE = r'addLog("\ud83d\udcca " + label'
 
 
+# ★ 0.9.28（R-179）交接：R-179 重写了自动历练「结束汇总」的装配（去重 + 两段重排 + 新增寿命项），
+#   下列针脚在**最终产物**上已不成立（实测 actual=0）。它们的断言**已移交** `yl_r179_ext.py`
+#   （承接 gate：单次 add / 收集数组每会话重置 / 时长·次数·奇遇各只出现 1 次 / 两段 + 可见分割符 / 寿命条件渲染）。
+#   ★ 非静默删除：needle 原文与原因仍保留在本文件，只是不再进入 gates()。
+SUPERSEDED_BY_R179 = (
+    'R138·汇总含次数/耗时',            # 旧「历练统计：共 N 次 · 耗时」行 —— R-179 已把该信息并入主结算段
+    'R138·汇总含其他计数',             # 旧「其他：掉落/奇遇/天地之魄/受伤」行 —— R-179 已并入明细段
+    '冻结·R105 汇总头行文案逐字保留',   # 旧头行文案（含「本次自动历练 X」+「历练 N 次」）—— R-179 已重写头行
+)
+
+
 def gates():
-    """补丁后形态的门禁五元组（name, needle, count, op, note[，within]）——供 dryrun 门禁表收录重跑。"""
+    """补丁后形态的门禁五元组（name, needle, count, op, note[，within]）——供 dryrun 门禁表收录重跑。
+
+    ★ 0.9.28：SUPERSEDED_BY_R179 里的针脚已被 R-179 取代（见上），此处过滤掉。
+    """
+    return [g for g in _gates_all() if g[0] not in SUPERSEDED_BY_R179]
+
+
+def _gates_all():
     return [
         # ================= 注入块 / 新形态（==1） =================
         ('R138·注入标记在位',            FR_MARK,                                          1, '==', ''),

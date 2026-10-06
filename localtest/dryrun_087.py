@@ -143,8 +143,8 @@ NEW_MODULES = ['grotto087', 'farm087', 'xinfa087', 't6chardex',
                'r111', 'r113', 'r114', 'r115',  # 2026-10-02 0.9.12 R-111 签到 / R-113 万妖五boss / R-114 历练收获 / R-115 洞府灵田
                'r124']  # 2026-10-02 0.9.13 R-124 灵田服用预览 spirit→神识（r116/r118 standalone 不在此表）
 
-VERSION = '0.9.24'
-BUNDLE_BASENAME = 'index-v2924-20261006.js'   # 与 build_v26n.OUT / chain_build.CLIENT_OUT / build/index.html 逐字一致
+VERSION = '0.9.29'
+BUNDLE_BASENAME = 'index-v2929-20261007.js'   # 与 build_v26n.OUT / chain_build.CLIENT_OUT / build/index.html 逐字一致
 # ★ 升版四件套之外的第 5 处：本文件的 VERSION 必须同步（下方 wiring_checks 用它交叉校验
 #   yl_version_ext.DEFAULT_VERSION 与 CHANGELOG 最新条目，两者都对上才算过）。
 
@@ -324,7 +324,7 @@ def main():
     # ---- 0.9.13 成员新契约：standalone 客户端补丁（R-116/R-118）对预演产物按序套用 ----
     #   与 build_v26n.__main__ 的装配层同一套（build_v26n.STANDALONE_CLIENT / apply_standalone）
     #   ⇒ 预演产物与最终交付产物走完全相同的补丁序列，「预演==交付」md5 逐位可比。
-    print('\n=== standalone 补丁套用（r116~r146，27 脚本，成员 --src 契约） ===')
+    print('\n=== standalone 补丁套用（r116~r179，41 脚本，成员 --src 契约） ===')
     sa_errs = B.apply_standalone(stage_path)
     for _e in sa_errs:
         print('  [SA-FAIL] %s' % _e)
@@ -363,6 +363,25 @@ def main():
     import yl_r144_ext as _sa_r144
     import yl_r145_ext as _sa_r145
     import yl_r146_ext as _sa_r146
+    # ---- 2026-10-06 补齐：0.9.23/0.9.24/0.9.25 批已接线但此前漏登记进本名单的 standalone ----
+    import yl_r155_ext as _sa_r155
+    import yl_r161_ext as _sa_r161
+    import yl_r162_ext as _sa_r162
+    import yl_r163_ext as _sa_r163
+    # ---- 2026-10-06 0.9.25 批接线（R-165 悟道顿悟点 / R-166 妖灵放生确认）----
+    import yl_r165_ext as _sa_r165
+    import yl_r166_ext as _sa_r166
+    # ---- 2026-10-06 0.9.26 批接线（R-167 妖灵面板合并 / R-169 旧草药名别名）----
+    import yl_r167_ext as _sa_r167
+    import yl_r169_ext as _sa_r169
+    # ---- 2026-10-06 0.9.27 批接线（R-169 二环·收获路径对称化 + 删折算回收分支）----
+    import yl_r169b_ext as _sa_r169b
+    # ---- 2026-10-06 0.9.28 批接线（R-174 签到上移 / R-175 逐只榜 / R-176 抽奖按境界收敛 / R-177 历练节奏+三档 / R-179 历练结算重排）----
+    import yl_r174_ext as _sa_r174
+    import yl_r175_ext as _sa_r175
+    import yl_r176_ext as _sa_r176
+    import yl_r177_ext as _sa_r177
+    import yl_r179_ext as _sa_r179
     n_sa_gates = 0
     with open(stage_path, 'rb') as f:
         final_bytes = f.read()
@@ -377,7 +396,12 @@ def main():
                        ('r139', _sa_r139),
                        ('r140', _sa_r140), ('r140b', _sa_r140b), ('r141', _sa_r141),
                        ('r142', _sa_r142), ('r143', _sa_r143),
-                       ('r144', _sa_r144), ('r145', _sa_r145), ('r146', _sa_r146)):
+                       ('r144', _sa_r144), ('r145', _sa_r145), ('r146', _sa_r146),
+                       ('r155', _sa_r155), ('r161', _sa_r161), ('r162', _sa_r162),
+                       ('r163', _sa_r163), ('r165', _sa_r165), ('r166', _sa_r166),
+                       ('r167', _sa_r167), ('r169', _sa_r169), ('r169b', _sa_r169b),
+                       ('r174', _sa_r174), ('r175', _sa_r175), ('r176', _sa_r176),
+                       ('r177', _sa_r177), ('r179', _sa_r179)):
         for _t in _mod.gates():
             name, s, expect, cmp, note = _t[:5]
             _within = _t[5] if len(_t) > 5 else None
@@ -389,12 +413,21 @@ def main():
                 act = final_text[_i0:_i1].count(s) if (_i0 >= 0 and _i1 > _i0) else 0
             else:
                 act = final_text.count(s)
-            ok = (act == expect) if cmp == '==' else (act >= expect)
+            # ★ 兼容三种 cmp 写法：'==' / '>=' / '>=N'（后者把 N 写进 cmp、expect 为 None）
+            _op, _exp = cmp, expect
+            if isinstance(cmp, str) and cmp.startswith('>='):
+                _op = '>='
+                _tail = cmp[2:].strip()
+                if _tail and _exp is None:
+                    _exp = int(_tail)
+            ok = (act == _exp) if _op == '==' else (act >= _exp)
             print('  [%s] %s' % ('OK' if ok else 'FAIL', name))
             if not ok:
-                print('        actual=%d expect %s %d  %s' % (act, cmp, expect, note))
-                fails.append((name, s, expect, cmp, note))
-    print('standalone 门禁: %d 条（r116~r146 共 27 脚本 gates()，跑在补丁后形态）' % n_sa_gates)
+                print('        actual=%d expect %s %d  %s' % (act, _op, _exp, note))
+                # ★ 0.9.28 修：把**真实计数 act** 一起存进 fails —— 原来失败明细里用陈旧变量 out 重算，
+                #   会打印出与实际不符的数字（本轮曾出现「期望 1 实际 1 却 FAIL」的误导显示）。
+                fails.append((name, s, _exp, _op, note, act))
+    print('standalone 门禁: %d 条（r116~r179 共 41 脚本 gates()，跑在补丁后形态）' % n_sa_gates)
 
     md5 = hashlib.md5(final_bytes).hexdigest()
     print('\n预演产物（未上线）: %s' % os.path.relpath(stage_path, ROOT).replace('\\', '/'))
@@ -403,8 +436,7 @@ def main():
 
     if fails:
         print('\n失败明细 %d 条:' % len(fails))
-        for name, s, expect, cmp, note in fails:
-            actual = out.count(s) if len(s) > 1 else -1   # 非门禁类（wiring/ev）s 为占位符
+        for name, s, expect, cmp, note, actual in fails:
             print('  [FAIL] %-36s 期望 %s %s  实际=%d  %s' % (name, cmp, expect, actual, note))
         return 1
     print('\n门禁结果: PASS（FAIL=0）')

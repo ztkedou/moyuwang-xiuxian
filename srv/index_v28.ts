@@ -167,6 +167,12 @@ const db = new sqlite3.Database(dbPath, (err) => {
           //   二者只服务 /api/offline/report|claim 的**离线窗口锚点**，不参与任何收益公式。
           if (!rows.some((r: any) => r.name === 'last_seen_at')) safeAddColumn('saves', 'last_seen_at', 'ALTER TABLE saves ADD COLUMN last_seen_at INTEGER');
           if (!rows.some((r: any) => r.name === 'last_resume_at')) safeAddColumn('saves', 'last_resume_at', 'ALTER TABLE saves ADD COLUMN last_resume_at INTEGER');
+          // ★ R-173（[r173offline]）：saves.last_active_at——服务端权威「最后活跃时刻」（ms，NULL=老行/未上报）。
+          //   已鉴权请求**响应结束后**按 60s/人节流打点（ylTouchActive）⇒ 在线期间持续刷新、
+          //   真离线后冻结在最后一次请求时刻。只服务 /api/offline/report|claim 的离线窗口锚点，
+          //   不参与任何收益公式。建列复用既有列存在性快路径 + safeAddColumn（容忍 duplicate
+          //   column name ⇒ 冷启动/重跑幂等），**不新增任何库表探测语句**。
+          if (!rows.some((r: any) => r.name === 'last_active_at')) safeAddColumn('saves', 'last_active_at', 'ALTER TABLE saves ADD COLUMN last_active_at INTEGER');
         }
       });
 
@@ -565,6 +571,16 @@ db.serialize(() => {
   // Y18：pet_play_log——每日嬉戏次数（UNIQUE(player_id,date)=PK 单语句原子 upsert，times<3 才放行）
   db.run(`
     CREATE TABLE IF NOT EXISTS pet_play_log (
+      player_id INTEGER NOT NULL,
+      date TEXT NOT NULL,
+      times INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (player_id, date),
+      FOREIGN KEY (player_id) REFERENCES users (id)
+    )
+  `);
+  // [r167feed] R-167：pet_feed_log——每日喂养免费额度（UNIQUE(player_id,date)=PK 单语句原子 upsert，times<1 才放行当日首次免费）
+  db.run(`
+    CREATE TABLE IF NOT EXISTS pet_feed_log (
       player_id INTEGER NOT NULL,
       date TEXT NOT NULL,
       times INTEGER NOT NULL DEFAULT 0,
@@ -1141,6 +1157,20 @@ if (!rows.some((r) => r.name === 'drawn_at')) safeAddColumn('adventures', 'drawn
     killer_id INTEGER,
     PRIMARY KEY (event_id, boss_no)
   )`);
+  // [r175boss] R-175 万妖巢穴·五只同现：逐只讨伐榜数据源。
+  //   既有 event_boss_hits 的 PK 是 (event_id, user_id) ⇒ 五只伤害被**合计**成一份，
+  //   无法支撑「每一只单独计算」。本表按 (event_id, boss_no, user_id) 记录**逐只**伤害，
+  //   仅服务 GET /api/eventboss/status 的逐只榜；结算（event_boss_hits）口径一行未动。
+  //   幂等建表（IF NOT EXISTS），不新增任何库表探测语句。
+  db.run(`CREATE TABLE IF NOT EXISTS event_boss_hits5 (
+    event_id INTEGER NOT NULL,
+    boss_no INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    score INTEGER NOT NULL DEFAULT 0,
+    strikes INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (event_id, boss_no, user_id),
+    FOREIGN KEY (user_id) REFERENCES users (id)
+  )`);
 db.run(`CREATE INDEX IF NOT EXISTS idx_stats_daily_date ON stats_daily(date)`);
   // [act087] 活动限定称号 seed（灵玉阁 1000 玉兑换物；grantTitleBySource 按 source 定位，OR IGNORE 重启幂等）
   db.run(`INSERT OR IGNORE INTO titles (name, attr_json, source) VALUES ('灵玉仙客', '{"expRate":0.01}', 'act087_jade')`);
@@ -1242,6 +1272,11 @@ const authenticateToken = (req: any, res: any, next: any) => {
     }
     if (payload.type !== 'access') return res.sendStatus(403);
     req.user = { id: payload.id, username: payload.username };
+    // [r173offline] R-173：服务端权威「最后活跃时刻」打点（响应结束后 · 60s/人节流）。
+    //   ★ 必须挂在 res 'finish'（响应之后）：/api/offline/report|claim 需读到**本次请求之前**
+    //     的 last_active_at 快照，否则锚点≈now ⇒ 离线窗口恒 0。
+    //   ★ fire-and-forget + 自吞异常：打点绝不影响鉴权与业务路径。
+    try { res.on('finish', () => { ylTouchActive(req.user.id); }); } catch (e) { /* 打点失败忽略 */ }
     next();
   });
 };
@@ -3362,12 +3397,12 @@ const R039_SINGLE: Array<[string, string]> = [
   ['rebirth_state', 'user_id'], ['achievement_claimed', 'user_id'], ['lottery_history', 'user_id'],
   ['activity_milestones', 'user_id'], ['activity_rank_settled', 'user_id'],
   ['arena_trials', 'user_id'], ['arena_scores', 'user_id'], ['arena_trial_daily', 'user_id'],
-  ['social_scores', 'user_id'], ['worldboss_hits', 'user_id'], ['event_boss_hits', 'user_id'],
+  ['social_scores', 'user_id'], ['worldboss_hits', 'user_id'], ['event_boss_hits', 'user_id'], ['event_boss_hits5', 'user_id'],
   ['guide_progress', 'user_id'], ['week_goals', 'user_id'], ['teahouse_bets', 'user_id'],
   ['sect_cooldowns', 'user_id'], ['sect_task_claims', 'user_id'], ['sect_welfare_claims', 'user_id'],
   ['sect_applications', 'user_id'], ['player_sect_gongfa', 'user_id'], ['market_payouts', 'user_id'],
   ['stats_daily', 'player_id'], ['alchemy', 'player_id'], ['economy_ledger', 'player_id'],
-  ['pets', 'player_id'], ['pet_spirit_exped', 'player_id'], ['pet_play_log', 'player_id'],
+  ['pets', 'player_id'], ['pet_spirit_exped', 'player_id'], ['pet_play_log', 'player_id'], ['pet_feed_log', 'player_id'],
   ['pet_care_log', 'player_id'], ['dungeon_tracker', 'player_id'], ['adventures', 'player_id'],
   ['spirit_farm', 'player_id'], ['farm_unlocks', 'player_id'], ['farm_daily_care', 'player_id'],
   ['wudao', 'player_id'], ['wudao_log', 'player_id'], ['player_gongfa', 'player_id'],
@@ -5247,62 +5282,68 @@ const ACH_GROUPS: Array<{ key: string; name: string; metric: AchMetric }> = [
 ];
 interface AchTotals { minutes: number; kills: number; silver: number; quests: number; realmIndex: number; totalLevel: number; } // [r122] +totalLevel
 interface AchDef { id: string; group: string; name: string; desc: string; target: number; reward: number; }
+// [r170ach] R-170/R-171 成就奖励「按需求次数严格正比」重算：
+//   reward_i = round3sig(2000 * target_i / target_1)（3 位有效数字取整，见 patches/server/srv_patch_r170.py）；
+//   每组首档一律 2000 灵石（R-171）。target / id / name / desc / group 一律未动。
+// [r170brealm] R-170 二环：成就「境界组」奖励重定档（用户拍板「最顶级 = 1 亿，其他按等级设置」）。
+//   等比数列：首档 2,000（守 R-171）→ 末档 100,000,000（1 亿），公比 r = 50000^(1/9) ≈ 3.3274（≈每档 ×3.33）。
+//   ★ 只改境界组 10 条 reward；修行/战斗/财富/任务 四组一行未动；target 一行未动（不影响玩家已有进度判定）。
 const ACH_DEFS: AchDef[] = [
   // 修行：累计 stats_daily.minutes（在线分钟=打坐时长的服务端可见代理）[r122] 4→10 档
-  { id: 'cultivate_60', group: 'cultivate', name: '初窥门径', desc: '累计在线 60 分钟', target: 60, reward: 500 },
-  { id: 'cultivate_300', group: 'cultivate', name: '潜心修行', desc: '累计在线 300 分钟', target: 300, reward: 1200 },
-  { id: 'cultivate_1200', group: 'cultivate', name: '闭关苦修', desc: '累计在线 20 小时', target: 1200, reward: 2500 },
-  { id: 'cultivate_3000', group: 'cultivate', name: '水磨功夫', desc: '累计在线 50 小时', target: 3000, reward: 4500 },
-  { id: 'cultivate_7000', group: 'cultivate', name: '枯禅入定', desc: '累计在线 7000 分钟', target: 7000, reward: 7000 },
-  { id: 'cultivate_15000', group: 'cultivate', name: '心斋坐忘', desc: '累计在线 250 小时', target: 15000, reward: 10000 },
-  { id: 'cultivate_30000', group: 'cultivate', name: '禅定不移', desc: '累计在线 500 小时', target: 30000, reward: 15000 },
-  { id: 'cultivate_60000', group: 'cultivate', name: '老僧入定', desc: '累计在线 1000 小时', target: 60000, reward: 22000 },
-  { id: 'cultivate_100000', group: 'cultivate', name: '静水深流', desc: '累计在线 10 万分钟', target: 100000, reward: 32000 },
-  { id: 'cultivate_150000', group: 'cultivate', name: '与道合真', desc: '累计在线 2500 小时', target: 150000, reward: 50000 },
+  { id: 'cultivate_60', group: 'cultivate', name: '初窥门径', desc: '累计在线 60 分钟', target: 60, reward: 2000 },
+  { id: 'cultivate_300', group: 'cultivate', name: '潜心修行', desc: '累计在线 300 分钟', target: 300, reward: 10000 },
+  { id: 'cultivate_1200', group: 'cultivate', name: '闭关苦修', desc: '累计在线 20 小时', target: 1200, reward: 40000 },
+  { id: 'cultivate_3000', group: 'cultivate', name: '水磨功夫', desc: '累计在线 50 小时', target: 3000, reward: 100000 },
+  { id: 'cultivate_7000', group: 'cultivate', name: '枯禅入定', desc: '累计在线 7000 分钟', target: 7000, reward: 233000 },
+  { id: 'cultivate_15000', group: 'cultivate', name: '心斋坐忘', desc: '累计在线 250 小时', target: 15000, reward: 500000 },
+  { id: 'cultivate_30000', group: 'cultivate', name: '禅定不移', desc: '累计在线 500 小时', target: 30000, reward: 1000000 },
+  { id: 'cultivate_60000', group: 'cultivate', name: '老僧入定', desc: '累计在线 1000 小时', target: 60000, reward: 2000000 },
+  { id: 'cultivate_100000', group: 'cultivate', name: '静水深流', desc: '累计在线 10 万分钟', target: 100000, reward: 3330000 },
+  { id: 'cultivate_150000', group: 'cultivate', name: '与道合真', desc: '累计在线 2500 小时', target: 150000, reward: 5000000 },
   // 战斗：累计 stats_daily.kills（战斗胜利场次）[r122] 4→10 档
-  { id: 'battle_10', group: 'battle', name: '初试锋芒', desc: '累计战斗胜利 10 场', target: 10, reward: 500 },
-  { id: 'battle_50', group: 'battle', name: '身经百战', desc: '累计战斗胜利 50 场', target: 50, reward: 1200 },
-  { id: 'battle_200', group: 'battle', name: '杀伐果断', desc: '累计战斗胜利 200 场', target: 200, reward: 2500 },
-  { id: 'battle_500', group: 'battle', name: '百战成钢', desc: '累计战斗胜利 500 场', target: 500, reward: 4500 },
-  { id: 'battle_1200', group: 'battle', name: '千锤百炼', desc: '累计战斗胜利 1200 场', target: 1200, reward: 7000 },
-  { id: 'battle_2500', group: 'battle', name: '战无不胜', desc: '累计战斗胜利 2500 场', target: 2500, reward: 10000 },
-  { id: 'battle_5000', group: 'battle', name: '攻无不克', desc: '累计战斗胜利 5000 场', target: 5000, reward: 15000 },
-  { id: 'battle_10000', group: 'battle', name: '一骑当千', desc: '累计战斗胜利 1 万场', target: 10000, reward: 22000 },
-  { id: 'battle_18000', group: 'battle', name: '万夫莫开', desc: '累计战斗胜利 1.8 万场', target: 18000, reward: 32000 },
-  { id: 'battle_30000', group: 'battle', name: '天下无敌', desc: '累计战斗胜利 3 万场', target: 30000, reward: 50000 },
+  { id: 'battle_10', group: 'battle', name: '初试锋芒', desc: '累计战斗胜利 10 场', target: 10, reward: 2000 },
+  { id: 'battle_50', group: 'battle', name: '身经百战', desc: '累计战斗胜利 50 场', target: 50, reward: 10000 },
+  { id: 'battle_200', group: 'battle', name: '杀伐果断', desc: '累计战斗胜利 200 场', target: 200, reward: 40000 },
+  { id: 'battle_500', group: 'battle', name: '百战成钢', desc: '累计战斗胜利 500 场', target: 500, reward: 100000 },
+  { id: 'battle_1200', group: 'battle', name: '千锤百炼', desc: '累计战斗胜利 1200 场', target: 1200, reward: 240000 },
+  { id: 'battle_2500', group: 'battle', name: '战无不胜', desc: '累计战斗胜利 2500 场', target: 2500, reward: 500000 },
+  { id: 'battle_5000', group: 'battle', name: '攻无不克', desc: '累计战斗胜利 5000 场', target: 5000, reward: 1000000 },
+  { id: 'battle_10000', group: 'battle', name: '一骑当千', desc: '累计战斗胜利 1 万场', target: 10000, reward: 2000000 },
+  { id: 'battle_18000', group: 'battle', name: '万夫莫开', desc: '累计战斗胜利 1.8 万场', target: 18000, reward: 3600000 },
+  { id: 'battle_30000', group: 'battle', name: '天下无敌', desc: '累计战斗胜利 3 万场', target: 30000, reward: 6000000 },
   // 财富：累计 stats_daily.silver_gain（灵石净获取，含邮件/宝箱/GM 入账）[r122] 4→10 档
-  { id: 'wealth_1e4', group: 'wealth', name: '小有积蓄', desc: '累计获取灵石 1 万', target: 10000, reward: 500 },
-  { id: 'wealth_1e5', group: 'wealth', name: '家财万贯', desc: '累计获取灵石 10 万', target: 100000, reward: 1200 },
-  { id: 'wealth_1e6', group: 'wealth', name: '富可敌国', desc: '累计获取灵石 100 万', target: 1000000, reward: 2500 },
-  { id: 'wealth_3e6', group: 'wealth', name: '日进斗金', desc: '累计获取灵石 300 万', target: 3000000, reward: 4500 },
-  { id: 'wealth_8e6', group: 'wealth', name: '堆金积玉', desc: '累计获取灵石 800 万', target: 8000000, reward: 7000 },
-  { id: 'wealth_2e7', group: 'wealth', name: '仙门首富', desc: '累计获取灵石 2000 万', target: 20000000, reward: 10000 },
-  { id: 'wealth_5e7', group: 'wealth', name: '富甲天下', desc: '累计获取灵石 5000 万', target: 50000000, reward: 15000 },
-  { id: 'wealth_12e7', group: 'wealth', name: '金玉满堂', desc: '累计获取灵石 1.2 亿', target: 120000000, reward: 22000 },
-  { id: 'wealth_25e7', group: 'wealth', name: '灵石成海', desc: '累计获取灵石 2.5 亿', target: 250000000, reward: 32000 },
-  { id: 'wealth_5e8', group: 'wealth', name: '仙界财神', desc: '累计获取灵石 5 亿', target: 500000000, reward: 50000 },
+  { id: 'wealth_1e4', group: 'wealth', name: '小有积蓄', desc: '累计获取灵石 1 万', target: 10000, reward: 2000 },
+  { id: 'wealth_1e5', group: 'wealth', name: '家财万贯', desc: '累计获取灵石 10 万', target: 100000, reward: 20000 },
+  { id: 'wealth_1e6', group: 'wealth', name: '富可敌国', desc: '累计获取灵石 100 万', target: 1000000, reward: 200000 },
+  { id: 'wealth_3e6', group: 'wealth', name: '日进斗金', desc: '累计获取灵石 300 万', target: 3000000, reward: 600000 },
+  { id: 'wealth_8e6', group: 'wealth', name: '堆金积玉', desc: '累计获取灵石 800 万', target: 8000000, reward: 1600000 },
+  { id: 'wealth_2e7', group: 'wealth', name: '仙门首富', desc: '累计获取灵石 2000 万', target: 20000000, reward: 4000000 },
+  { id: 'wealth_5e7', group: 'wealth', name: '富甲天下', desc: '累计获取灵石 5000 万', target: 50000000, reward: 10000000 },
+  { id: 'wealth_12e7', group: 'wealth', name: '金玉满堂', desc: '累计获取灵石 1.2 亿', target: 120000000, reward: 24000000 },
+  { id: 'wealth_25e7', group: 'wealth', name: '灵石成海', desc: '累计获取灵石 2.5 亿', target: 250000000, reward: 50000000 },
+  { id: 'wealth_5e8', group: 'wealth', name: '仙界财神', desc: '累计获取灵石 5 亿', target: 500000000, reward: 100000000 },
   // 任务：累计 daily_quests 完成（done=1 的任务行，不含宝箱领取占位行）[r122] 4→10 档
-  { id: 'quest_1', group: 'quest', name: '小试牛刀', desc: '累计完成每日任务 1 个', target: 1, reward: 500 },
-  { id: 'quest_10', group: 'quest', name: '勤修不辍', desc: '累计完成每日任务 10 个', target: 10, reward: 1200 },
-  { id: 'quest_50', group: 'quest', name: '任务达人', desc: '累计完成每日任务 50 个', target: 50, reward: 2500 },
-  { id: 'quest_150', group: 'quest', name: '日积月累', desc: '累计完成每日任务 150 个', target: 150, reward: 4500 },
-  { id: 'quest_350', group: 'quest', name: '恒心毅力', desc: '累计完成每日任务 350 个', target: 350, reward: 7000 },
-  { id: 'quest_700', group: 'quest', name: '仙途楷模', desc: '累计完成每日任务 700 个', target: 700, reward: 10000 },
-  { id: 'quest_1200', group: 'quest', name: '卷中豪杰', desc: '累计完成每日任务 1200 个', target: 1200, reward: 15000 },
-  { id: 'quest_2000', group: 'quest', name: '勤能补拙', desc: '累计完成每日任务 2000 个', target: 2000, reward: 22000 },
-  { id: 'quest_3000', group: 'quest', name: '初心如磐', desc: '累计完成每日任务 3000 个', target: 3000, reward: 32000 },
-  { id: 'quest_5000', group: 'quest', name: '仙途无悔', desc: '累计完成每日任务 5000 个', target: 5000, reward: 50000 },
+  { id: 'quest_1', group: 'quest', name: '小试牛刀', desc: '累计完成每日任务 1 个', target: 1, reward: 2000 },
+  { id: 'quest_10', group: 'quest', name: '勤修不辍', desc: '累计完成每日任务 10 个', target: 10, reward: 20000 },
+  { id: 'quest_50', group: 'quest', name: '任务达人', desc: '累计完成每日任务 50 个', target: 50, reward: 100000 },
+  { id: 'quest_150', group: 'quest', name: '日积月累', desc: '累计完成每日任务 150 个', target: 150, reward: 300000 },
+  { id: 'quest_350', group: 'quest', name: '恒心毅力', desc: '累计完成每日任务 350 个', target: 350, reward: 700000 },
+  { id: 'quest_700', group: 'quest', name: '仙途楷模', desc: '累计完成每日任务 700 个', target: 700, reward: 1400000 },
+  { id: 'quest_1200', group: 'quest', name: '卷中豪杰', desc: '累计完成每日任务 1200 个', target: 1200, reward: 2400000 },
+  { id: 'quest_2000', group: 'quest', name: '勤能补拙', desc: '累计完成每日任务 2000 个', target: 2000, reward: 4000000 },
+  { id: 'quest_3000', group: 'quest', name: '初心如磐', desc: '累计完成每日任务 3000 个', target: 3000, reward: 6000000 },
+  { id: 'quest_5000', group: 'quest', name: '仙途无悔', desc: '累计完成每日任务 5000 个', target: 5000, reward: 10000000 },
   // 境界：saves 存档总等级达标（总等级=境界序×9+层数，rankings 口径；[r122] realmIndex→totalLevel，7 档容量→10 档）
-  { id: 'realm_3', group: 'realm', name: '初入仙途', desc: '总等级达到 3（炼气三层）', target: 3, reward: 500 },
-  { id: 'realm_10', group: 'realm', name: '筑基功成', desc: '总等级达到 10（筑基期一层）', target: 10, reward: 1200 },
-  { id: 'realm_19', group: 'realm', name: '金丹初成', desc: '总等级达到 19（金丹期一层）', target: 19, reward: 2500 },
-  { id: 'realm_28', group: 'realm', name: '元婴出窍', desc: '总等级达到 28（元婴期一层）', target: 28, reward: 4500 },
-  { id: 'realm_37', group: 'realm', name: '化神通玄', desc: '总等级达到 37（化神期一层）', target: 37, reward: 7000 },
-  { id: 'realm_46', group: 'realm', name: '合道之始', desc: '总等级达到 46（合道期一层）', target: 46, reward: 10000 },
-  { id: 'realm_52', group: 'realm', name: '合道七重', desc: '总等级达到 52（合道期七层）', target: 52, reward: 15000 },
-  { id: 'realm_56', group: 'realm', name: '长生之初', desc: '总等级达到 56（长生境二层）', target: 56, reward: 22000 },
-  { id: 'realm_60', group: 'realm', name: '长生六重', desc: '总等级达到 60（长生境六层）', target: 60, reward: 32000 },
-  { id: 'realm_63', group: 'realm', name: '长生久视', desc: '总等级达到 63（长生境九层·圆满）', target: 63, reward: 50000 },
+  { id: 'realm_3', group: 'realm', name: '初入仙途', desc: '总等级达到 3（炼气三层）', target: 3, reward: 2000 },
+  { id: 'realm_10', group: 'realm', name: '筑基功成', desc: '总等级达到 10（筑基期一层）', target: 10, reward: 6650 },
+  { id: 'realm_19', group: 'realm', name: '金丹初成', desc: '总等级达到 19（金丹期一层）', target: 19, reward: 22100 },
+  { id: 'realm_28', group: 'realm', name: '元婴出窍', desc: '总等级达到 28（元婴期一层）', target: 28, reward: 73700 },
+  { id: 'realm_37', group: 'realm', name: '化神通玄', desc: '总等级达到 37（化神期一层）', target: 37, reward: 245000 },
+  { id: 'realm_46', group: 'realm', name: '合道之始', desc: '总等级达到 46（合道期一层）', target: 46, reward: 815000 },
+  { id: 'realm_52', group: 'realm', name: '合道七重', desc: '总等级达到 52（合道期七层）', target: 52, reward: 2710000 },
+  { id: 'realm_56', group: 'realm', name: '长生之初', desc: '总等级达到 56（长生境二层）', target: 56, reward: 9030000 },
+  { id: 'realm_60', group: 'realm', name: '长生六重', desc: '总等级达到 60（长生境六层）', target: 60, reward: 30000000 },
+  { id: 'realm_63', group: 'realm', name: '长生久视', desc: '总等级达到 63（长生境九层·圆满）', target: 63, reward: 100000000 },
 ]; // [r122ach10] R-122 五类各 4→10 档（0.9.13 数值表 §6）；单类 Σ144,700 / 全清 723,500；旧第 4 档退役（线上库已清空，无迁移负担）
 // 全量钳制（纯）：负值/NaN/undefined/±Infinity → 0，小数 floor（DB 空表 SUM=NULL 亦归 0，边界 0 值安全）
 function achTotalsFrom(t: { minutes?: unknown; kills?: unknown; silver?: unknown; quests?: unknown; realmIndex?: unknown; totalLevel?: unknown }): AchTotals {
@@ -5498,7 +5539,7 @@ function tribFailExpAfter(exp: number, maxExp: number): number {
 //            否则 = nowMs（玩家仍在离线中，窗口自然增长）
 function offlineAnchor(
   updatedAtMs: number | null, lastSeenAtMs: unknown, lastResumeAtMs: unknown,
-  claimedUntilMs: unknown, nowMs: number
+  claimedUntilMs: unknown, nowMs: number, lastActiveAtMs?: unknown
 ): { anchorMs: number | null; endMs: number; source: string } {
   const u = (updatedAtMs != null && Number.isFinite(updatedAtMs)) ? updatedAtMs : null;
   const lRaw = Number(lastSeenAtMs);
@@ -5506,11 +5547,83 @@ function offlineAnchor(
   const rRaw = Number(lastResumeAtMs);
   const r = (lastResumeAtMs != null && Number.isFinite(rRaw) && rRaw > 0) ? rRaw : null;
   const cl = (claimedUntilMs != null && Number.isFinite(Number(claimedUntilMs))) ? Number(claimedUntilMs) : 0;
+  // ★ R-173（[r173offline]）：最高优先级 = 服务端权威 last_active_at。
+  //   在线期间由 ylTouchActive() 持续刷新 ⇒ 锚点≈now ⇒ 在线时长天然不计入；
+  //   真离线后冻结在最后一次请求时刻 ⇒ 离线时长 = 真离线时长（不依赖客户端 away/back 事件）。
+  //   lastActiveAtMs 为 NULL（老行 / 未打点）⇒ **逐位回落**下面的 R-021 口径（last_seen_at → updated_at）。
+  const aRaw = Number(lastActiveAtMs);
+  const a = (lastActiveAtMs != null && Number.isFinite(aRaw) && aRaw > 0) ? aRaw : null;
+  if (a != null) {
+    const end = (r != null && r > a) ? r : nowMs;
+    return { anchorMs: Math.max(a, cl), endMs: end, source: 'last_active_at' };
+  }
   if (l != null && l > cl) {
     const end = (r != null && r > l) ? r : nowMs;
     return { anchorMs: Math.max(l, cl), endMs: end, source: 'last_seen_at' };
   }
   return { anchorMs: u, endMs: nowMs, source: 'updated_at' };
+}
+
+// ─────────────────────────────────────────────────────────
+// ★ R-173（[r173offline]）离线时长精准测算：服务端权威「最后活跃时刻」
+//   症状①「在线也被算进离线」：锚点依赖客户端 away/back；back 一旦没送达（keepalive fetch
+//     被丢弃 / bfcache 恢复无 visibilitychange / 网络抖动被 .catch() 吞掉），offlineAnchor
+//     的 endMs 恒回落 nowMs ⇒ 玩家已回到线上，窗口却随在线时长继续增长。
+//   症状②「真离线被算少」：away 一旦没送达（崩溃 / 强杀 / 移动端后台回收 / beforeunload
+//     不触发），last_seen_at 停在旧值，叠加旧 last_resume_at 的封口 ⇒ 新的一段真离线永远
+//     落在 [旧锚点, 旧封口] 之外 ⇒ 少算。
+//   本环：新增 saves.last_active_at（服务端权威），已鉴权请求**响应结束后**节流打点。
+//     · 在线：last_active_at≈now ⇒ 窗口≈0 ⇒ 在线时长天然不计入（症状①）。
+//     · 离线：last_active_at 冻结在最后一次请求时刻 ⇒ 离线时长 = 真离线时长（症状②）。
+//   ★ 保留未领取窗口（R-149 精神）：若「本次请求之前」已存在 ≥ OFFLINE_MIN_MS 的未领取
+//     可结算窗口，则**冻结锚点**并封口（last_resume_at），避免在线期间把窗口吃掉；老行首次
+//     打点则把该锚点**固化**进 last_active_at（口径与 R-021 无缝衔接）。
+//   ★ 红线：offlineRewards()/offlineWindow()/offlineCapHours()/offlineRatePerHour() 公式本体、
+//     OFFLINE_* 常量、月卡判定、offline_claimed_until 幂等 —— 一行未动。
+// ─────────────────────────────────────────────────────────
+const YL_ACTIVE_TOUCH_MIN_MS = 60 * 1000; // 同一玩家落库节流：≥60s 才写一次（降写放大）
+const YL_ACTIVE_TOUCH = new Map<number, number>(); // userId -> 上次落库 ms（进程内，重启即空）
+// 服务端权威「最后活跃时刻」打点（fire-and-forget · 自吞异常 · 绝不阻塞/影响请求）
+function ylTouchActive(userId: number): void {
+  try {
+    const uid = Number(userId);
+    if (!Number.isFinite(uid) || uid <= 0) return;
+    const now = Date.now();
+    const last = YL_ACTIVE_TOUCH.get(uid);
+    if (last != null && now - last < YL_ACTIVE_TOUCH_MIN_MS) return; // 节流
+    YL_ACTIVE_TOUCH.set(uid, now);
+    if (YL_ACTIVE_TOUCH.size > 20000) { // 兜底防无界增长（无常驻定时器：机会式清理）
+      YL_ACTIVE_TOUCH.forEach((v: number, k: number) => { if (now - v > 10 * 60 * 1000) YL_ACTIVE_TOUCH.delete(k); });
+    }
+    void (async () => {
+      try {
+        const row: any = await dbGet('SELECT updated_at, last_active_at, last_seen_at, last_resume_at, offline_claimed_until FROM saves WHERE user_id = ?', [uid]);
+        if (!row) return;
+        const cl = (row.offline_claimed_until != null && Number.isFinite(Number(row.offline_claimed_until))) ? Number(row.offline_claimed_until) : 0;
+        const aRaw = Number(row.last_active_at);
+        const a = (row.last_active_at != null && Number.isFinite(aRaw) && aRaw > 0) ? aRaw : null;
+        // 用「本次请求之前」的口径判定是否存在未领取的可结算窗口（与 claim 同一门槛 OFFLINE_MIN_MS）
+        const anc = offlineAnchor(parseDbTimeMs(row.updated_at), row.last_seen_at, row.last_resume_at, cl, now, a);
+        const win = offlineWindow(anc.anchorMs, cl, anc.endMs);
+        const pending = !!(win && win.windowMs >= OFFLINE_MIN_MS);
+        if (pending) {
+          // 有未领取窗口：冻结锚点（不推进），并封口（玩家已回来 ⇒ 离线段不再随在线时长增长）
+          if (a == null && anc.anchorMs != null) {
+            await dbRun('UPDATE saves SET last_active_at = ? WHERE user_id = ? AND last_active_at IS NULL', [anc.anchorMs, uid]);
+          }
+          const anchorForResume = a != null ? a : anc.anchorMs;
+          const rRaw = Number(row.last_resume_at);
+          const r = (row.last_resume_at != null && Number.isFinite(rRaw) && rRaw > 0) ? rRaw : null;
+          if (r == null || (anchorForResume != null && r <= anchorForResume)) {
+            await dbRun('UPDATE saves SET last_resume_at = ? WHERE user_id = ?', [now, uid]);
+          }
+        } else {
+          // 无未领取窗口：锚点自由前移 ⇒ 在线期间持续刷新（离线后自然冻结在最后一次请求时刻）
+          await dbRun('UPDATE saves SET last_active_at = ? WHERE user_id = ?', [now, uid]);
+        }
+      } catch (e: any) { console.error('ylTouchActive error:', e?.message || e); }
+    })();
+  } catch { /* 打点绝不影响主路径 */ }
 }
 
 // POST /api/session/presence —— 客户端上报「离开 / 回来」（R-021 锚点事件源）
@@ -5555,8 +5668,9 @@ app.post('/api/session/presence', authenticateToken, async (req: any, res: any) 
 // 无月卡玩家收益与改前逐位一致）。月卡开通入口（购买流程）未上线，过渡期 GM 直改 month_card_until 列。
 const OFFLINE_RATE_BASE_PER_HOUR = 0.0048;     // 离线速率（无月卡）：0.48% 当层修为槽/小时（修为难度×10：0.048→0.0048）
 const OFFLINE_RATE_MONTHCARD_PER_HOUR = 0.006; // 离线速率（月卡，效率 100%）：0.6% 当层修为槽/小时（修为难度×10：0.06→0.006）
-const OFFLINE_CAP_HOURS_BASE = 8;       // 离线结算时长上限（无月卡）
-const OFFLINE_CAP_HOURS_MONTHCARD = 12; // 离线结算时长上限（月卡）
+const OFFLINE_CAP_HOURS_BASE = 24;             // [r160cap] 离线结算时长上限基准（练气期1层=24h）
+const OFFLINE_CAP_HOURS_PER_LEVEL = 1;         // [r160cap] 每提升1层增加的小时数（7境界×9层=63层）
+const OFFLINE_CAP_HOURS_MONTHCARD_RATIO = 1.5; // [r160cap] 月卡上限倍率（沿用旧档 12/8=1.5，取整）
 const OFFLINE_STONE_RATIO = 0.1;        // 灵石分项 = 修为收益 × 10%（本次定档，常量可调）
 const OFFLINE_MIN_MS = 5 * 60 * 1000;   // 离线不足 5 分钟不计（防频繁登录白嫖零头）
 // 月卡判定（纯）：month_card_until 时刻之前有效；恰好到期时刻已失效；NULL/非法=无月卡
@@ -5564,9 +5678,17 @@ function hasMonthCard(untilMs: unknown, nowMs: number): boolean {
   const u = Number(untilMs);
   return Number.isFinite(u) && nowMs < u;
 }
-// 结算时长上限（纯）：月卡 12h / 无月卡 8h
-function offlineCapHours(hasMonth: unknown): number {
-  return hasMonth ? OFFLINE_CAP_HOURS_MONTHCARD : OFFLINE_CAP_HOURS_BASE;
+// 结算时长上限（纯）：24h(练气期1层) + (总层-1)×1h ⇒ 最高 86h(长生境9层)；月卡 ×1.5
+function offlineCapHours(realmIndex: unknown, realmLevel: unknown, hasMonth: unknown): number {
+  // [r160cap] R-160：结算时长上限随境界/层数递增。
+  //   练气期1层=24h；每升1层 +OFFLINE_CAP_HOURS_PER_LEVEL(1h)；每境界9层、共7境界(63层)。
+  //   总层 = 境界序×9 + 当层层数；上限 = 24 + (总层-1)×1 ⇒ 24h(练气1层) … 86h(长生境9层)。
+  //   月卡：上限 ×1.5（沿用旧档 12/8）四舍五入；OFFLINE_RATE_*/STONE_RATIO/MIN_MS 一行未动。
+  const ri = Math.max(0, Math.floor(Number(realmIndex) || 0));
+  const lv = Math.max(1, Math.floor(Number(realmLevel) || 1));
+  const totalLevel = ri * 9 + lv;
+  const base = OFFLINE_CAP_HOURS_BASE + (totalLevel - 1) * OFFLINE_CAP_HOURS_PER_LEVEL;
+  return hasMonth ? Math.round(base * OFFLINE_CAP_HOURS_MONTHCARD_RATIO) : base;
 }
 // 结算速率（纯）：月卡（效率 100%）6%/h / 无月卡（效率 80%）4.8%/h
 function offlineRatePerHour(hasMonth: unknown): number {
@@ -5830,6 +5952,86 @@ function farmCropDefs(): Record<string, { name: string; seed: number; minutes: n
       stones: Math.round(Number(_r47d.stones) * FARM_STONES_MUL), // R-129 [r129farm] 灵石侧改乘 FARM_STONES_MUL(×10)；exp 行仍乘 FARM_YIELD_MUL(=1.0)
       exp: Math.round(Number(_r47d.exp) * FARM_YIELD_MUL),
     });
+  }
+  // [r163farm] R-163 灵田数值重定档：种子价下限 3000、档间×2。
+  //   灵石侧分两类：sell 纯卖钱草小幅净赚、逐档收敛、有上界（回收率 1.20→1.025，
+  //   满配 ×1.21 仍 ≤ 种子×1.5）；mix/rare/cult 净亏换修为（回收率 .50/.40/.25，永不印钞）。
+  //   修为侧单位时间恒定（sell 4000/h · mix 8000/h · cult 16000/h · rare 2400/h）
+  //   ⇒ 修为/灵石随品阶递减（≈ k·S^0.65）。
+  //   [seed, 变卖灵石, 服用修为]；name/minutes/grottoLevel/retired 由上方生成器原样保留。
+  const R163_FARM_TABLE: Record<string, [number, number, number]> = {
+    // 纯卖钱草 sell：小幅净赚、逐档收敛、净赚有上界（回收率 1.20→1.025；满配 ×1.21 仍 ≤ 种子×1.5）
+    linggusi:        [3000,  3600,  8000],    // 凡品 灵谷穗
+    ziwenlingdao:    [6000,  6900,  12000],   // 灵品 紫纹灵稻
+    jinsuiteng:      [12000, 13200, 20000],   // 玄品 金髓藤
+    xianyulian:      [24000, 25200, 32000],   // 仙品 仙玉莲
+    shencangjinshen: [48000, 49200, 48000],   // 神品 神藏金参
+    // 综合草 mix：回收率 0.50，修为 = 0.9×纯修为（另加基础属性）
+    peiyuancao:      [3000,  1500,  36000],   // 凡品 培元草
+    zhuangguhua:     [6000,  3000,  54000],   // 灵品 壮骨花
+    bailianzhi:      [12000, 6000,  90000],   // 玄品 百炼芝
+    jiugiaoxuanzhi:  [24000, 12000, 144000],  // 仙品 九窍玄芝
+    wanxianghua:     [48000, 24000, 216000],  // 神品 万象花
+    // 纯修为草 cult：回收率 0.25（四线最低），修为最高
+    yinqimiao:       [3000,  750,   40000],   // 凡品 引气苗
+    ningyuanzhi:     [6000,  1500,  64000],   // 灵品 凝元芝
+    xuanyuanguo:     [12000, 3000,  100000],  // 玄品 玄元果
+    taiqingguo:      [24000, 6000,  160000],  // 仙品 太清果
+    hunyuandaoguo:   [48000, 12000, 240000],  // 神品 混元道果
+    // 稀有草 rare：回收率 0.40，修为 = 0.5×纯修为（另加百分比属性）
+    jifengye:        [12000, 4800,  60000],   // 玄品 疾风叶
+    xuepohua:        [24000, 9600,  96000],   // 仙品 血魄花
+    xingyunhua:      [24000, 9600,  96000],   // 仙品 星陨花
+    dongxuanhua:     [48000, 19200, 144000],  // 神品 洞玄花
+    bumieteng:       [48000, 19200, 144000],  // 神品 不灭藤
+  };
+  for (const _k163 of Object.keys(R163_FARM_TABLE)) {
+    const _d163 = out[_k163];
+    if (!_d163) continue;
+    const _v163 = R163_FARM_TABLE[_k163];
+    out[_k163] = Object.assign({}, _d163, { seed: _v163[0], stones: _v163[1], exp: _v163[2] });
+  }
+  // [r168farm] R-168 灵田数值重构（在 R-163 覆盖之后再覆写一遍 seed/stones/exp；
+  //   R163_FARM_TABLE 保留为历史档，最终值以本表为准）。
+  //   ① sell 净赚 ∝ 时长（恒定 300/h）、服用修为极少（200/h）；
+  //   ② mix 变卖 = 种子×1.10（回本+10%）、修为 = 种子×3（< 同阶 cult）；
+  //   ③ cult 变卖不变、修为 15000/45000/150000/600000/3000000（倍率 3→3.33→4→5 递增）；
+  //   ④ rare 不动；⑤ sell 满配回收率 ≤ 1.452 < 1.5（永不印钞）。
+  //   校准与红线复算详见 srv_patch_r168.py 文件头。
+  const R168_FARM_TABLE: Record<string, [number, number, number]> = {
+    // ① 纯卖钱草 sell：净赚 ∝ 时长（净赚/小时 恒定 300）⇒ 收益与时长直接挂钩；
+    //    服用修为「极少」（200 exp/h ∝ 时长，仅同阶 cult 的 2.7%→0.08%）。
+    linggusi:        [3000,  3600,  400],     // 凡品 灵谷穗  2h  净赚 600
+    ziwenlingdao:    [6000,  6900,  600],     // 灵品 紫纹灵稻 3h  净赚 900
+    jinsuiteng:      [12000, 13500, 1000],    // 玄品 金髓藤  5h  净赚 1500
+    xianyulian:      [24000, 26400, 1600],    // 仙品 仙玉莲  8h  净赚 2400
+    shencangjinshen: [48000, 51600, 2400],    // 神品 神藏金参 12h 净赚 3600
+    // ② 综合草 mix：变卖 = 种子 ×1.10（回本 + 10% 小幅收益，非改前 0.50 巨亏）；
+    //    服用修为 = 种子 ×3（跟购买灵石数相关、必 < 同阶 cult）；基础属性加成不动。
+    peiyuancao:      [3000,  3300,  9000],    // 凡品 培元草
+    zhuangguhua:     [6000,  6600,  18000],   // 灵品 壮骨花
+    bailianzhi:      [12000, 13200, 36000],   // 玄品 百炼芝
+    jiugiaoxuanzhi:  [24000, 26400, 72000],   // 仙品 九窍玄芝
+    wanxianghua:     [48000, 52800, 144000],  // 神品 万象花
+    // ③ 纯修为草 cult：变卖灵石逐字不变（用户：合适）；修为重定档，凡品 15000 起、
+    //    档间倍率 3→3.33→4→5 递增（追平境界修为 ≈ ×4/境 的膨胀，防高段过慢）。
+    yinqimiao:       [3000,  750,   15000],    // 凡品 引气苗 150min
+    ningyuanzhi:     [6000,  1500,  45000],    // 灵品 凝元芝 225min
+    xuanyuanguo:     [12000, 3000,  150000],   // 玄品 玄元果 375min
+    taiqingguo:      [24000, 6000,  600000],   // 仙品 太清果 600min
+    hunyuandaoguo:   [48000, 12000, 3000000],  // 神品 混元道果 900min
+    // ④ 稀有草 rare：用户未提，逐字保持 R-163 不动（修为 < 同阶 cult，无冲突）。
+    jifengye:        [12000, 4800,  60000],    // 玄品 疾风叶
+    xuepohua:        [24000, 9600,  96000],    // 仙品 血魄花
+    xingyunhua:      [24000, 9600,  96000],    // 仙品 星陨花
+    dongxuanhua:     [48000, 19200, 144000],   // 神品 洞玄花
+    bumieteng:       [48000, 19200, 144000],   // 神品 不灭藤
+  };
+  for (const _k168 of Object.keys(R168_FARM_TABLE)) {
+    const _d168 = out[_k168];
+    if (!_d168) continue;
+    const _v168 = R168_FARM_TABLE[_k168];
+    out[_k168] = Object.assign({}, _d168, { seed: _v168[0], stones: _v168[1], exp: _v168[2] });
   }
   return out;
 }
@@ -8761,6 +8963,44 @@ app.get('/api/wudao', authenticateToken, rateLimit({ windowMs: 60 * 1000, max: 6
 
 // POST /api/wudao/insight {dao:'sword'|...} — 手动顿悟：扣灵石 500 → 该系 +100 exp（全或无可重试）
 // 顺序=先扣灵石（防加成端被白嫖）后加 exp；加 exp 失败补偿退灵石（退款失败仅记日志，不产生复制收益）
+// [r165wudao] R-165 打坐「顿悟」点联动悟道心得（免费入账，零新表 / 零新列）。
+//   客户端打坐 tick 的 0.4% 顿悟分支（bundle 内 Math.random()<.004）在补修为之外，
+//   再调本端点 ⇒ 顿悟时「既有额外修为，又产生悟道经验」（用户 R-165 原话）。
+//   入账走既有 wudaoAddExp(..., 'idle')（与挂机心得同源，写 wudao_log）；
+//   系别由**服务端**按境界门槛随机挑（客户端不知道门槛，故不传 dao）。
+//   ★ 频控用既有 rateLimit()（返回 429）：客户端 Xc() 只把 401/403 视为会话失效，
+//     429 走 .catch() 静默 —— 绝不会把玩家踢下线。
+//   ★ 响应顶层不含 balance（STONE_ECHO 会补真实余额；自带 balance 会覆写玩家灵石）。
+const WUDAO_ENL_MIN_INTERVAL_MS = 5000;   // L1 最小间隔：挡脚本连打
+const WUDAO_ENL_HOUR_CAP = 60;            // L2 小时帽
+const WUDAO_ENL_DAY_CAP = 200;            // L3 日帽（200×10=2000 < 满级 2250，不会一夜满级）
+app.post('/api/wudao/enlighten',
+  authenticateToken,
+  rateLimit({ windowMs: WUDAO_ENL_MIN_INTERVAL_MS, max: 1, keyFn: (req: any) => `wudao:enl:${req.user?.id ?? req.ip}` }),
+  rateLimit({ windowMs: 60 * 60 * 1000, max: WUDAO_ENL_HOUR_CAP, keyFn: (req: any) => `wudao:enlh:${req.user?.id ?? req.ip}` }),
+  rateLimit({ windowMs: 24 * 60 * 60 * 1000, max: WUDAO_ENL_DAY_CAP, keyFn: (req: any) => `wudao:enld:${req.user?.id ?? req.ip}` }),
+  async (req: any, res: any) => {
+    const userId = req.user.id;
+    try {
+      const srow: any = await dbGet('SELECT save_data FROM saves WHERE user_id = ?', [userId]);
+      if (!srow) return res.json({ ok: false, reason: 'nosave' });
+      let realmIdx = 0;
+      try { realmIdx = wudaoRealmIndex(JSON.parse(String(srow.save_data || '{}'))?.player?.realm); } catch { realmIdx = 0; }
+      const keys = Object.keys(WUDAO_DAOS);
+      const open = keys.filter((k) => realmIdx >= wudaoDaoGateRealm(k));
+      const pool = open.length > 0 ? open : [keys[0]];
+      const dao = pool[Math.min(pool.length - 1, Math.max(0, Math.floor(Math.random() * pool.length)))];
+      const added = await wudaoAddExp(userId, dao, WUDAO_INSIGHT_EXP, 'idle');
+      if (!added) return res.json({ ok: false, reason: 'fail' });
+      return res.json({
+        ok: true, dao, daoName: WUDAO_DAOS[dao].name, expGain: WUDAO_INSIGHT_EXP,
+        level: added.level, exp: added.exp,
+      });
+    } catch (e: any) {
+      console.error('wudao enlighten error:', e?.message || e);
+      return res.json({ ok: false, reason: 'fail' });
+    }
+  });
 app.post('/api/wudao/insight', authenticateToken, rateLimit({ windowMs: 60 * 1000, max: 10, keyFn: (req: any) => `wudao:insight:${req.user?.id ?? req.ip}` }), async (req: any, res: any) => {
   const userId = req.user.id;
   try {
@@ -9666,6 +9906,12 @@ async function actBossHitOnce(userId: number, eventId: number, bossNo: number, n
     `INSERT INTO event_boss_hits (event_id, user_id, score, strikes) VALUES (?, ?, ?, 1)
      ON CONFLICT(event_id, user_id) DO UPDATE SET score = score + excluded.score, strikes = strikes + 1`,
     [eventId, userId, score]);
+  // [r175boss] R-175：逐只伤害落 event_boss_hits5（PK 幂等 upsert；与上面的合计行**并行**，
+  //   同一 score / 同一次出手；不改 event_boss_hits 的入账口径 ⇒ 结算档位/排名奖励口径逐位不变）。
+  await dbRun(
+    `INSERT INTO event_boss_hits5 (event_id, boss_no, user_id, score, strikes) VALUES (?, ?, ?, ?, 1)
+     ON CONFLICT(event_id, boss_no, user_id) DO UPDATE SET score = score + excluded.score, strikes = strikes + 1`,
+    [eventId, bossNo, userId, score]);
   // 聚合行重算：血量求和；五只全诛才把 killed=1 / killed_at 落到 event_boss（供结算器判定休战与结算）
   const agg = await dbGet('SELECT COALESCE(SUM(hp_max),0) AS hm, COALESCE(SUM(hp_cur),0) AS hc, COALESCE(SUM(killed),0) AS kc, COUNT(*) AS n FROM event_boss5 WHERE event_id = ?', [eventId]).catch(() => null);
   const allDead = Number(agg && agg.n) > 0 && Number(agg && agg.kc) >= Number(agg && agg.n);
@@ -9717,6 +9963,21 @@ app.get('/api/eventboss/status', authenticateToken, rateLimit({ windowMs: 60 * 1
         paidCoolLeft: pAt > 0 ? Math.max(0, Math.ceil((ACT_BOSS_PAID_COOLDOWN_MS - (nowS - pAt)) / 1000)) : 0,
       });
     }
+    // [r175boss] R-175：逐只榜——每一只 boss **单独计算**（该只 score DESC；同分 user_id ASC 稳定排序；
+    //   LIMIT 10 沿用现状）。数据源 = event_boss_hits5（逐只记分）；不再把 5 只伤害合计成一个榜。
+    const topByBoss: any[] = [];
+    for (const s of (slots || [])) {
+      const no = Math.max(1, Math.floor(Number(s.boss_no) || 1));
+      const list = await dbAll(
+        `SELECT h.user_id AS uid, h.score, COALESCE(NULLIF(r.name, ''), u.username) AS name
+         FROM event_boss_hits5 h JOIN users u ON u.id = h.user_id LEFT JOIN rankings r ON r.user_id = h.user_id
+         WHERE h.event_id = ? AND h.boss_no = ? ORDER BY h.score DESC, h.user_id ASC LIMIT 10`,
+        [Number(ev.id), no]).catch(() => []);
+      topByBoss.push({
+        no,
+        top10: (list || []).map((x: any, i: number) => ({ userId: Number(x.uid), name: String(x.name || ''), score: Math.max(0, Math.floor(Number(x.score) || 0)), rank: i + 1 })),
+      });
+    }
     const killed = Number(boss.killed) === 1;
     res.json({
       eventId: Number(ev.id),
@@ -9735,6 +9996,9 @@ app.get('/api/eventboss/status', authenticateToken, rateLimit({ windowMs: 60 * 1
       paidLimit: ACT_BOSS_PAID_LIMIT,
       bosses,
       top10: (top || []).map((x: any, i: number) => ({ userId: Number(x.uid), name: String(x.name || ''), score: Math.max(0, Math.floor(Number(x.score) || 0)), rank: i + 1 })),
+      // [r175boss] R-175：逐只榜（每项 { no, top10 }）。★ top10（合计）为向后兼容原样保留；
+      //   客户端应改用本字段逐只渲染（见文件头「客户端是否必须跟着改」）。
+      top10ByBoss: topByBoss,
       active: actIsActive(ev, Date.now()),
     });
   } catch (e: any) {
@@ -12503,13 +12767,17 @@ app.post('/api/worldboss/strike', authenticateToken, rateLimit({ windowMs: 60 * 
 const GUIDE_STEPS = [
   { id: 'enter', name: '初入江湖', desc: '创建角色存档', reward: 2000, check: 'has_save' },
   { id: 'lv3', name: '炼气三层', desc: '总等级达到 3', reward: 3000, check: 'lv', arg: 3 },
-  { id: 'lv9', name: '炼气圆满', desc: '总等级达到 9', reward: 6000, check: 'lv', arg: 9 },
-  { id: 'zhuji', name: '筑基成功', desc: '总等级达到 10', reward: 8000, check: 'lv', arg: 10 },
+  { id: 'lv9', name: '炼气圆满', desc: '总等级达到 9', reward: 8600, check: 'lv', arg: 9 },
+  { id: 'zhuji', name: '筑基成功', desc: '总等级达到 10', reward: 9900, check: 'lv', arg: 10 },
   { id: 'friend', name: '结识道友', desc: '添加 1 位好友', reward: 3000, check: 'friend' },
   { id: 'baishi', name: '拜入师门', desc: '拥有师傅', reward: 6000, check: 'has_mentor' },
-  { id: 'jindan', name: '金丹初成', desc: '总等级达到 19', reward: 20000, check: 'lv', arg: 19 },
+  { id: 'jindan', name: '金丹初成', desc: '总等级达到 19', reward: 61000, check: 'lv', arg: 19 },
   { id: 'daolv', name: '喜结道侣', desc: '结为道侣', reward: 12000, check: 'married' },
 ]; // [r123guide] R-123 指引 8 步加码（0.9.13 数值表 §7）：Σ60,000（旧 15,100，3.97x）；七日礼同批 Σ15,300→50,000
+// [r172guide] R-172 仙途指引奖励按「达到所需付出的努力(累计修为)」重定档，非旧值×系数。
+//   锚点 enter=2000（不动）；reward = 2000 + K×累计修为，K=1000/134400≈0.00744（令 lv3=3000）。
+//   努力倍率(lv3=1)：lv9=6.571x、zhuji=7.875x、jindan=59.062x；社交三步无修为度量保持原档。
+//   Sum=105500 (old 60000, 1.758x)；逐档推导见 patches/server/srv_patch_r172.py 文件头。
 const WEEK_REWARDS = [2000, 3000, 4000, 6000, 8000, 12000, 15000]; // [r123guide] R-123 七日礼加码：Σ50,000（旧 15,300，3.27x，逐日递增）
 
 // 当日活动（惰性生成 7 天滚动排期：周五妖兽双倍，周日茶馆双倍）
@@ -12789,7 +13057,7 @@ app.get('/api/adventure/draw', authenticateToken, rateLimit({ windowMs: 60 * 100
 // 有效期内上限 12h + 效率 100%=6%/h；无月卡 8h + 4.8%/h 与改前一致）+ 境界差值提示（离线叠加后修为满槽/
 // 第九层满槽=已满足突破条件）
 app.get('/api/offline/report', authenticateToken, rateLimit({ windowMs: 60 * 1000, max: 60, keyFn: (req: any) => `offline:report:${req.user?.id ?? req.ip}` }), (req: any, res: any) => {
-  db.get('SELECT save_data, updated_at, offline_claimed_until, month_card_until, last_seen_at, last_resume_at FROM saves WHERE user_id = ?', [req.user.id], async (err: any, row: any) => {
+  db.get('SELECT save_data, updated_at, offline_claimed_until, month_card_until, last_seen_at, last_resume_at, last_active_at FROM saves WHERE user_id = ?', [req.user.id], async (err: any, row: any) => {
     if (err) return res.status(500).json({ error: 'Database error' });
     if (!row) return res.status(404).json({ error: '请先进游戏创建角色' });
     let p: any;
@@ -12797,11 +13065,12 @@ app.get('/api/offline/report', authenticateToken, rateLimit({ windowMs: 60 * 100
     const nr = normalizeRealm(p);
     const nowMs = Date.now();
     const mc = hasMonthCard(row.month_card_until, nowMs);
-    const capHours = offlineCapHours(mc);
+    const capHours = offlineCapHours(nr.realmIndex, nr.realmLevel, mc);
     const ratePerHour = offlineRatePerHour(mc);
     // ★ R-021：锚点优先取「真实离开时刻」last_seen_at（心跳存档不再刷新它）；
     //   缺失 / 已领覆盖时逐位回落 updated_at。offlineWindow/offlineRewards 本体未动。
-    const ylAnc = offlineAnchor(parseDbTimeMs(row.updated_at), row.last_seen_at, row.last_resume_at, row.offline_claimed_until, nowMs);
+    // ★ R-173（[r173offline]）：最高优先级传入服务端权威 last_active_at（NULL 时 offlineAnchor 自动回落原口径）。
+    const ylAnc = offlineAnchor(parseDbTimeMs(row.updated_at), row.last_seen_at, row.last_resume_at, row.offline_claimed_until, nowMs, row.last_active_at);
     const win = offlineWindow(ylAnc.anchorMs, row.offline_claimed_until != null ? Number(row.offline_claimed_until) : null, ylAnc.endMs);
     const rw = win ? offlineRewards(nr.maxExp, nr.exp, win.windowMs, capHours, ratePerHour) : null;
     // Y21：活动倍率预览（与 claim 同一 resolveEventMults 口径；修为叠乘后仍钳槽内防溢出；引擎读取失败按 ×1 保底）
@@ -12846,17 +13115,18 @@ app.get('/api/offline/report', authenticateToken, rateLimit({ windowMs: 60 * 100
 app.post('/api/offline/claim', authenticateToken, rateLimit({ windowMs: 60 * 1000, max: 10, keyFn: (req: any) => `offline:claim:${req.user?.id ?? req.ip}` }), async (req: any, res: any) => {
   const userId = req.user.id;
   try {
-    const row = await dbGet('SELECT save_data, updated_at, offline_claimed_until, month_card_until, last_seen_at, last_resume_at FROM saves WHERE user_id = ?', [userId]);
+    const row = await dbGet('SELECT save_data, updated_at, offline_claimed_until, month_card_until, last_seen_at, last_resume_at, last_active_at FROM saves WHERE user_id = ?', [userId]);
     if (!row) return res.status(404).json({ error: '请先进游戏创建角色' });
     let p: any;
     try { p = JSON.parse(row.save_data)?.player ?? {}; } catch { return res.status(500).json({ error: '存档解析失败' }); }
     const nr = normalizeRealm(p);
     const nowMs = Date.now();
     const mc = hasMonthCard(row.month_card_until, nowMs);
-    const capHours = offlineCapHours(mc);
+    const capHours = offlineCapHours(nr.realmIndex, nr.realmLevel, mc);
     const ratePerHour = offlineRatePerHour(mc);
     // ★ R-021：与 /api/offline/report 同一锚点口径（预览与领取必须一致，否则出现"看得到领不到"）
-    const ylAnc = offlineAnchor(parseDbTimeMs(row.updated_at), row.last_seen_at, row.last_resume_at, row.offline_claimed_until, nowMs);
+    // ★ R-173（[r173offline]）：与 report 同口径传入 last_active_at（预览/领取必须一致）。
+    const ylAnc = offlineAnchor(parseDbTimeMs(row.updated_at), row.last_seen_at, row.last_resume_at, row.offline_claimed_until, nowMs, row.last_active_at);
     const win = offlineWindow(ylAnc.anchorMs, row.offline_claimed_until != null ? Number(row.offline_claimed_until) : null, ylAnc.endMs);
     if (!win) return res.status(409).json({ error: '暂无可领的离线收益' });
     const rw = offlineRewards(nr.maxExp, nr.exp, win.windowMs, capHours, ratePerHour);
@@ -12888,6 +13158,8 @@ app.post('/api/offline/claim', authenticateToken, rateLimit({ windowMs: 60 * 100
       await dbRun('UPDATE saves SET offline_claimed_until = ? WHERE user_id = ?', [row.offline_claimed_until != null ? Number(row.offline_claimed_until) : null, userId]).catch(() => {});
       return res.status(409).json({ error: paid.error === 'No save found' ? '请先进游戏创建角色' : '领取失败，请重试' });
     }
+    // [r173offline] R-173：本段离线窗口已结算 ⇒ 锚点前移过已领时刻（否则冻结锚点会拖住下一段离线计时）。
+    await dbRun('UPDATE saves SET last_active_at = ? WHERE user_id = ?', [Date.now(), userId]).catch(() => {});
     // [act087] C 灵玉阁掉玉挂点（入账点：离线收益入账成功后；/api/offline/report 预览两处
     // actApplyGain 保持裸调用不挂——挂预览必双计，门禁断言）
     if (applied.stonesGain > 0) actDropTokens(userId, applied.stonesGain, nowMs).catch((e: any) => console.error('act drop tokens (offline) error:', e?.message || e));
@@ -13041,8 +13313,10 @@ app.get('/api/pet', authenticateToken, rateLimit({ windowMs: 60 * 1000, max: 60,
   try {
     const pet = await dbGet('SELECT name, rarity, hunger, exp, bond, aptitude, merged, rune_active, created_at FROM pets WHERE player_id = ?', [userId]);
     const today = petDate(Date.now());
-    const [play, logs, exped] = await Promise.all([
+    const [play, feed, logs, exped] = await Promise.all([
       dbGet('SELECT times, tease, brush, talk, bought FROM pet_play_log WHERE player_id = ? AND date = ?', [userId, today]),
+      // [r167feed] R-167：喂养当日免费额度回显源（pet_feed_log 当日 times）
+      dbGet('SELECT times FROM pet_feed_log WHERE player_id = ? AND date = ?', [userId, today]),
       dbAll('SELECT kind, detail, created_at FROM pet_care_log WHERE player_id = ? ORDER BY id DESC LIMIT 20', [userId]),
       dbGet('SELECT started_at, claimed FROM pet_spirit_exped WHERE player_id = ? AND date = ?', [userId, today]),
     ]);
@@ -13061,6 +13335,13 @@ app.get('/api/pet', authenticateToken, rateLimit({ windowMs: 60 * 1000, max: 60,
         brush: Math.min(1, Number(play?.brush) || 0),
         talk: Math.min(1, Number(play?.talk) || 0),
         bought: Math.min(R018_BUY_DAILY_MAX, Number(play?.bought) || 0),
+      },
+      // [r167feed] R-167：喂养当日额度（date=日期键；used=当日已用免费次数 0/1；free=used<1 ⇒ 今日首次喂养仍免费）
+      //   ★ 顶层不新增余额字段（STONE_ECHO 会补真实余额；自带余额字段会覆写玩家灵石）。
+      feedQuota: {
+        date: today,
+        used: Math.min(1, Number(feed?.times) || 0),
+        free: (Number(feed?.times) || 0) < 1,
       },
       exped: exped ? {
         startedAt: Number(exped.started_at) || 0,
@@ -13137,8 +13418,17 @@ app.post('/api/pet/adopt', authenticateToken, rateLimit({ windowMs: 60 * 1000, m
 // 宠物行缺失则补偿退费；恰跨 5 级触发一次性「妖灵精魄」（bond+20 + 邮件 1000 灵石，实战加成待客户端接入）
 app.post('/api/pet/feed', authenticateToken, rateLimit({ windowMs: 60 * 1000, max: 30, keyFn: (req: any) => `pet:feed:${req.user?.id ?? req.ip}` }), async (req: any, res: any) => {
   const userId = req.user.id;
+  // [r167feed] R-167 喂养「当日首次免费」请求级状态（提到 try 外 ⇒ catch 兜底补偿可见）：
+  //   _feedFree = 本次是否命中免费（闸门 changes>0）；_feedDate = 闸门日期键；
+  //   _feedDone = 喂养是否已成功落库（异常兜底据此判断是否还需回退免费额度）。
+  let _feedFree = false;
+  let _feedDate = '';
+  let _feedDone = false;
   try {
-    const _feed = r018FeedTier(req.body?.tier);
+    // [r167feed] 复制一份**可变**档位：r018FeedTier 返回的是 R018_FEED_TIERS 的共享引用，
+    //   直接改 .cost 会污染全局常量 ⇒ 必须复制；仅当「当日首次免费」时把 _feed.cost 置 0。
+    const _feedTier = r018FeedTier(req.body?.tier);
+    const _feed = { cost: _feedTier.cost, hunger: _feedTier.hunger, name: _feedTier.name };
     const pet: any = await dbGet('SELECT id, name, hunger, level, merged FROM pets WHERE player_id = ?', [userId]);
     if (pet && Number(pet.merged) > 0) return res.status(409).json({ error: '妖灵已归位，无法再喂养' });
     if (!pet) return res.status(404).json({ error: '请先收养一只灵宠' });
@@ -13149,6 +13439,24 @@ app.post('/api/pet/feed', authenticateToken, rateLimit({ windowMs: 60 * 1000, ma
     if (!row) return res.status(404).json({ error: '请先进游戏创建角色' });
     let bal = 0;
     try { bal = Number(JSON.parse(row.save_data)?.player?.spiritStones) || 0; } catch { return res.status(500).json({ error: '存档解析失败' }); }
+    // [r167feed] R-167 喂养「当日第 1 次免费」单语句原子闸门（照抄 play 端点 pet_play_log 口径）：
+    //   INSERT ... ON CONFLICT DO UPDATE SET times = times + 1 WHERE times < 1
+    //   ⇒ changes > 0 = 本次真的插入/自增 = 当日第 1 次 ⇒ 免灵石（_feed.cost 置 0）；
+    //     changes = 0 = 当日免费额度已用尽 ⇒ 按 _feed.cost 正常扣费（原扣费口径逐字不变）。
+    //   ★ 失败补偿：后续任一环节失败（余额不足 / 扣费失败 / 宠物行缺失 / 异常）回退本次计数，
+    //     避免玩家白占一次免费额度（与 play 端点 @13340-13343 同款补偿口径）。
+    _feedDate = petDate(Date.now());
+    const _feedGate = await dbRun(
+      'INSERT INTO pet_feed_log (player_id, date, times) VALUES (?, ?, 1) ON CONFLICT(player_id, date) DO UPDATE SET times = times + 1 WHERE times < 1',
+      [userId, _feedDate]
+    );
+    _feedFree = _feedGate.changes > 0;
+    if (_feedFree) _feed.cost = 0;
+    const _feedRollback = async (): Promise<void> => {
+      if (!_feedFree || _feedDone) return; // 未占用 or 已成功 ⇒ 无需回退（幂等）
+      _feedFree = false;                    // 至多回退一次
+      await dbRun('UPDATE pet_feed_log SET times = MAX(0, times - 1) WHERE player_id = ? AND date = ?', [userId, _feedDate]);
+    };
     if (bal < _feed.cost) return res.status(409).json({ error: `灵石不足：需 ${_feed.cost}，现有 ${bal}` });
 
     // 扣费（saveLock 互斥 + gm_revision++ 促客户端拉新档）
@@ -13159,6 +13467,7 @@ app.post('/api/pet/feed', authenticateToken, rateLimit({ windowMs: 60 * 1000, ma
       sd.player.spiritStones = b - _feed.cost;
     });
     if (!paid.ok || short) {
+      await _feedRollback(); // [r167feed] 扣费失败 ⇒ 回退本次免费额度占位
       return res.status(409).json({ error: short ? '灵石不足' : (paid.error === 'No save found' ? '请先进游戏创建角色' : '喂养失败，请重试') });
     }
 
@@ -13173,9 +13482,11 @@ app.post('/api/pet/feed', authenticateToken, rateLimit({ windowMs: 60 * 1000, ma
     );
     if (!upd.changes) {
       // 补偿退费（宠物行异常缺失，理论不可达，防御性全或无）
+      await _feedRollback(); // [r167feed] 宠物行缺失（理论不可达）⇒ 回退本次免费额度占位
       await updatePlayerSave(userId, (sd: any) => { sd.player.spiritStones = (Number(sd.player?.spiritStones) || 0) + _feed.cost; });
       return res.status(404).json({ error: '请先收养一只灵宠' });
     }
+    _feedDone = true; // [r167feed] 喂养已成功落库 ⇒ 后续异常不再回退免费额度
     let fresh = await dbGet('SELECT name, rarity, hunger, exp, bond, aptitude, merged FROM pets WHERE player_id = ?', [userId]);
     let battleReached = false;
     // R-018 决策点 10 = C：妖灵精魄改为「每 10 级一次」（跨 10/20/…/90 各触发一次）
@@ -13198,6 +13509,7 @@ app.post('/api/pet/feed', authenticateToken, rateLimit({ windowMs: 60 * 1000, ma
     logPetCare(userId, 'feed', `喂食「${String(pet.name)}」，喂食度 +${PET_HUNGER_PER_FEED}`);
     res.json({ ok: true, pet: petView(fresh), battleReached, milestones: _miles, spirit: await r018SpiritSync(userId) });
   } catch (e: any) {
+    if (_feedFree && !_feedDone) { _feedFree = false; try { await dbRun('UPDATE pet_feed_log SET times = MAX(0, times - 1) WHERE player_id = ? AND date = ?', [userId, _feedDate]); } catch {} } // [r167feed] 异常兜底：回退未落库成功的免费额度
     console.error('pet feed error:', e?.message || e);
     res.status(500).json({ error: '服务器繁忙' });
   }

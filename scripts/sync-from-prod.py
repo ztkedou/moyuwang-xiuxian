@@ -18,10 +18,23 @@ import os
 import re
 import sys
 
+def _default_key():
+    """本机私钥文件名含已退役旧机 IP（历史遗留，勿改名），故不写死字面量：
+    优先环境变量，其次扫 ~/.ssh 下匹配 ali-hk-*.key 的第一个。"""
+    env = os.environ.get("YL_PROD_KEY")
+    if env:
+        return os.path.expanduser(env)
+    sshd = os.path.expanduser("~/.ssh")
+    if os.path.isdir(sshd):
+        for f in sorted(os.listdir(sshd)):
+            if f.startswith("ali-hk") and f.endswith(".key"):
+                return os.path.join(sshd, f)
+    return os.path.expanduser("~/.ssh/yl_prod.key")
+
+
 HOST = os.environ.get("YL_PROD_HOST", "104.208.93.109")
 USER = os.environ.get("YL_PROD_USER", "root")
-# 私钥路径经环境变量注入（本机私钥文件名含已退役旧机 IP，不入库）
-KEY = os.path.expanduser(os.environ.get("YL_PROD_KEY", "~/.ssh/yl_prod.key"))
+KEY = _default_key()
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # 生产路径 → 仓库路径

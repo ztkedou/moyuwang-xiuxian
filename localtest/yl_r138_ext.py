@@ -268,7 +268,7 @@ FRZ_ACC_RUNS = r'YLXW_ADV_ACC.runs += 1;'
 FRZ_ACC_RESET = r'YLXW_ADV_ACC = { exp: 0, stone: 0, runs: 0 };'
 FRZ_ACC_EXP = r'if (de > 0) YLXW_ADV_ACC.exp += de;'
 FRZ_ACC_STONE = r'if (ds > 0) YLXW_ADV_ACC.stone += ds;'
-FRZ_HEADER = r'add("\ud83d\uddfa \u672c\u6b21\u81ea\u52a8\u5386\u7ec3 " + YlxwAdvDur(el)'
+FRZ_HEADER = r'"\ud83d\uddfa \u672c\u6b21\u81ea\u52a8\u5386\u7ec3 " + YlxwAdvDur(el)'
 FRZ_PAUSE = r'var yz = Ze.getState();'
 FRZ_R114_DE = r'if (de) parts.push("\u4fee\u4e3a " + (de > 0 ? "+" : "") + de);'
 FRZ_R114_DS = r'if (ds) parts.push("\u7075\u77f3 " + (ds > 0 ? "+" : "") + ds);'
@@ -334,7 +334,11 @@ def gates():
         ('冻结·R105 累加器初始化未动',   FRZ_ACC_RESET,                                    2, '==', '声明 + 会话起点清零'),
         ('冻结·R105 修为累计未动',       FRZ_ACC_EXP,                                      1, '==', ''),
         ('冻结·R105 灵石累计未动',       FRZ_ACC_STONE,                                    1, '==', ''),
-        ('冻结·R105 汇总头行逐字保留',   FRZ_HEADER,                                       1, '==', '本模块只在其后追加详细块'),
+        # ★ 2026-10-06 R-155 接管：R-155 把 R-105 头行从 `add("🗺 本次自动历练 " + YlxwAdvDur(el) …)`
+        #   改成 `var _l155 = ["🗺 本次自动历练 " + YlxwAdvDur(el) …]`（汇总后单次 add）。
+        #   ⇒ 本门禁的 needle 去掉 `add(` 前缀，只冻结**头行文案本身**（两阶段都恰好 1 处：
+        #     chain_build 阶段在 add(...) 里，dryrun 最终形态在 _l155 数组里）。
+        ('冻结·R105 汇总头行文案逐字保留', FRZ_HEADER,                                     1, '==', 'R-155 起容器由 add(...) 变为 _l155[...]，文案不变'),
         ('冻结·R105 暂停快照未动',       FRZ_PAUSE,                                        1, '==', ''),
 
         # ================= 冻结：R-114 面（逐字保留） =================

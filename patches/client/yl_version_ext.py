@@ -46,14 +46,14 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 CHANGELOG_LOCAL = os.path.join(HERE, 'CHANGELOG.md')
 
 # 兜底版本（= 当前线上/本地 CHANGELOG 最新版；_test_version.py 会断言两者一致）
-DEFAULT_VERSION = '0.9.22'
+DEFAULT_VERSION = '0.9.23'
 
 # ---------------------------------------------------------------------------
 # 注入 JS 块（纯 ASCII；构建侧统一 zh()）
 # ---------------------------------------------------------------------------
 INJECT_JS = r'''
 /* == YL_VERSION_DYNAMIC_V28 == */
-var YLVERSION_FALLBACK = "0.9.22";
+var YLVERSION_FALLBACK = "0.9.23";
 var YLVERSION_CACHE = null;
 var YLVERSION_LOADED = false;
 function YlxwVersionParse(text) {

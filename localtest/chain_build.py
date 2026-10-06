@@ -475,8 +475,8 @@ SRV_CHAIN = [
                                  #   ★ 客户端零改动（本批客户端仅版本号 0.9.22）。
 ]
 
-# ---- 前端产物路径（0.9.22 换名：index-v2922-20261005.js，与 build_v26n.py OUT 逐字一致）----
-CLIENT_OUT = os.path.join(ROOT, 'build', 'assets', 'index-v2922-20261005.js')
+# ---- 前端产物路径（0.9.22 换名：index-v2923-20261006.js，与 build_v26n.py OUT 逐字一致）----
+CLIENT_OUT = os.path.join(ROOT, 'build', 'assets', 'index-v2923-20261006.js')
 SRV_OUT = os.path.join(ROOT, 'srv', 'index_v28.ts')
 
 

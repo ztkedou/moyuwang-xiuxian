@@ -73,6 +73,28 @@ docker compose up -d --build  # ② 构建镜像并启动
 本仓库是这个游戏的**完整可复现源码包**——包含前端补丁管线、服务端（单文件 TypeScript，含 200+ 接口）、
 构建脚本、数值与设计文档。**任何人 clone 后都能重建出与仓库内参考产物逐字节一致的产物**（产物 md5 可校验）。
 
+### 本仓库 vs 线上生产环境
+
+| | 位置 | 角色 |
+|---|---|---|
+| **本仓库** | GitHub `ztkedou/moyuwang-xiuxian` | **对外唯一源码包**（脱敏、去杂物、只留定版产物） |
+| 生产环境 | 服务器 `/opt/yl`（私有开发工作树） | 实际在跑的一份，含大量 `*.bak-*`、诊断脚本、历史 bundle |
+
+两者**不是同一个 git 仓库**，也不应互相 `push`：生产树是「开发工作树」（169 个跟踪文件 / 75MB，混有
+调试残留），直接推上来会污染发布包。正确的同步方向是**单向的「生产 → 本仓库」**：
+
+```bash
+# 比对 + 把生产实际在跑的定版产物同步进本仓库（需 paramiko）
+python scripts/sync-from-prod.py --check   # 只比对 md5，不写
+python scripts/sync-from-prod.py           # 不一致就以生产为准覆盖
+```
+
+覆盖范围：定版 bundle、`srv/index_v28.ts`、`srv/game-dicts.json`、`CHANGELOG*.md`。
+
+> **`build/index.html` 是唯一预期差异**：生产用 `/myxxz/` 绝对路径并注入平台脚本
+> （`h5game/unified-stats.js`、`mw-reward`），仓库保留 `./` 相对路径且不注入，以保证 clone 后可独立运行。
+> 因此它**不参与自动同步**。
+
 ### 技术栈
 
 | 层 | 技术 |
@@ -111,8 +133,9 @@ docker compose up -d --build  # ② 构建镜像并启动
 
 ### 0.9.23（2026-10-06 01:34）
 **优化：自动历练结束汇总改为一条日志**
-- 停止一次自动历练现在只写 1 条日志
-- 实现
+- `function YlxwAdvSummary
+- `function YlxwAdvSession
+- 结果
 
 ### 0.9.22（2026-10-06 00:44）
 **修复：挂机收益恒 0**

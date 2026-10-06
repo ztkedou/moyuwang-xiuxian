@@ -473,10 +473,12 @@ SRV_CHAIN = [
                                  #   ★ 挂链尾：offlineRewards()/offlineWindow()/offlineAnchor()/OFFLINE_*
                                  #     常量/月卡判定/入账钳制 **一行未动**，端点与响应结构零改动。
                                  #   ★ 客户端零改动（本批客户端仅版本号 0.9.22）。
+    'srv_patch_r160.py',   # R-160 离线结算时长上限按境界递增：基准 8h->24h(练气1层) + 每层 +1h + 月卡 x1.5（第 70 环）
+    'srv_patch_r163.py',   # R-163 灵田数值重定档：种子 3000 起 / 卖钱草净赚收敛 / 其余净亏换修为（第 71 环）
 ]
 
-# ---- 前端产物路径（0.9.22 换名：index-v2923-20261006.js，与 build_v26n.py OUT 逐字一致）----
-CLIENT_OUT = os.path.join(ROOT, 'build', 'assets', 'index-v2923-20261006.js')
+# ---- 前端产物路径（0.9.22 换名：index-v2924-20261006.js，与 build_v26n.py OUT 逐字一致）----
+CLIENT_OUT = os.path.join(ROOT, 'build', 'assets', 'index-v2924-20261006.js')
 SRV_OUT = os.path.join(ROOT, 'srv', 'index_v28.ts')
 
 

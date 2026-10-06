@@ -39,7 +39,7 @@
 |---|---|---|---|---|
 | `build/index.html` | 2 KB | — | ✅ | 页面外壳，引用最终 bundle |
 | `build/assets/index-v26m-20260927.js` | 1.51 MB | `b315eb1a04e967a66c128861b3a3dadd` | ✅ | **前端冻结基座（装配输入）**，不可变，复现必需 |
-| `build/assets/index-v2923-20261006.js` | 2.29 MB | `5cd89d3522f52ec0fcaf5f659f230504` | ✅ | **装配产出 = 0.9.23 定版产物**，作为可校验的参考物（见下方「关于产物是否入库」） |
+| `build/assets/index-v2923-20261006.js` | 2.29 MB | `3d0980c5c4f5f6adc988101d7411bec5` | ✅ | **装配产出 = 0.9.23 定版产物**，作为可校验的参考物（见下方「关于产物是否入库」） |
 | `build/assets/index-ZuV-l8Gt.css` | 160 KB | — | ✅ | 样式表，前端运行必需 |
 | `build/assets/logo-BInDl5Di.png` | 145 KB | — | ✅ | 站点 Logo |
 

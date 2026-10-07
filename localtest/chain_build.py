@@ -36,7 +36,7 @@ BASE_DIR = os.path.join(ROOT, '_v281_base')
 STAGE = os.path.join(ROOT, '_chainstage')
 
 PY = sys.executable
-NODE = r'C:/Users/27026/.workbuddy-ai/binaries/node/versions/22.22.2-3/node.exe'
+NODE = r'C:/Users/<USER>/.workbuddy-ai/binaries/node/versions/22.22.2-3/node.exe'
 
 # ---- 冻结基座指纹（改这里 = 改事实源，须有明确理由）----
 BASE_FP = {

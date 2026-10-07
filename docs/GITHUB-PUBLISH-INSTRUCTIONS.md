@@ -23,7 +23,7 @@
 
 | 项 | 值 |
 |---|---|
-| **本地仓库路径** | `D:\AIWorkspaces\github-moyuwang-xiuxian\` |
+| **本地仓库路径** | `<WORKDIR>\github-moyuwang-xiuxian\` |
 | **当前 commit** | `main` 分支最新提交（见 `git log --oneline -1`；工作区干净） |
 | **文件数 / 体积** | **306 个文件 / 约 14.3 MB**（不含 `.git`） |
 | **仓库名（已定）** | **`moyuwang-xiuxian`** |
@@ -201,7 +201,7 @@ About 区能点到试玩链接、Release 页能看到 `v0.9.13`。
    python build_v26n.py                    # 前端产物
    python localtest/chain_build.py --srv   # 服务端产物
    ```
-2. 你把新产物同步进 `D:\AIWorkspaces\github-moyuwang-xiuxian\`。
+2. 你把新产物同步进 `<WORKDIR>\github-moyuwang-xiuxian\`。
 3. 跑第 2 步安全闸 → `git add -A` → `git commit -m "<中文说明>"` → `git push`。
 4. 提交信息用中文写清「改了什么、为什么」，例如：
    - `feat(0.9.13): R-116~R-131 数值线重配 + 文案线 + BUG 修（三批 16 项）`

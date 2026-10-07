@@ -85,8 +85,8 @@ yl_r165_ext.py — R-165 打坐「顿悟」同一触发点产生悟道心得（s
 ==============================================================================
 六、自测记录（本机实测，命令 + 结果）
 ==============================================================================
-  NODE = C:/Users/27026/.workbuddy-ai/binaries/node/versions/22.22.2-3/node.exe
-  TMP  = C:/Users/27026/AppData/Local/Temp/r165t/t.js   （build 产物临时副本）
+  NODE = C:/Users/<USER>/.workbuddy-ai/binaries/node/versions/22.22.2-3/node.exe
+  TMP  = C:/Users/<USER>/AppData/Local/Temp/r165t/t.js   （build 产物临时副本）
 
   [1] 首次补丁：  python localtest/yl_r165_ext.py --src $TMP
         -> rc=0

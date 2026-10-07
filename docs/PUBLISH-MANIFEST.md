@@ -2,7 +2,7 @@
 
 > 本文件说明：哪些文件会进入公开的 GitHub 仓库、为什么可发；哪些文件被排除、为什么排除。
 > 生成时间：2026-09-29 ｜ 最后更新：2026-10-07（同步至 **0.9.29** 后复扫）
-> staging 目录：`D:\AIWorkspaces\github-moyuwang-xiuxian\`
+> staging 目录：`<WORKDIR>\github-moyuwang-xiuxian\`
 > 统计：**362 个文件 / 约 14.3 MB**（不含 `.git`）
 
 ---

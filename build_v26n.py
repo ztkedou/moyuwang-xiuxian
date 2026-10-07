@@ -1146,7 +1146,7 @@ def _js_syntax_check(src):
     「我改了我想改的」，不能证明「产物还是合法 JS」。
     """
     import subprocess, tempfile, os as _os
-    node = _os.environ.get('YL_NODE') or r'C:\Users\27026\.workbuddy-ai\binaries\node\versions\22.22.2-3\node.exe'
+    node = _os.environ.get('YL_NODE') or r'C:\Users\<USER>\.workbuddy-ai\binaries\node\versions\22.22.2-3\node.exe'
     if not _os.path.exists(node):
         print('[WARN] 找不到 node，跳过 JS 语法门禁：%s' % node)
         return

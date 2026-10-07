@@ -16,14 +16,14 @@
 1. **禁止**任何 `ssh root@<生产服务器>` / 线上写操作。本轮只在本机测。
 2. **禁止**修改 `build/`、`srv/`、`*.py` 补丁源、`CHANGELOG.md` —— 除非你是 lead 且明确在修 bug。
    普通成员只**读**、只**写** `localtest/` 下的测试脚本 + `localtest/report_<你的名字>.md`。
-3. 沙盒库是 `D:/Personal/Temp/yl_v28_sandbox/s<idx>/database.sqlite`（**副本**，可随便改）。
+3. 沙盒库是 `<LOCAL>/Temp/yl_v28_sandbox/s<idx>/database.sqlite`（**副本**，可随便改）。
 
 ---
 
 ## 1. 起沙盒（每人一个独立 idx，互不干扰）
 
 ```bash
-cd /c/Users/27026/workbuddy-ai/WorkBuddyAiWorkSpace/yl-deploy
+cd /c/Users/<USER>/workbuddy-ai/WorkBuddyAiWorkSpace/yl-deploy
 bash localtest/sandbox.sh up    <idx>      # 起服 + 前端壳；40s 内就绪
 bash localtest/sandbox.sh seed  <idx>      # 灌测试数据（活动 + 3 个原型账号）
 bash localtest/sandbox.sh down  <idx>      # 收
@@ -44,7 +44,7 @@ bash localtest/sandbox.sh url   <idx>      # 打印入口
 > ⚠️ **s2 / s3 / s4 的服务端副本仍是 04:33 的旧版（`9e6f91f1…`）**，只适合测**客户端**行为；
 > 要测服务端改动，先 `down` + `up` 重起。
 
-- 日志：`D:/Personal/Temp/yl_v28_sandbox/s<idx>/{server.log,harness.log}`
+- 日志：`<LOCAL>/Temp/yl_v28_sandbox/s<idx>/{server.log,harness.log}`
 - `up` 会**先杀**该 idx 的两个端口，再起新进程；重复 `up` 是安全的（幂等）。
 - `up` 会**重置库**（从 pristine 拷贝）→ 会丢掉 seed 数据，所以顺序永远是 `up` → `seed`。
 - **`up` / `refresh` 会让 Git Bash 的管道挂住**（后台 node 持着 fd），命令看起来「不返回」但服务其实已经起好。
@@ -90,7 +90,7 @@ bash localtest/sandbox.sh url   <idx>      # 打印入口
 | 经济 | `GET /api/economy/summary`(GM)、`GET /api/economy/anomalies`(GM) |
 | GM | `POST /api/gm/login` `{password:'gamer'}` → `GET /api/gm/players` 等 |
 
-GM 密码：**`gamer`**（沙盒 `.env` 里 `GM_PASSWORD=gamer`）。
+GM 密码：**`<GM_PASSWORD>`**（沙盒 `.env` 里 `GM_PASSWORD=gamer`）。
 
 ### ⚠️ `POST /api/save` 的 body 格式（写错会把存档写坏，已有人踩过）
 
@@ -112,7 +112,7 @@ call(base, "/save", token, method="POST", body={"saveData": save_obj})
 ## 4. Playwright 用法（唯一可用的 python）
 
 ```
-C:/Users/27026/.workbuddy-ai/binaries/python/envs/default/Scripts/python.exe
+C:/Users/<USER>/.workbuddy-ai/binaries/python/envs/default/Scripts/python.exe
 ```
 `playwright` 已装（含 chromium）。示例：
 

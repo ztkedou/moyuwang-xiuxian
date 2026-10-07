@@ -1,7 +1,7 @@
 # 给新对话的「第一步执行清单」 · NEXT-CONVERSATION-STEPS
 
 > **给谁看**：用户开的新对话（专职负责把本仓库上传到用户自己的 GitHub 并长期维护）。
-> **前提**：用户已在本机 `D:\AIWorkspaces\github-moyuwang-xiuxian\` 准备好完整的发布物，
+> **前提**：用户已在本机 `<WORKDIR>\github-moyuwang-xiuxian\` 准备好完整的发布物，
 > 并且**已经在本地做完一次 git 提交**（只做了本地提交，**没有** remote、**没有** push）。
 > **用户不会 git** —— 全部命令由你（AI）代为执行，用户只看结果。
 
@@ -133,7 +133,7 @@ git push -u origin main
 ## 7. 之后的长期维护（用户每次改完游戏）
 
 1. 用户在本机改完并重新构建（`python build_v26n.py` / `python localtest/chain_build.py --srv`）。
-2. 你把新产物同步进 `D:\AIWorkspaces\github-moyuwang-xiuxian\`。
+2. 你把新产物同步进 `<WORKDIR>\github-moyuwang-xiuxian\`。
 3. `git add -A` → `git commit -m "<中文说明改了什么>"` → 执行第 5 节的扫描 → `git push`。
 4. 提交信息用中文，写清「改了什么、为什么」，例如：
    `feat(0.9.13): R-116~R-131 数值线重配 + 文案线 + BUG 修（三批 16 项）`
@@ -156,7 +156,7 @@ git push -u origin main
 
 | 项 | 值 |
 |---|---|
-| 仓库目录 | `D:\AIWorkspaces\github-moyuwang-xiuxian\` |
+| 仓库目录 | `<WORKDIR>\github-moyuwang-xiuxian\` |
 | 文件数 / 体积 | 306 个 / 约 14.3 MB（不含 `.git`） |
 | 建议仓库名 | `moyuwang-xiuxian` |
 | 关键文件 | `README.md`、`LICENSE`、`.gitignore`、`.env.example`、`CHANGELOG.md`、`build_v26n.py`、`srv/index_v28.ts` |

@@ -125,7 +125,7 @@ yl_r169_ext.py — R-169 洞府灵草「配置信息缺失·折算回收」旧�
 ==============================================================================
 八、自测记录（本机实测 · 全程只动临时副本）
 ==============================================================================
-  NODE = C:/Users/27026/.workbuddy-ai/binaries/node/versions/22.22.2-3/node.exe
+  NODE = C:/Users/<USER>/.workbuddy-ai/binaries/node/versions/22.22.2-3/node.exe
   [1] --check：门禁全绿 + round-trip identical=True
   [2] 首次补丁：rc=0，落 t.js.bak-r169-<ts>，chars 2134673 -> 2134903（delta +230）
   [3] 幂等重跑：rc=3 "already patched (idempotent skip)"（未写盘）
@@ -309,7 +309,7 @@ def _roundtrip_ok(out, s0):
 
 def _find_node():
     cand = [os.environ.get('NODE'), shutil.which('node'),
-            'C:/Users/27026/.workbuddy-ai/binaries/node/versions/22.22.2-3/node.exe']
+            'C:/Users/<USER>/.workbuddy-ai/binaries/node/versions/22.22.2-3/node.exe']
     for c in cand:
         if c and os.path.exists(c):
             return c

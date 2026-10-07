@@ -32,7 +32,7 @@ def _default_key():
     return os.path.expanduser("~/.ssh/yl_prod.key")
 
 
-HOST = os.environ.get("YL_PROD_HOST", "104.208.93.109")
+HOST = os.environ.get("YL_PROD_HOST", "104.208.x.x")
 USER = os.environ.get("YL_PROD_USER", "root")
 KEY = _default_key()
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

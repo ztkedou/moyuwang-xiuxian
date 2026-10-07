@@ -71,7 +71,7 @@ import time
 
 SRC = os.path.join("srv", "index_v28.ts")
 MARK = "[r112]"
-NODE = r"C:/Users/27026/.workbuddy-ai/binaries/node/versions/22.22.2-3/node.exe"
+NODE = r"C:/Users/<USER>/.workbuddy-ai/binaries/node/versions/22.22.2-3/node.exe"
 
 MED_CHANCE = "0.004"   # 打坐 每跳掉玉率（最低）
 ADV_CHANCE = "0.009"   # 历练 每次掉玉率（略高于打坐）

@@ -278,7 +278,7 @@ def _order_probe(text):
 
 def _find_node():
     cand = [os.environ.get('NODE'), shutil.which('node'),
-            'C:/Users/27026/.workbuddy-ai/binaries/node/versions/22.22.2-3/node.exe']
+            'C:/Users/<USER>/.workbuddy-ai/binaries/node/versions/22.22.2-3/node.exe']
     for c in cand:
         if c and os.path.exists(c):
             return c

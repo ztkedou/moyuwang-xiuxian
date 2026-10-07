@@ -1,7 +1,7 @@
 # 敏感串扫描报告 · SECRETS-SCAN
 
 > 目的：证明即将发布到公开 GitHub 的仓库中**不含任何密钥、凭据、隐私或服务器信息**。
-> 扫描对象：staging 目录 `D:\AIWorkspaces\github-moyuwang-xiuxian\`（**306 个文件 / 约 14.3 MB**）
+> 扫描对象：staging 目录 `<WORKDIR>\github-moyuwang-xiuxian\`（**306 个文件 / 约 14.3 MB**）
 > 扫描时间：2026-10-02（0.9.13 同步后复扫；历史 0.8.11.1 记录见下文） ｜ 扫描方式：`grep -rE` / `git grep` 逐文件全量匹配
 >
 > **独立复扫（2026-09-30）**：以 `git grep` 对**全部文件（含本次新增的 59 个客户端补丁 / 44 个服务端补丁 / 产物 / 设计文档）**重跑 4 组正则

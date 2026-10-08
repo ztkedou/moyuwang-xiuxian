@@ -131,7 +131,7 @@ python scripts/sync-from-prod.py           # 不一致就以生产为准覆盖
 > 本段由 `scripts/gen-readme-changelog.py` 依据 [CHANGELOG.md](./CHANGELOG.md) **自动生成**，请勿手改；
 > 要改内容请改 `CHANGELOG.md`（唯一权威源），再运行 `python scripts/gen-readme-changelog.py`。
 
-### 0.9.38（2026-10-08 16:45）
+### 0.9.38（2026-10-08 16:39）
 **修为喂养改 2% + 转换倍率下调到 0.5（1 条 / 纯客户端批）**
 - 改动 4 处
 - 机制澄清（重要）

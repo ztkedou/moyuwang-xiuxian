@@ -39,7 +39,7 @@ PY = sys.executable
 # ★ 2026-10-08 修：原为写死 `…/node/versions/22.22.2-3/node.exe`，
 #   但本机 node 已随工具升级为 22.22.2-6（旧目录被删）⇒ 写死路径会 FileNotFoundError。
 #   改为：YL_NODE 环境变量 → versions 目录下**按名排序取最新** → 兜底裸 `node`。
-_NROOT = r'C:/Users/27026/.workbuddy-ai/binaries/node/versions'
+_NROOT = r'C:/Users/<USER>/.workbuddy-ai/binaries/node/versions'
 _NCANDS = []
 if os.path.isdir(_NROOT):
     _NCANDS = sorted(os.path.join(_NROOT, _d, 'node.exe') for _d in os.listdir(_NROOT))
@@ -604,7 +604,7 @@ SRV_CHAIN = [
 ]
 
 # ---- 前端产物路径（0.9.31 换名：index-v2931-20261007.js，与 build_v26n.py OUT 逐字一致）----
-CLIENT_OUT = os.path.join(ROOT, 'build', 'assets', 'index-v2939-20261008.js')
+CLIENT_OUT = os.path.join(ROOT, 'build', 'assets', 'index-v2940-20261008.js')
 SRV_OUT = os.path.join(ROOT, 'srv', 'index_v28.ts')
 
 

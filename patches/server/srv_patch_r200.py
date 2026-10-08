@@ -269,7 +269,7 @@ def _roundtrip(out: str, src: str):
 
 def _find_node():
     cand = [os.environ.get('YL_NODE'), os.environ.get('NODE'), shutil.which('node')]
-    nroot = 'C:/Users/27026/.workbuddy-ai/binaries/node/versions'
+    nroot = 'C:/Users/<USER>/.workbuddy-ai/binaries/node/versions'
     if os.path.isdir(nroot):
         subs = sorted(os.path.join(nroot, d, 'node.exe') for d in os.listdir(nroot))
         cand += [p for p in reversed(subs) if os.path.isfile(p)]

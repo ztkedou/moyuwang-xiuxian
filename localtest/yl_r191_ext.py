@@ -215,9 +215,12 @@ def gates():
         ('R191\u2461\u00b7\u5206\u6863\u5b57\u6bb5\u521d\u59cb\u5316',
          'tierLow: 0, tierMid: 0, tierHigh: 0 };', 1, '==', '统计对象新增 3 字段'),
         # ---- B2：累加 ----
+        # ★ 2026-10-08（0.9.40 / R-209）：分档下界阈值 150 由 R-209 改写为 370
+        #   （`if (ds <= 150)` -> `if (ds <= 370)`）⇒ 本针改为**阈值无关**（去掉 `ds <= 150`
+        #   字面量、只钉后半段结构）；新阈值由 R-209 自己的门禁负责。
         ('R191\u2462\u00b7\u5206\u6863\u7d2f\u52a0\u5728\u4f4d',
-         'if (ds <= 150) S.tierLow += 1; else if (ds >= 1000) S.tierHigh += 1; else S.tierMid += 1;',
-         1, '==', '常态/几百/几千 穷尽分档'),
+         'S.tierLow += 1; else if (ds >= 1000) S.tierHigh += 1; else S.tierMid += 1;',
+         1, '==', '常态/几百/几千 穷尽分档（阈值 150 由 R-209 改写，本针只钉结构）'),
         # ---- B3：渲染 ----
         # ★ 2026-10-08（0.9.39 / R-208）：标签改名（常态→寻常 / 几百→丰厚 / 几千→横财）⇒
         #   本针改为**值无关**（只钉「分档 」这个行首前缀，跨 r208 恒成立）。三个新标签由 r208 自己的门禁负责。
@@ -327,8 +330,8 @@ def _roundtrip_ok(out, s0):
 
 def _find_node():
     cand = [os.environ.get('NODE'), shutil.which('node'),
-            'C:/Users/27026/.workbuddy-ai/binaries/node/versions/22.22.2-6/node.exe',
-            'C:/Users/27026/.workbuddy-ai/binaries/node/versions/22.22.2-3/node.exe']
+            'C:/Users/<USER>/.workbuddy-ai/binaries/node/versions/22.22.2-6/node.exe',
+            'C:/Users/<USER>/.workbuddy-ai/binaries/node/versions/22.22.2-3/node.exe']
     for c in cand:
         if c and os.path.exists(c):
             return c

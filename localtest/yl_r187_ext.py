@@ -92,7 +92,7 @@ yl_r187_ext.py — R-187「仙途指引 说明内数字与实发不同步」stan
 ==============================================================================
 四、自测记录（本机实测，命令 + 结果）
 ==============================================================================
-  PY   = C:/Users/27026/.workbuddy-ai/binaries/python/versions/3.13.12/python.exe
+  PY   = C:/Users/<USER>/.workbuddy-ai/binaries/python/versions/3.13.12/python.exe
   NODE = PATH 上的 node（22.22.2）
   TMP  = 系统临时目录副本（跑完删）
   [1] --check 全绿；[2] 对 TMP 副本真实写回；[3] node --check rc=0；[4] 复跑 SKIP(rc=3)；
@@ -252,8 +252,8 @@ def _roundtrip_ok(out, s0):
 
 def _find_node():
     cand = [os.environ.get('NODE'), shutil.which('node'),
-            'C:/Users/27026/.workbuddy-ai/binaries/node/versions/22.22.2-3/node.exe',
-            'C:/Users/27026/.workbuddy-ai/binaries/node/versions/22.22.2-6/node.exe']
+            'C:/Users/<USER>/.workbuddy-ai/binaries/node/versions/22.22.2-3/node.exe',
+            'C:/Users/<USER>/.workbuddy-ai/binaries/node/versions/22.22.2-6/node.exe']
     for c in cand:
         if c and os.path.exists(c):
             return c

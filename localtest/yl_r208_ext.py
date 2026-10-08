@@ -86,7 +86,10 @@ REPLACEMENTS = [
 
 # 冻结针脚（对**输入**校验，全 ASCII，count 实测）：本环不动的判定/统计/渲染结构
 FREEZE = [
-    ('if (ds <= 150) S.tierLow += 1; else if (ds >= 1000) S.tierHigh += 1; else S.tierMid += 1;', 1),
+    # ★ 2026-10-08（0.9.40 / R-209）：分档下界阈值 150 由 R-209 改写为 370
+    #   （`if (ds <= 150)` -> `if (ds <= 370)`）⇒ 本针去掉 `ds <= 150` 字面量、只钉后半段结构
+    #   （R-208 套用时在 R-209 之前，输入里 150 仍在，收窄后仍 count==1）。
+    ('S.tierLow += 1; else if (ds >= 1000) S.tierHigh += 1; else S.tierMid += 1;', 1),
     ('tierLow: 0, tierMid: 0, tierHigh: 0', 1),
     ('function YlxwAdvStatAcc(res)', 1),
     ('function YlxwAdvSummary(el)', 1),
@@ -115,9 +118,11 @@ def gates():
         ('R208-\u51e0\u767e remaining', r'\u51e0\u767e', 2, '==', '几百仅余注释 2 处'),
         ('R208-\u51e0\u5343 remaining', r'\u51e0\u5343', 0, '==', '几千已全清（唯一处在渲染行内）'),
         # ---- 冻结（对应产物）----
+        # ★ 2026-10-08（0.9.40 / R-209）：下界阈值 150 由 R-209 改写为 370 ⇒ 本针去掉
+        #   `ds <= 150` 字面量、只钉后半段结构（阈值常量变化属「收窄」；形态整体消失才退役）。
         ('R208-tier thresholds kept',
-         'if (ds <= 150) S.tierLow += 1; else if (ds >= 1000) S.tierHigh += 1; else S.tierMid += 1;',
-         1, '==', '分档阈值 150/1000 未动'),
+         'S.tierLow += 1; else if (ds >= 1000) S.tierHigh += 1; else S.tierMid += 1;',
+         1, '==', '分档结构未动（阈值 150 由 R-209 改写，本针只钉结构）'),
         ('R208-stat-new kept', 'tierLow: 0, tierMid: 0, tierHigh: 0', 1, '==', ''),
         ('R208-statacc kept', 'function YlxwAdvStatAcc(res)', 1, '==', ''),
         ('R208-summary kept', 'function YlxwAdvSummary(el)', 1, '==', ''),
@@ -208,8 +213,8 @@ def _roundtrip_ok(out, s0):
 def _find_node():
     import shutil
     cand = [os.environ.get('NODE'), shutil.which('node'),
-            'C:/Users/27026/.workbuddy-ai/binaries/node/versions/22.22.2-6/node.exe',
-            'C:/Users/27026/.workbuddy-ai/binaries/node/versions/22.22.2-3/node.exe']
+            'C:/Users/<USER>/.workbuddy-ai/binaries/node/versions/22.22.2-6/node.exe',
+            'C:/Users/<USER>/.workbuddy-ai/binaries/node/versions/22.22.2-3/node.exe']
     for c in cand:
         if c and os.path.exists(c):
             return c

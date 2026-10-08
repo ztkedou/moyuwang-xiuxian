@@ -329,7 +329,7 @@ def _roundtrip_ok(out, s0, picked):
 def _find_node():
     cand = [os.environ.get('NODE'), shutil.which('node')]
     # 兜底：扫描内置 node 版本目录（不写死具体版本号，避免路径过期）
-    cand += sorted(glob.glob('C:/Users/27026/.workbuddy-ai/binaries/node/versions/*/node.exe'),
+    cand += sorted(glob.glob('C:/Users/<USER>/.workbuddy-ai/binaries/node/versions/*/node.exe'),
                    reverse=True)
     for c in cand:
         if c and os.path.exists(c):

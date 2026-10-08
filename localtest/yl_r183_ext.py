@@ -408,7 +408,7 @@ def _find_node():
     故用 glob 取最新一个，而不是写死某个版本号）。"""
     import glob
     cand = [os.environ.get('NODE'), shutil.which('node')]
-    cand += sorted(glob.glob('C:/Users/27026/.workbuddy-ai/binaries/node/versions/*/node.exe'),
+    cand += sorted(glob.glob('C:/Users/<USER>/.workbuddy-ai/binaries/node/versions/*/node.exe'),
                    reverse=True)
     for c in cand:
         if c and os.path.exists(c):

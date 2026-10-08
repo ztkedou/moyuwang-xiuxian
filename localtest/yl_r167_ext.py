@@ -108,7 +108,7 @@ yl_r167_ext.py — R-167 仙务·妖灵：并入重复的「喂养/嬉戏」按�
 ==============================================================================
 六、自测记录（本机实测 · 全程只动临时副本）
 ==============================================================================
-  NODE = C:/Users/27026/.workbuddy-ai/binaries/node/versions/22.22.2-3/node.exe
+  NODE = C:/Users/<USER>/.workbuddy-ai/binaries/node/versions/22.22.2-3/node.exe
   [1] --check：门禁全绿 + round-trip identical=True（除 2 处外逐字节一致）
   [2] 首次补丁：rc=0，落 test.js.bak-r167-<ts>，chars 2134673 -> 2134476（delta -197）
   [3] 幂等重跑：rc=3 "already patched (idempotent skip)"（未写盘）
@@ -288,7 +288,7 @@ def _roundtrip_ok(out, s0):
 
 def _find_node():
     cand = [os.environ.get('NODE'), shutil.which('node'),
-            'C:/Users/27026/.workbuddy-ai/binaries/node/versions/22.22.2-3/node.exe']
+            'C:/Users/<USER>/.workbuddy-ai/binaries/node/versions/22.22.2-3/node.exe']
     for c in cand:
         if c and os.path.exists(c):
             return c

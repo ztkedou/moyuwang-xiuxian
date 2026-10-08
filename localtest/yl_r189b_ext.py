@@ -55,8 +55,8 @@ yl_r189b_ext.py -- R-189b 妖灵「主人加成」说明文案 6% → 10%（stan
 ==============================================================================
 三、自测记录（本机实测）
 ==============================================================================
-  PY   = C:/Users/27026/.workbuddy-ai/binaries/python/versions/3.13.12/python.exe
-  NODE = C:/Users/27026/.workbuddy-ai/binaries/node/versions/22.22.2-6/node.exe
+  PY   = C:/Users/<USER>/.workbuddy-ai/binaries/python/versions/3.13.12/python.exe
+  NODE = C:/Users/<USER>/.workbuddy-ai/binaries/node/versions/22.22.2-6/node.exe
          （★ 本机实际 22.22.2-6；脚本自动探测）
   [1] --check 全绿；[2] 对 TMP 副本真实写回；[3] node --check rc=0；[4] 复跑 SKIP(rc=3)；
   [5] 删副本与 .bak。详见交付汇报。
@@ -200,9 +200,9 @@ def _roundtrip_ok(out, s0):
 
 def _find_node():
     cand = [os.environ.get('NODE'), shutil.which('node'),
-            'C:/Users/27026/.workbuddy-ai/binaries/node/versions/22.22.2-6/node.exe',
-            'C:/Users/27026/.workbuddy-ai/binaries/node/versions/22.22.2-6/node',
-            'C:/Users/27026/.workbuddy-ai/binaries/node/versions/22.22.2-3/node.exe']
+            'C:/Users/<USER>/.workbuddy-ai/binaries/node/versions/22.22.2-6/node.exe',
+            'C:/Users/<USER>/.workbuddy-ai/binaries/node/versions/22.22.2-6/node',
+            'C:/Users/<USER>/.workbuddy-ai/binaries/node/versions/22.22.2-3/node.exe']
     for c in cand:
         if c and os.path.exists(c):
             return c

@@ -189,8 +189,8 @@ yl_r184_ext.py — R-184 「功法悟道」经验挂到自动历练「高价值�
 ==============================================================================
 四、自测记录（本机实测 · 2026-10-07 · R-184 v2 重做）
 ==============================================================================
-  PY   = C:/Users/27026/.workbuddy-ai/binaries/python/versions/3.13.12/python.exe
-  NODE = C:/Users/27026/.workbuddy-ai/binaries/node/versions/22.22.2-6/node.exe
+  PY   = C:/Users/<USER>/.workbuddy-ai/binaries/python/versions/3.13.12/python.exe
+  NODE = C:/Users/<USER>/.workbuddy-ai/binaries/node/versions/22.22.2-6/node.exe
   SRC  = build/assets/index-v2930-20261007.js（2,308,071 B；md5 4a765aa197694ff3175f29e8a38cc2c2）
   TMP  = 系统临时目录副本（跑完删）
   [1] --check（对 SRC，只校验不写盘）：rc=0；门禁 26/26 全绿；chars 2,139,575 -> 2,140,981 (+1,406)。
@@ -392,9 +392,9 @@ def _roundtrip_ok(out, s0):
 
 def _find_node():
     cand = [os.environ.get('NODE'), shutil.which('node'),
-            'C:/Users/27026/.workbuddy-ai/binaries/node/versions/22.22.2-6/node.exe',
-            'C:/Users/27026/.workbuddy-ai/binaries/node/versions/22.22.2-6/node',
-            'C:/Users/27026/.workbuddy-ai/binaries/node/versions/22.22.2-3/node.exe']
+            'C:/Users/<USER>/.workbuddy-ai/binaries/node/versions/22.22.2-6/node.exe',
+            'C:/Users/<USER>/.workbuddy-ai/binaries/node/versions/22.22.2-6/node',
+            'C:/Users/<USER>/.workbuddy-ai/binaries/node/versions/22.22.2-3/node.exe']
     for c in cand:
         if c and os.path.exists(c):
             return c

@@ -131,7 +131,7 @@ python scripts/sync-from-prod.py           # 不一致就以生产为准覆盖
 > 本段由 `scripts/gen-readme-changelog.py` 依据 [CHANGELOG.md](./CHANGELOG.md) **自动生成**，请勿手改；
 > 要改内容请改 `CHANGELOG.md`（唯一权威源），再运行 `python scripts/gen-readme-changelog.py`。
 
-### 0.9.39（2026-10-08 17:10）
+### 0.9.39（2026-10-08 17:15）
 **心法改「点一次加经验」+ 挂机历练寿命下调 + 结算分档改名（3 条 / 含服务端第 88 环）**
 - 用户说的「心法学习」= 「仙务 · 心法」六卷面板（客户端 YlxwTXinfa087，注册 YLXW_COMP.gon…
 - 改法（最省事路径）

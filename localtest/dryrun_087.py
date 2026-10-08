@@ -143,8 +143,8 @@ NEW_MODULES = ['grotto087', 'farm087', 'xinfa087', 't6chardex',
                'r111', 'r113', 'r114', 'r115',  # 2026-10-02 0.9.12 R-111 签到 / R-113 万妖五boss / R-114 历练收获 / R-115 洞府灵田
                'r124']  # 2026-10-02 0.9.13 R-124 灵田服用预览 spirit→神识（r116/r118 standalone 不在此表）
 
-VERSION = '0.9.37'
-BUNDLE_BASENAME = 'index-v2937-20261008.js'   # 与 build_v26n.OUT / chain_build.CLIENT_OUT / build/index.html 逐字一致
+VERSION = '0.9.38'
+BUNDLE_BASENAME = 'index-v2938-20261008.js'   # 与 build_v26n.OUT / chain_build.CLIENT_OUT / build/index.html 逐字一致
 # ★ 升版四件套之外的第 5 处：本文件的 VERSION 必须同步（下方 wiring_checks 用它交叉校验
 #   yl_version_ext.DEFAULT_VERSION 与 CHANGELOG 最新条目，两者都对上才算过）。
 
@@ -408,6 +408,8 @@ def main():
     # ---- 2026-10-08 0.9.37 批接线（R-195 文案审计 / R-196 冷却走秒）----
     import yl_r202_ext as _sa_r202
     import yl_r203_ext as _sa_r203
+    # ---- 2026-10-08 0.9.38 批接线（R-197 修为喂养 2% + 倍率 0.5）----
+    import yl_r204_ext as _sa_r204
     n_sa_gates = 0
     with open(stage_path, 'rb') as f:
         final_bytes = f.read()
@@ -437,7 +439,9 @@ def main():
                    ('r196', _sa_r196), ('r197', _sa_r197), ('r198', _sa_r198),
                    ('r199', _sa_r199), ('r200', _sa_r200),
                    # ---- 2026-10-08 0.9.37 批 ----
-                   ('r202', _sa_r202), ('r203', _sa_r203)]
+                   ('r202', _sa_r202), ('r203', _sa_r203),
+                   # ---- 2026-10-08 0.9.38 批 ----
+                   ('r204', _sa_r204)]
     for _tag, _mod in _sa_scripts:
         for _t in _mod.gates():
             name, s, expect, cmp, note = _t[:5]

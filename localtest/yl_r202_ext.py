@@ -217,7 +217,8 @@ def gates():
         ('R195txt-A4/A5 intimacy +1~2', '+1~2\u4eb2\u5bc6\u5ea6', 2, '==', 'item + exp'),
         ('R195txt-old intimacy +2~5 cleared', '+2~5\u4eb2\u5bc6\u5ea6', 0, '==', ''),
         # ---- A5 ----
-        ('R195txt-A5 exp desc 25%', '\u6d88\u8017 25% \u5f53\u524d\u4fee\u4e3a', 1, '==', ''),
+        # ★ 2026-10-08（0.9.38 / R-197）：r204 把 25% → 2% ⇒ 针改成**值无关**（只钉括号里的稳定后缀）
+        ('R195txt-A5 exp desc 形态在位（值无关）', '\u5f53\u524d\u4fee\u4e3a (\u7ecf\u9a8c\u6839\u636e\u5883\u754c\u8ba1\u7b97\uff0c+1~2\u4eb2\u5bc6\u5ea6)', 1, '==', 'r204 后前缀改为 2%'),
         ('R195txt-A5 old 5% cleared', '\u6d88\u8017 5% \u5f53\u524d\u4fee\u4e3a', 0, '==', ''),
         # ---- B1/B2 ----
         ('R195txt-B1 hp toast 1000', 'q="\u6d88\u8017\u4e86 1000 \u70b9\u6c14\u8840"', 1, '==', ''),
@@ -225,16 +226,21 @@ def gates():
         ('R195txt-B2 hp err 1000', '\u9700\u8981 1000 \u70b9\u6c14\u8840', 1, '==', ''),
         ('R195txt-B2 old err cleared', '\u9700\u8981 200 \u70b9\u6c14\u8840', 0, '==', ''),
         # ---- C ----
-        ('R195txt-C exp gate .25', 'Math.floor(d.exp*.25)', 1, '==', ''),
+        # ★ 2026-10-08（0.9.38 / R-197）：这 2 条改为**值无关**形态 —— r204 把修为喂养的比例
+        #   `.25 → .02`（消耗/闸门/实扣三处）⇒ 表达式**结构**仍在、只是常量变了。
+        #   故用「表达式前缀」当针（跨 r204 恒成立），**新比例由 r204 自己的门禁负责**。
+        #   （本仓先例：pinfix4 把 r188 的冻结针从 `d(9)` 改成值无关的 `d(`。）
+        ('R195txt-C exp gate 形态在位（值无关）', 'Math.max(1,Math.floor(d.exp*.', 1, '==', 'r204 后比例已改 .02'),
         ('R195txt-C old gate .05 cleared', 'Math.floor(d.exp*.05)', 0, '==', ''),
-        ('R195txt-C deduct still .25', 'Math.floor(w.exp*.25)', 1, '==', 'untouched'),
+        ('R195txt-C deduct 形态在位（值无关）', 'Math.max(1,Math.floor(w.exp*.', 1, '==', 'r204 后比例已改 .02'),
         # ---- 冻结（对应产物）----
         ('R195txt-hp deduct 1000 kept', 'if(k==="hp")P=Math.max(0,w.hp-1000);', 1, '==', ''),
         ('R195txt-batch C=1000 kept', 'const C=1000,g=k||Math.floor(d.hp/C);', 1, '==', ''),
         ('R195txt-hp intimacy 0 kept', 'const Z=k==="hp"?0:Math.floor(1+Math.random()*2),te=w.pets.map(', 1, '==', ''),
         ('R195txt-feed base A=100 kept', 'let A=100;', 1, '==', ''),
         ('R195txt-feed base B=100 kept', 'let B=100;', 1, '==', ''),
-        ('R195txt-exp/item mult kept', 'k==="exp"?U=2:k==="item"&&(U=3.5);', 1, '==', ''),
+        # ★ 2026-10-08（0.9.38 / R-197）：r204 把 U 的修为半边 2→0.5 ⇒ 收窄到物品半边（跨 r204 恒成立）
+        ('R195txt-exp/item mult kept（物品半边）', 'k==="item"&&(U=3.5);', 1, '==', ''),
         ('R195txt-handleFeedPet kept', 'handleFeedPet:(N,k,_)=>', 1, '==', ''),
         ('R195txt-handleBatchFeedHp kept', 'handleBatchFeedHp:(N,k)=>', 1, '==', ''),
         ('R195txt-item batch intimacy kept', 'Math.floor((2+Math.random()*4)*k.length)', 1, '==', ''),

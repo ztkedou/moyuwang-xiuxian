@@ -338,7 +338,7 @@ from yl_r067_ext import apply as v28_r067_apply  # noqa: E402
 from yl_068_ext import apply as v28_r068_apply  # noqa: E402
 
 BASE = os.path.join(HERE, 'build', 'assets', 'index-v26m-20260927.js')
-OUT = os.path.join(HERE, 'build', 'assets', 'index-v2941-20261008.js')
+OUT = os.path.join(HERE, 'build', 'assets', 'index-v2942-20261008.js')
 
 # v28 模块调用顺序（锚点稳定性 + num-balance 必须最后）：
 #   saveretry → arb → version → mail → entry → sectgf → char → bond → ui
@@ -637,6 +637,7 @@ STANDALONE_CLIENT = [
     ('r209', os.path.join(HERE, 'localtest', 'yl_r209_ext.py')),  # R-201 历练结算「几百」档下界 150 → **370**：实测（真实 1200 模板 + 真实 Fm 权重 + 真实战斗路）T∈[363,377] 为平台区，370 取中点 ⇒ 几百 34.7%→16.1%、常态 64.4%→83.0%、几千 0.9% 不误伤（纯客户端；落盘号 r209）
     ('r210', os.path.join(HERE, 'localtest', 'yl_r210_ext.py')),  # R-202 灵宠经验曲线 1.2^L → **1.1^L**（4 处宠物升级循环）+ 存量宠物 maxExp 迁移（ho 钩子：只降不升、exp 等比缩放 ⇒ 幂等且不爆级）；L1→L100 总需求 2.07e10 → 7.52e6（纯客户端；落盘号 r210）
     ('r211', os.path.join(HERE, 'localtest', 'yl_r211_ext.py')),  # R-204 历练分档阈值**随境界缩放**：判定行逐字不动，改为把**判定输入归一化** `ds/u`（与「阈值×u」严格等价）⇒ 档位概率与境界**无关**（恒 83/16/1）。u 由 `Fg` 经 window.YLXW_ADV_PL 外挂传入（★ 签名/调用点被 r138/r155/r161/r184/r191 钉死，不能改）（纯客户端；落盘号 r211）
+    ('r212', os.path.join(HERE, 'localtest', 'yl_r212_ext.py')),  # R-205 分档**频率**重标定（边界 200 不动）：① 战斗触发率 ×0.15（25.3%→9.8%，落进既有下限 0.1 ⇒ 触发率**恒 10%**、境界项被吸收）② 中档模板权重 0.7→0.32 ③ 长生 longevityRule 降权 ×0.05 ⇒ **7 境界全 85/14/1**（代价：均值灵石 炼气 −37.6% / 长生 −67.3%，用户已拍板）（纯客户端；落盘号 r212）
 ]
 
 

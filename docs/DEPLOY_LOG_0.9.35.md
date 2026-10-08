@@ -85,9 +85,9 @@
    - **5 个文件**（`_v281_base/index_v28.base.ts` / `patches/server/srv_patch_baseclean089.py` /
      `docs/GITHUB-PUBLISH-INSTRUCTIONS.md` / `docs/SECRETS-SCAN.md` / `localtest/README_SANDBOX.md`）
      的脱敏改动只落在**本地 staging**（privacy 提交 `60206e2` / `31f8757` / `53349cd`），**从未推到远端**
-     ⇒ 远端 main 一直含 `|| 'gamer'`。已用 `_gh_push_privacy5.py` 补推（commit `fe592bad301c`）。
-   - 全树复查又抓到**最后 1 处**：`CHANGELOG.md` 历史条目里的 `gamer520` 字面量
-     （`_chainstage/` 中间态虽含 `|| 'gamer'`，但被 `_gh_sync` 白名单排除、不进 GitHub）。
+     ⇒ 远端 main 一直含 `|| '<沙盒弱口令>'`。已用 `_gh_push_privacy5.py` 补推（commit `fe592bad301c`）。
+   - 全树复查又抓到**最后 1 处**：`CHANGELOG.md` 历史条目里的 `<沙盒弱口令>` 字面量
+     （`_chainstage/` 中间态虽含 `|| '<沙盒弱口令>'`，但被 `_gh_sync` 白名单排除、不进 GitHub）。
      ⇒ 已占位符化为 `<WEAK_PASSWORD>`，重传线上并**第二次**重登记 `EXPECT_CHANGELOG_MD5`
      （`859e8199…` → **`33231247d8dd8608d0decaaf61a5d8dd`**）。
    ★ **根因教训**：`_gh_push*.py` 只推 `git diff HEAD~1 HEAD` ⇒ **历史上漏推的提交永远补不上**；

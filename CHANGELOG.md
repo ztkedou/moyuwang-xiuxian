@@ -1093,7 +1093,7 @@ React 会把数字 0 渲染成文本 ⇒ 名字后面多出一个「0」。改�
 **R-086 GM 后台入口打通（运维侧，非本仓库产物）**：
 403 根因 = **nginx 目录索引**（`/opt/yl/www/gm-pro/` 只有 `gm-pro.html` 无 `index.html` + autoindex 关）。
 已在 `main` 新增 `location /myxxz/gm-pro/ { alias /opt/yl/www/gm-pro/; index gm-pro.html; }`，
-并把 `.env` 的 `GM_PASSWORD` 改为 `gamer520`（**diff 证明仅第 5 行变化，其余密钥一字未动**）。
+并把 `.env` 的 `GM_PASSWORD` 改为 `<WEAK_PASSWORD>`（**diff 证明仅第 5 行变化，其余密钥一字未动**）。
 验证：`/myxxz/gm-pro/` → **200**（165693 B）｜`POST /yl/api/gm/login` → **200** 返回 token｜`yl-server` active｜主站 200。
 ⚠ 暴露面（按用户拍板**暂不加保护**）：`/api/gm/login` 公网可达、**无限流**、会话 **7 天**；
 后端 `:3001` 直连公网不可达。**加固建议**：`limit_req` 限 login + 强随机口令 + IP allowlist + 会话缩到 2h。

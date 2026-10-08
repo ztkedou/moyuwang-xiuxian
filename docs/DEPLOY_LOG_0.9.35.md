@@ -33,7 +33,7 @@
 | `www/assets/index-v2933-20261008.js` | `babae2e2b0cb92f07e0278c5840b1766` | 同左（更早回滚点） |
 | `www/assets/index-v2935-20261008.js` | —（新文件） | **`af2883a4a7fa489b9b5c3851d1c85948`**（2,315,892 B） |
 | `server/index.ts` | `4cd3632ceebee7a50c6943d89da4c23d`（84 环） | **`8318e1c9fad3242364df7b3a585ca61f`**（1,016,800 B / **85 环**） |
-| `www/CHANGELOG.md` | `565b030cf7fe98c6383a6f91478aa544` | **`859e8199780f8970b2f24ac56224acb5`** |
+| `www/CHANGELOG.md` | `565b030cf7fe98c6383a6f91478aa544` | **`33231247d8dd8608d0decaaf61a5d8dd`** |
 | `www/CHANGELOG_PLAYER.md` | `fa83e3539be679bd46b6306494dc4be4` | **`81180d88e261207617b1ebeb93a0100c`** |
 | `server/game-dicts.json` | `1b635513f553875060869272b790f910` | **同左（未变）** |
 
@@ -52,7 +52,7 @@
 
 - `remote_check_v2835.sh` → **REMOTE-CHECK: PASS (0 failures)**，**无 WARN**（服务端有变 ⇒「没换？」WARN 不触发）
 - 线上实测指纹：bundle `af2883a4…`（2,315,892 B）｜server `8318e1c9…`（1,016,800 B）｜
-  CHANGELOG `859e8199…`｜CHANGELOG_PLAYER `81180d88…`
+  CHANGELOG `33231247…`｜CHANGELOG_PLAYER `81180d88…`
 - `index.html` 指向 **`index-v2935-20261008.js`**（旧引用已清零）
 - ★★ **gzip 硬断言**：`zcat index.html.gz | grep 新包 = 1` ✓
 - `yl-server`：`active` / `NRestarts = 0` / **`ActiveEnterTimestamp = 2026-10-08 10:52:13 CST`（已重启）**
@@ -81,6 +81,17 @@
    ⇒ 改为按长度分派；并**注入一条 5 元组 + 一条 6 元组假失败**跑通自证（两行明细均完整打印、rc=1、无 traceback）。
 5. **CHANGELOG 条目头时刻必须先占位、上线后回填**：部署脚本 step 0 会 fail-closed 校验
    `EXPECT_CHANGELOG_MD5` ⇒ 改完文案必须**重登记 EXPECT**，否则下一轮 step 0 会 ABORT。
+6. ★★ **GitHub 远端一直明文留着沙盒口令**（本批一并清掉）：
+   - **5 个文件**（`_v281_base/index_v28.base.ts` / `patches/server/srv_patch_baseclean089.py` /
+     `docs/GITHUB-PUBLISH-INSTRUCTIONS.md` / `docs/SECRETS-SCAN.md` / `localtest/README_SANDBOX.md`）
+     的脱敏改动只落在**本地 staging**（privacy 提交 `60206e2` / `31f8757` / `53349cd`），**从未推到远端**
+     ⇒ 远端 main 一直含 `|| 'gamer'`。已用 `_gh_push_privacy5.py` 补推（commit `fe592bad301c`）。
+   - 全树复查又抓到**最后 1 处**：`CHANGELOG.md` 历史条目里的 `gamer520` 字面量
+     （`_chainstage/` 中间态虽含 `|| 'gamer'`，但被 `_gh_sync` 白名单排除、不进 GitHub）。
+     ⇒ 已占位符化为 `<WEAK_PASSWORD>`，重传线上并**第二次**重登记 `EXPECT_CHANGELOG_MD5`
+     （`859e8199…` → **`33231247d8dd8608d0decaaf61a5d8dd`**）。
+   ★ **根因教训**：`_gh_push*.py` 只推 `git diff HEAD~1 HEAD` ⇒ **历史上漏推的提交永远补不上**；
+     「本地 tree == 远端 tree」这条自检是**唯一**能抓到它的手段 —— 本轮就是靠它发现的（`tree 一致：否 ✗`）。
 
 ## 6. 待用户拍板（本批**未做**）
 
@@ -125,7 +136,7 @@ PREV_SRV_S20_MD5=7780e099a6cd1ac0de4b502c467ae2c0     # 0.8.9 定版 s20.t16aren
 # 本版（0.9.35）新指纹：
 #   bundle   af2883a4a7fa489b9b5c3851d1c85948  (2,315,892 B)  index-v2935-20261008.js
 #   server   8318e1c9fad3242364df7b3a585ca61f  (1,016,800 B / 85 环 = s85.r198.ts)
-#   CHANGELOG.md        859e8199780f8970b2f24ac56224acb5
+#   CHANGELOG.md        33231247d8dd8608d0decaaf61a5d8dd
 #   CHANGELOG_PLAYER.md 81180d88e261207617b1ebeb93a0100c
 ```
 

@@ -157,6 +157,15 @@ BASE_V1 = '0.004'    # v1 无天赋阈值
 TALENT = '0.05'      # v2 有天赋阈值（用户拍板：5%）
 BASE = '0.01'        # v2 无天赋阈值（用户拍板：普通玩家 1%）
 
+# ---- 退役针脚标记（0.9.36 起）----
+# 语义：本环（R-188 v2）**排在 R-199 之前**套用 ⇒ apply 时自动历练冷却 `}finally{c(!1),d(9)}`
+#   仍在（count==1，precheck 通过）；而 R-199（0.9.35）已把它合法改写为 `d(7)` ⇒ 终态该形态为 0。
+# 单条 (needle, expect) 无法同时满足 apply 态(1) 与终态(0)，故退役 = **终态专用**：
+#   · dryrun 读 gates() 在终态复核（期望 0，如实反映 R-199 改写后的形态）；
+#   · 本环 apply/--check 时跳过（不检、不计 FAIL），避免「老补丁依赖新补丁」——终态形态由
+#     R-199 自己的门禁负责；「冷却块在位」由值无关针脚 `}finally{c(!1),d(` 负责（d(9)/d(7) 皆成立）。
+RETIRED_TAG = '【已退役·终态专用】'
+
 # 打坐顿悟判定行：原件形态（从未打过 r188）
 A_ORIG = 'const j=gd(a),b=Math.random()<.004;let S,x;if(b){'
 # 打坐顿悟判定行：v1 形态（0.15/0.004 + [r188med]，0.9.30 已上线）
@@ -191,7 +200,9 @@ FREEZE = [
     ('function Hw({autoMeditate:t,', 1),                 # 打坐/历练主循环
     # ---- 历练侧：证明「降率」留在历练侧、未被搬到打坐（只钉本批不动的稳定形态）----
     ('[r177adv]', 1), ('[r179advlog]', 1),
-    ('}finally{c(!1),d(9)}', 1), ('}finally{c(!1),d(10)}', 0),
+    # 冷却块用「值无关」前缀：R-188 只保证没碰这个块；冷却值本身由 R-177(9s)/R-199(7s) 负责。
+    # （原 `('}finally{c(!1),d(9)}', 1)` 已改立**终态专用**退役门禁，见 gates()）
+    ('}finally{c(!1),d(', 1), ('}finally{c(!1),d(10)}', 0),
     ('$>500?x*=.5:', 1),
     ('$>200?x*=.5+f*1', 0), ('x*=1-f*.3', 1),
     # ---- 远古 1% 形态（Math.random()<.01 写法）已不存在 ----
@@ -222,6 +233,10 @@ def gates():
         ('R188v2·天赋判定用既有范式', 'a.talentIds!=null&&a.talentIds.includes("instant-dao")', 1, '==',
          '照抄 talent-prodigy/talent-firm-heart 范式'),
         ('R188v2·instant-dao 出现 2 处', 'instant-dao', 2, '==', '天赋表定义 + 本环判定'),
+        # ---- 终态退役：R-199 已合法改写自动历练冷却 ----
+        ('冻结 }finally{c(!1),d(9)}' + RETIRED_TAG, '}finally{c(!1),d(9)}', 0, '==',
+         'R-199/0.9.35 已把自动历练冷却 d(9) → d(7) ⇒ 终态归 0（新形态由 R199 自己的门禁负责；'
+         '「冷却块在位」由值无关针脚 `}finally{c(!1),d(` 覆盖）'),
     ]
     for needle, cnt in FREEZE:
         g.append(('冻结 ' + needle[:30], needle, cnt, '==', '冻结既有形态'))
@@ -291,6 +306,10 @@ def apply_patch(src):
 def _run_gates(out):
     """返回 None=全绿；否则返回失败串。"""
     for label, needle, expect, op, note in gates():
+        if RETIRED_TAG in label:
+            # 退役针脚（终态专用）：本环 apply 时 R-199 尚未套用，自产 d(9) 形态仍在 ⇒ 不检；
+            # 终态由复核（期望 0）负责，新形态由 R-199 自己的门禁负责。
+            continue
         c = out.count(needle)
         if op == '==' and c != expect:
             return 'GATE FAIL %s: count=%d expect %d' % (label, c, expect)
@@ -508,7 +527,10 @@ def main():
         print('[r188] check OK [%s] (%d -> %d chars, %+d)'
               % (tag, len(s0), len(out), len(out) - len(s0)))
         for label, needle, expect, op, note in gates():
-            print('    gate %-46s %s' % (label, 'OK'))
+            if RETIRED_TAG in label:
+                print('    [SKIP] %s 已退役（终态由 R-199 门禁复核）' % label.replace(RETIRED_TAG, ''))
+            else:
+                print('    gate %-46s %s' % (label, 'OK'))
         return 0
 
     ts = datetime.now().strftime('%Y%m%d_%H%M%S')
@@ -519,7 +541,10 @@ def main():
     print('[r188] patched (v1 -> v2): %d -> %d chars (%+d) (backup %s)'
           % (len(s0), len(out), len(out) - len(s0), os.path.basename(bak)))
     for label, needle, expect, op, note in gates():
-        print('    gate %-46s %s' % (label, 'OK'))
+        if RETIRED_TAG in label:
+            print('    [SKIP] %s 已退役（终态由 R-199 门禁复核）' % label.replace(RETIRED_TAG, ''))
+        else:
+            print('    gate %-46s %s' % (label, 'OK'))
     return 0
 
 

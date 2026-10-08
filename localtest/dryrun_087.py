@@ -382,26 +382,58 @@ def main():
     import yl_r176_ext as _sa_r176
     import yl_r177_ext as _sa_r177
     import yl_r179_ext as _sa_r179
+    # ---- 2026-10-08 0.9.30~0.9.36 批接线（R-180~R-200 共 20 脚本 gates() 纳入预演）----
+    #      ★ 名单严格以 build_v26n.STANDALONE_CLIENT 为准（r180 及之后条目）；
+    #        yl_r194_ext.py 刻意不在该名单内 ⇒ 此处不接线。
+    import yl_r180_ext as _sa_r180
+    import yl_r181_ext as _sa_r181
+    import yl_r183_ext as _sa_r183
+    import yl_r185_ext as _sa_r185
+    import yl_r188_ext as _sa_r188
+    import yl_r184_ext as _sa_r184
+    import yl_r187_ext as _sa_r187
+    import yl_r190_ext as _sa_r190
+    import yl_r189_ext as _sa_r189
+    import yl_r189b_ext as _sa_r189b
+    import yl_r189c_ext as _sa_r189c
+    import yl_r191_ext as _sa_r191
+    import yl_r192_ext as _sa_r192
+    import yl_r193_ext as _sa_r193
+    import yl_r195_ext as _sa_r195
+    import yl_r196_ext as _sa_r196
+    import yl_r197_ext as _sa_r197
+    import yl_r198_ext as _sa_r198
+    import yl_r199_ext as _sa_r199
+    import yl_r200_ext as _sa_r200
     n_sa_gates = 0
     with open(stage_path, 'rb') as f:
         final_bytes = f.read()
     final_text = final_bytes.decode('utf-8')
-    for _tag, _mod in (('r116', _sa_r116), ('r118', _sa_r118),
-                       ('r119', _sa_r119), ('r125', _sa_r125), ('r126', _sa_r126),
-                       ('r120', _sa_r120), ('r121', _sa_r121), ('r123', _sa_r123),
-                       ('r128', _sa_r128), ('r131', _sa_r131), ('r132', _sa_r132),
-                       ('r131fix', _sa_r131fix),
-                       ('r133', _sa_r133), ('r134', _sa_r134), ('r135', _sa_r135),
-                       ('r136', _sa_r136), ('r137', _sa_r137), ('r138', _sa_r138),
-                       ('r139', _sa_r139),
-                       ('r140', _sa_r140), ('r140b', _sa_r140b), ('r141', _sa_r141),
-                       ('r142', _sa_r142), ('r143', _sa_r143),
-                       ('r144', _sa_r144), ('r145', _sa_r145), ('r146', _sa_r146),
-                       ('r155', _sa_r155), ('r161', _sa_r161), ('r162', _sa_r162),
-                       ('r163', _sa_r163), ('r165', _sa_r165), ('r166', _sa_r166),
-                       ('r167', _sa_r167), ('r169', _sa_r169), ('r169b', _sa_r169b),
-                       ('r174', _sa_r174), ('r175', _sa_r175), ('r176', _sa_r176),
-                       ('r177', _sa_r177), ('r179', _sa_r179)):
+    _sa_scripts = [('r116', _sa_r116), ('r118', _sa_r118),
+                   ('r119', _sa_r119), ('r125', _sa_r125), ('r126', _sa_r126),
+                   ('r120', _sa_r120), ('r121', _sa_r121), ('r123', _sa_r123),
+                   ('r128', _sa_r128), ('r131', _sa_r131), ('r132', _sa_r132),
+                   ('r131fix', _sa_r131fix),
+                   ('r133', _sa_r133), ('r134', _sa_r134), ('r135', _sa_r135),
+                   ('r136', _sa_r136), ('r137', _sa_r137), ('r138', _sa_r138),
+                   ('r139', _sa_r139),
+                   ('r140', _sa_r140), ('r140b', _sa_r140b), ('r141', _sa_r141),
+                   ('r142', _sa_r142), ('r143', _sa_r143),
+                   ('r144', _sa_r144), ('r145', _sa_r145), ('r146', _sa_r146),
+                   ('r155', _sa_r155), ('r161', _sa_r161), ('r162', _sa_r162),
+                   ('r163', _sa_r163), ('r165', _sa_r165), ('r166', _sa_r166),
+                   ('r167', _sa_r167), ('r169', _sa_r169), ('r169b', _sa_r169b),
+                   ('r174', _sa_r174), ('r175', _sa_r175), ('r176', _sa_r176),
+                   ('r177', _sa_r177), ('r179', _sa_r179),
+                   # ---- 2026-10-08 0.9.30~0.9.36 批（R-180~R-200，共 20 脚本）----
+                   ('r180', _sa_r180), ('r181', _sa_r181), ('r183', _sa_r183),
+                   ('r185', _sa_r185), ('r188', _sa_r188), ('r184', _sa_r184),
+                   ('r187', _sa_r187), ('r190', _sa_r190), ('r189', _sa_r189),
+                   ('r189b', _sa_r189b), ('r189c', _sa_r189c), ('r191', _sa_r191),
+                   ('r192', _sa_r192), ('r193', _sa_r193), ('r195', _sa_r195),
+                   ('r196', _sa_r196), ('r197', _sa_r197), ('r198', _sa_r198),
+                   ('r199', _sa_r199), ('r200', _sa_r200)]
+    for _tag, _mod in _sa_scripts:
         for _t in _mod.gates():
             name, s, expect, cmp, note = _t[:5]
             _within = _t[5] if len(_t) > 5 else None
@@ -410,9 +442,15 @@ def main():
                 _a, _b = _within
                 _i0 = final_text.find(_a)
                 _i1 = final_text.find(_b)
-                act = final_text[_i0:_i1].count(s) if (_i0 >= 0 and _i1 > _i0) else 0
+                _seg = final_text[_i0:_i1] if (_i0 >= 0 and _i1 > _i0) else ''
+                # ★ 与下方 else 分支同语义：needle 为 tuple/list 时按多形态合计计数（string 行为逐字不变）
+                act = (sum(_seg.count(x) for x in s)
+                       if isinstance(s, (tuple, list)) else _seg.count(s))
             else:
-                act = final_text.count(s)
+                # ★ 兼容 needle 为 tuple/list（多形态合计计数）——r185/r189/r195/r197 有此类门禁，
+                #   与 _audit_gates.py / 各脚本 _count() 同语义（string needle 行为逐字不变）。
+                act = (sum(final_text.count(x) for x in s)
+                       if isinstance(s, (tuple, list)) else final_text.count(s))
             # ★ 兼容三种 cmp 写法：'==' / '>=' / '>=N'（后者把 N 写进 cmp、expect 为 None）
             _op, _exp = cmp, expect
             if isinstance(cmp, str) and cmp.startswith('>='):
@@ -427,7 +465,8 @@ def main():
                 # ★ 0.9.28 修：把**真实计数 act** 一起存进 fails —— 原来失败明细里用陈旧变量 out 重算，
                 #   会打印出与实际不符的数字（本轮曾出现「期望 1 实际 1 却 FAIL」的误导显示）。
                 fails.append((name, s, _exp, _op, note, act))
-    print('standalone 门禁: %d 条（r116~r179 共 41 脚本 gates()，跑在补丁后形态）' % n_sa_gates)
+    print('standalone 门禁: %d 条（r116~r200 共 %d 脚本 gates()，跑在补丁后形态）'
+          % (n_sa_gates, len(_sa_scripts)))
 
     md5 = hashlib.md5(final_bytes).hexdigest()
     print('\n预演产物（未上线）: %s' % os.path.relpath(stage_path, ROOT).replace('\\', '/'))

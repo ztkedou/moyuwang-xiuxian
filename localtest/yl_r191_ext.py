@@ -127,6 +127,17 @@ from datetime import datetime
 # 幂等标记（本批）
 IDEMPOTENT_MARK = '/*[r191adv]*/'
 
+# ---- 退役针脚标记（0.9.36 起）----
+# 语义：本环（R-191）**排在 R-193 之前**套用 ⇒ apply 时本环注入的新 EV 形态与幂等标记
+#   `/*[r191adv]*/` **仍在**（count==1）；而 R-193（0.9.33）已**取代**本环的 EV 公式
+#   （终态 `V=0.01+Math.min(0.03,$a(titleId,unlockedTitles).luck*0.0003)`，不再含本环的 0.00003 项，
+#    且 `/*[r191adv]*/` 被移除）⇒ 本环这 3 条形态在终态为 0。
+# 单条 (needle, expect) 无法同时满足 apply 态(1) 与终态(0)，故退役 = **终态专用**：
+#   · dryrun 读 gates() 在终态复核（期望 0，如实反映 R-193 改写后的形态）；
+#   · 本环 apply/--check 时跳过（不检、不计 FAIL），避免「老补丁依赖新补丁」——新形态由
+#     R-193 自己的门禁负责。
+RETIRED_TAG = '【已退役·终态专用】'
+
 # --------------------------------------------------------------------------- 替换项
 # ★ 形态约定：本批锚点全为**纯 ASCII**（EV 公式 / 统计函数体）；渲染行中文为 bundle 内
 #   **字面 `\uXXXX`**（六字符）⇒ 本 .py 源码用 `\\uXXXX`（双反斜杠）写出，运行期字符串即 `\uXXXX`。
@@ -186,17 +197,20 @@ def gates():
     """返回 5 元组列表 (label, needle, expect, op, note)，对**补丁后**产物校验。
     needle 可为 tuple（多形态合计计数）。"""
     return [
-        # ---- 幂等标记 ----
-        ('R191\u00b7\u5e42\u7b49\u6807\u8bb0 r191adv', IDEMPOTENT_MARK, 1, '==', '[r191adv] 恰 1 处'),
-        # ---- A：EV ----
-        ('R191\u2460\u00b7\u65b0 EV \u516c\u5f0f\u5728\u4f4d',
-         'V=0.01+Math.min(0.01,(t.luck||0)*0.00003)', 1, '==', '有界幸运项'),
+        # ---- 幂等标记（★ 终态退役：R-193 已取代本环公式并移除标记）----
+        ('R191\u00b7\u5e42\u7b49\u6807\u8bb0 r191adv' + RETIRED_TAG, IDEMPOTENT_MARK, 0, '==',
+         'R-193 已取代本环 EV 公式并移除 /*[r191adv]*/ ⇒ 终态归 0；新形态由 R193 自己的门禁负责'),
+        # ---- A：EV（★ 前/末两条终态退役：R-193 已取代本环公式）----
+        ('R191\u2460\u00b7\u65b0 EV \u516c\u5f0f\u5728\u4f4d' + RETIRED_TAG,
+         'V=0.01+Math.min(0.01,(t.luck||0)*0.00003)', 0, '==',
+         'R-193 已把 EV 换成「纯称号来源」公式 ⇒ 本环 0.00003 项终态归 0；新形态由 R193 自己的门禁负责'),
         ('R191\u2460\u00b7\u65e7 EV \u516c\u5f0f\u5df2\u6e05\u96f6',
          'V=Math.min(.3,0.01+(t.luck||0)*.001)', 0, '==', '旧无界 EV 0 处'),
         ('R191\u2460\u00b7\u65e7\u5c01\u9876\u9879\u5df2\u6e05\u96f6',
          'Math.min(.3,0.01+(t.luck||0)*.001)', 0, '==', 'Math.min(.3,0.01+…) 0 处'),
-        ('R191\u2460\u00b7\u65b0 EV \u884c\u5b8c\u6574\u5728\u4f4d',
-         'V=0.01+Math.min(0.01,(t.luck||0)*0.00003)' + IDEMPOTENT_MARK + ';', 1, '==', 'EV + 标记 + 分号'),
+        ('R191\u2460\u00b7\u65b0 EV \u884c\u5b8c\u6574\u5728\u4f4d' + RETIRED_TAG,
+         'V=0.01+Math.min(0.01,(t.luck||0)*0.00003)' + IDEMPOTENT_MARK + ';', 0, '==',
+         'R-193 已取代本环 EV 行（含标记）⇒ 终态归 0；新形态由 R193 自己的门禁负责'),
         # ---- B1：初始化 ----
         ('R191\u2461\u00b7\u5206\u6863\u5b57\u6bb5\u521d\u59cb\u5316',
          'tierLow: 0, tierMid: 0, tierHigh: 0 };', 1, '==', '统计对象新增 3 字段'),
@@ -287,6 +301,10 @@ def _count(out, needle):
 def _run_gates(out):
     """返回 None=全绿；否则返回失败串。"""
     for label, needle, expect, op, note in gates():
+        if RETIRED_TAG in label:
+            # 退役针脚（终态专用）：本环 apply 时 R-193 尚未套用，自产 EV 形态/标记仍在 ⇒ 不检；
+            # 终态由复核（期望 0）负责，新形态由 R-193 自己的门禁负责。
+            continue
         c = _count(out, needle)
         if op == '==' and c != expect:
             return 'GATE FAIL %s: count=%d expect %d' % (label, c, expect)
@@ -456,7 +474,10 @@ def main():
     if args.check:
         print('[r191] check OK (%d -> %d chars, %+d)' % (len(s0), len(out), len(out) - len(s0)))
         for label, needle, expect, op, note in gates():
-            print('    gate %-46s %s' % (label, 'OK'))
+            if RETIRED_TAG in label:
+                print('    [SKIP] %s 已退役（终态由 R-193 门禁复核）' % label.replace(RETIRED_TAG, ''))
+            else:
+                print('    gate %-46s %s' % (label, 'OK'))
         return 0
 
     ts = datetime.now().strftime('%Y%m%d_%H%M%S')
@@ -467,7 +488,10 @@ def main():
     print('[r191] patched: %d -> %d chars (%+d) (backup %s)'
           % (len(s0), len(out), len(out) - len(s0), os.path.basename(bak)))
     for label, needle, expect, op, note in gates():
-        print('    gate %-46s %s' % (label, 'OK'))
+        if RETIRED_TAG in label:
+            print('    [SKIP] %s 已退役（终态由 R-193 门禁复核）' % label.replace(RETIRED_TAG, ''))
+        else:
+            print('    gate %-46s %s' % (label, 'OK'))
     return 0
 
 

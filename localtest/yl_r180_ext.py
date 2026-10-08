@@ -170,6 +170,17 @@ V3_MARK = '[r180adv3]'           # v3 旧幂等标记
 V2_MARK = '[r180adv2]'           # v2 旧幂等标记
 V1_MARK = '[r180adv]'            # v1 旧幂等标记
 
+# ---- 退役针脚标记（0.9.36 起）----
+# 语义：本环（R-180 v4）**排在 R-191 / R-193 之前**套用 ⇒ apply 时 EV 的 1% 形态**仍在**（count==1）；
+#   而 R-191（0.9.32）先把它重写为「有界幸运项」，R-193（0.9.33）最终把 EV 换成「纯称号来源」公式
+#   （`V=0.01+Math.min(0.03,$a(titleId,unlockedTitles).luck*0.0003)`，默认 1% / 顶配称号 4%）
+#   ⇒ 本环注入的 1% 形态在终态为 0。
+# 单条 (needle, expect) 无法同时满足 apply 态(1) 与终态(0)，故退役 = **终态专用**：
+#   · dryrun 读 gates() 在终态复核（期望 0，如实反映 R-191/R-193 改写后的形态）；
+#   · 本环 apply/--check 时跳过（不检、不计 FAIL），避免「老补丁依赖新补丁」——新形态由
+#     R-191 / R-193 自己的门禁负责。
+RETIRED_TAG = '【已退役·终态专用】'
+
 # --------------------------------------------------------------------------- 参数（v4 灵石档位）
 
 # 奇遇率 V（「几千」档载体）常数化：base + 幸运项（幸运非「境界」，保留其作用）
@@ -371,8 +382,10 @@ def gates():
         ('R180v4·★ 普通物品因子未动（R-188 门禁）', 'x*=1-f*.3', 1, '==', ''),
         ('R180v4·★ R-177 旧高档已清零', '$>500?x*=.2+f*1.5', 0, '==', ''),
         ('R180v4·★ R-177 旧中档阈值已清零', '$>200?x*=.5+f', 0, '==', ''),
-        # ---- EV 奇遇率 ----
-        ('R180v4·EV 奇遇率已常数化 1%', V_SIG_V4, 1, '==', V_NEW),
+        # ---- EV 奇遇率（★ 终态退役：R-191/R-193 已合法重写 EV 公式）----
+        ('R180v4·EV 奇遇率已常数化 1%' + RETIRED_TAG, V_SIG_V4, 0, '==',
+         'R-191/R-193 已合法重写奇遇率公式（R-193 终态 = 纯称号来源、封顶 3%）⇒ 旧 1% 形态终态归 0；'
+         '新形态由 R191/R193 自己的门禁负责（本环 apply 跳过）'),
         ('R180v4·EV 旧 3% 形态已清零', V_V3, 0, '==', 'v3 的 0.03 版已清除'),
         ('R180v4·EV 旧境界依赖式已清零', 'V=Math.min(.3,B+Y+L+P)', 0, '==', ''),
         ('R180v4·EV 旧境界序依赖项已清零', 'Y=U*.02', 0, '==', ''),
@@ -490,6 +503,10 @@ def _transform(s):
 
 def _run_gates(out):
     for label, needle, expect, op, note in gates():
+        if RETIRED_TAG in label:
+            # 退役针脚（终态专用）：本环 apply 时 R-191/R-193 尚未套用，自产 1% 形态仍在 ⇒ 不检；
+            # 终态由复核（期望 0）负责，新形态由 R-191/R-193 自己的门禁负责。
+            continue
         c = out.count(needle)
         if op == '==' and c != expect:
             return 'GATE FAIL %s: count=%d expect %d' % (label, c, expect)
@@ -892,7 +909,10 @@ def main():
         print('[r180v4] check OK [%s 基线] (%d -> %d chars, %+d)'
               % (kind, len(s0), len(out), len(out) - len(s0)))
         for label, needle, expect, op, note in gates():
-            print('    gate %-44s %s' % (label, 'OK'))
+            if RETIRED_TAG in label:
+                print('    [SKIP] %s 已退役（终态由 R-191/R-193 门禁复核）' % label.replace(RETIRED_TAG, ''))
+            else:
+                print('    gate %-44s %s' % (label, 'OK'))
         return 0
 
     ts = datetime.now().strftime('%Y%m%d_%H%M%S')
@@ -903,7 +923,10 @@ def main():
     print('[r180v4] patched [%s 基线]: %d -> %d chars (%+d) (backup %s)'
           % (kind, len(s0), len(out), len(out) - len(s0), os.path.basename(bak)))
     for label, needle, expect, op, note in gates():
-        print('    gate %-44s %s' % (label, 'OK'))
+        if RETIRED_TAG in label:
+            print('    [SKIP] %s 已退役（终态由 R-191/R-193 门禁复核）' % label.replace(RETIRED_TAG, ''))
+        else:
+            print('    gate %-44s %s' % (label, 'OK'))
     return 0
 
 

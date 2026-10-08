@@ -205,7 +205,8 @@ def gates():
         ('R189c\u00b7\u5e42\u7b49\u6807\u8bb0 r189rune', IDEMPOTENT_MARK, 1, '==', '[r189rune] 恰 1 处'),
         # ---- ① 计算块 ----
         ('R189c\u2460\u00b7\u7075\u7eb9\u5b9e\u6548\u53d6\u503c\u5757', 'var ylxwRuneEff = [];', 1, '==', 'ylxwRuneEff 变量'),
-        ('R189c\u2460\u00b7\u8bfb player.petSpirit.runeCrit', 'ylxwRunePs.runeCrit', 1, '==', 'runeCrit'),
+        ('R189c\u2460\u00b7\u8bfb player.petSpirit.runeCrit', 'ylxwRunePs.runeCrit', 1, '>=',
+         'runeCrit（R-196 增加第二处读取 ⇒ 用 >= 保持稳健）'),
         ('R189c\u2460\u00b7\u8bfb player.petSpirit.runeDR', 'ylxwRunePs.runeDR', 1, '==', 'runeDR'),
         ('R189c\u2460\u00b7\u8bfb player.petSpirit.runeDodge', 'ylxwRunePs.runeDodge', 1, '==', 'runeDodge'),
         ('R189c\u2460\u00b7\u8bfb player.petSpirit.runeLeech', 'ylxwRunePs.runeLeech', 1, '==', 'runeLeech'),

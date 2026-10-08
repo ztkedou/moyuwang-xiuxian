@@ -4896,12 +4896,25 @@ const TRIB_REALM_BASES: Record<string, { maxExpBase: number; baseAttack: number;
   '合道期': { maxExpBase: 104430000, baseAttack: 781, baseDefense: 390, baseMaxHp: 7812 },
   '长生境': { maxExpBase: 452500000, baseAttack: 1953, baseDefense: 976, baseMaxHp: 19531 },
 };
-const TRIB_LEVEL_EXP_FACTOR = 0.24; // 客户端 ad(realm,lv)=floor(maxExpBase*(1+(lv-1)*0.24)) 同源
+/*[r201k]*/
+// R-201：客户端 R-183 修为分级倍率表（YLXW_R183_K）同序镜像 —— 键与 TRIB_REALM_BASES 逐字一致、同序。
+//   客户端 ad() 自 0.9.30 起再乘 K[realmIndex]；服务端 realmMaxExp() 自本环起同乘 K，与客户端逐项同源。
+//   未知境界兜底 K=1（不改变 realmMaxExp 对未知境界的既有 base 兜底行为）。
+const TRIB_REALM_R183_K: Record<string, number> = {
+  '炼气期': 14,
+  '筑基期': 6,
+  '金丹期': 4,
+  '元婴期': 2.5,
+  '化神期': 1.5,
+  '合道期': 1,
+  '长生境': 1,
+};
+const TRIB_LEVEL_EXP_FACTOR = 0.24; // 客户端 ad(realm,lv)=floor(maxExpBase*(1+(lv-1)*0.24)*K) 已含 R-183 的 K 表 同源
 // 修为上限（客户端同源公式）：当前境界第 lv 层的修为槽——天劫的"修为门槛"= 修为值须修满此槽
 function realmMaxExp(realm: string, realmLevel: number): number {
   const base = TRIB_REALM_BASES[realm]?.maxExpBase ?? 60000;
   const lv = Math.min(9, Math.max(1, Math.floor(Number(realmLevel) || 1)));
-  return Math.floor(base * (1 + (lv - 1) * TRIB_LEVEL_EXP_FACTOR));
+  return Math.floor(base * (1 + (lv - 1) * TRIB_LEVEL_EXP_FACTOR) * (TRIB_REALM_R183_K[realm] ?? 1));
 }
 const TRIBULATION_FAIL_COOLDOWN_MS = 10 * 60 * 1000; // 渡劫失败冷却 10 分钟
 const TRIB_ENEMY_SCALE = { attack: 2, defense: 2, hp: 1.5 }; // 天劫使者=目标境界基础属性×系数（本次定档，可调）
@@ -13516,6 +13529,8 @@ app.post('/api/pet/feed', authenticateToken, rateLimit({ windowMs: 60 * 1000, ma
     //     changes = 0 = 当日免费额度已用尽 ⇒ 按 _feed.cost 正常扣费（原扣费口径逐字不变）。
     //   ★ 失败补偿：后续任一环节失败（余额不足 / 扣费失败 / 宠物行缺失 / 异常）回退本次计数，
     //     避免玩家白占一次免费额度（与 play 端点 @13340-13343 同款补偿口径）。
+    // [r200free] R-200：R-167「喂养当日首次免费」已整段移除（免费进食由 R-198「免费玩法」独立提供；
+    //   上方 [r167feed] 闸门说明已作废，保留仅作历史留档）。付费进食恒按档位扣费。
     _feedDate = petDate(Date.now());
     if (_freeReq) {
       // [r198free] R-198 免费进食闸门：每日 3 次 + 30 分钟冷却（单语句原子；changes>0 才放行）。
@@ -13533,23 +13548,14 @@ app.post('/api/pet/feed', authenticateToken, rateLimit({ windowMs: 60 * 1000, ma
         return res.status(409).json({ error: _q.left <= 0 ? `今日免费进食已用完（每日 ${R198_FREE_FEED_MAX} 次）` : `免费进食冷却中（还需 ${Math.ceil(_q.cdLeftMs / 60000)} 分钟）`, freeFeed: _q });
       }
       _feedFree = true; // [r198free] 占用一次免费额度（下游失败时回退）
-    } else {
-      // [r167feed] R-167 原「当日首次免费」闸门（本环一行未动）
-      const _feedGate = await dbRun(
-        'INSERT INTO pet_feed_log (player_id, date, times) VALUES (?, ?, 1) ON CONFLICT(player_id, date) DO UPDATE SET times = times + 1 WHERE times < 1',
-        [userId, _feedDate]
-      );
-      _feedFree = _feedGate.changes > 0;
-      if (_feedFree) _feed.cost = 0;
     }
+    // [r200free] 原 [r167feed] 注释留档（该分支已删）：[r167feed] R-167 原「当日首次免费」闸门（本环一行未动）
+    /*[r200free]*/
     const _feedRollback = async (): Promise<void> => {
       if (!_feedFree || _feedDone) return; // 未占用 or 已成功 ⇒ 无需回退（幂等）
       _feedFree = false;                    // 至多回退一次
-      if (_freeReq) {
-        await dbRun('UPDATE pet_feed_log SET free_times = MAX(0, free_times - 1), last_free_at = NULL WHERE player_id = ? AND date = ?', [userId, _feedDate]);
-      } else {
-        await dbRun('UPDATE pet_feed_log SET times = MAX(0, times - 1) WHERE player_id = ? AND date = ?', [userId, _feedDate]);
-      }
+      // [r200free] R-167 付费回退已移除（_feedFree 仅在 R-198 免费进食时置真）
+      await dbRun('UPDATE pet_feed_log SET free_times = MAX(0, free_times - 1), last_free_at = NULL WHERE player_id = ? AND date = ?', [userId, _feedDate]);
     };
     if (bal < _feed.cost) return res.status(409).json({ error: `灵石不足：需 ${_feed.cost}，现有 ${bal}` });
 
@@ -13603,7 +13609,7 @@ app.post('/api/pet/feed', authenticateToken, rateLimit({ windowMs: 60 * 1000, ma
     logPetCare(userId, 'feed', `喂食「${String(pet.name)}」，喂食度 +${_freeReq ? R198_FREE_FEED_HUNGER : PET_HUNGER_PER_FEED}`);
     res.json({ ok: true, pet: petView(fresh), battleReached, milestones: _miles, spirit: await r018SpiritSync(userId), freeFeed: await r198FreeFeedQuota(userId, _feedDate) });
   } catch (e: any) {
-    if (_feedFree && !_feedDone) { _feedFree = false; try { await dbRun(_freeReq ? 'UPDATE pet_feed_log SET free_times = MAX(0, free_times - 1), last_free_at = NULL WHERE player_id = ? AND date = ?' : 'UPDATE pet_feed_log SET times = MAX(0, times - 1) WHERE player_id = ? AND date = ?', [userId, _feedDate]); } catch {} } // [r167feed] 异常兜底：回退未落库成功的免费额度
+    if (_feedFree && !_feedDone) { _feedFree = false; try { await dbRun('UPDATE pet_feed_log SET free_times = MAX(0, free_times - 1), last_free_at = NULL WHERE player_id = ? AND date = ?', [userId, _feedDate]); } catch {} } // [r167feed] 异常兜底：回退未落库成功的免费额度
     console.error('pet feed error:', e?.message || e);
     res.status(500).json({ error: '服务器繁忙' });
   }

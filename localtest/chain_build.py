@@ -577,10 +577,26 @@ SRV_CHAIN = [
                              #   · 返回体带 `freeFeed:{used,left,cdLeftMs,max,cdMs}`；`consts` 补 3 字段
                              #   · ★ 旧「当日首次免费」（R-167）**逐字保留**（在 else 分支），两套免费机制独立共存
                              #   · 红线未动：无新增 require( / 403 / setInterval / PRAGMA（safeAddColumn 为既有幂等加列）
+      # ---- 2026-10-08 0.9.36 批（R-192 去掉 R-167 当日首免 + R-193 渡劫门槛与客户端曲线对齐）----
+      'srv_patch_r200.py',   # R-192 移除 R-167「当日首次免费」喂养（第 86 环）
+                             #   · 用户原话：「R-167『当日首次免费』这个去掉，前面有专门的免费档了」
+                             #   · 删 4 段：else 头 / 首免闸门（`INSERT … SET times = times + 1 WHERE times < 1`）/ 回退闭包 else / catch 三目 times 半
+                             #   · ★ R-198 的免费闸门（free_times/last_free_at）与它的回退**逐字保留** —— 两者同处一个 if/else，只拆 else 里 R-167 那半边
+                             #   · ★ 不动：pet_feed_log 建表 / times 列 / free_times·last_free_at 列 / feedQuota 回显（避免多造门禁冲突）
+                             #   · ★ else 头紧贴裸中文注释 ⇒ 无法整段删 else，只能把 `} else {` 收成 `}`（语义等价）
+      'srv_patch_r201.py',   # R-193 服务端渡劫门槛与客户端曲线对齐（第 87 环 / 新末环）
+                             #   · 问题：0.9.30（R-183）给客户端曲线乘了 K=[14,6,4,2.5,1.5,1,1]，服务端 TRIB_REALM_BASES/realmMaxExp 没跟上
+                             #     ⇒ 渡劫 expOk 用旧门槛 ⇒ 客户端显示「还差很多」时服务端可能已判满
+                             #   · 改法：新增 TRIB_REALM_R183_K（与 TRIB_REALM_BASES 同序同字，未知境界 ??1 兜底）+ realmMaxExp 返回值再乘 K
+                             #   · 炼气期第 3 层 = 60000×(1+2×0.24)×14 = 1,243,200（与客户端一致）；长生境 K=1 ⇒ 改后=改前
+                             #   · ★ 连带修正：realmMaxExp 还给离线重算当单次收益上限（advEach/killEach/srEach）。
+                             #     客户端 _ylExpCap = 0.25×ad(...) 而 ad() 含 K ⇒ 改前服务端比客户端紧约 138 倍（炼气期），
+                             #     注释写的「÷10 同源」从未成立、会误杀合法离线收益；乘 K 后第一次真正成立 ⇒ 属修正非放松
+                             #   · ★ 刻意不动 arenaTrialMaxExp（走另一张表 ARENA_TRIAL_REALMS，有意不复用 realmMaxExp）
 ]
 
 # ---- 前端产物路径（0.9.31 换名：index-v2931-20261007.js，与 build_v26n.py OUT 逐字一致）----
-CLIENT_OUT = os.path.join(ROOT, 'build', 'assets', 'index-v2935-20261008.js')
+CLIENT_OUT = os.path.join(ROOT, 'build', 'assets', 'index-v2936-20261008.js')
 SRV_OUT = os.path.join(ROOT, 'srv', 'index_v28.ts')
 
 

@@ -85,6 +85,15 @@ from datetime import datetime
 # 幂等标记（本批）
 IDEMPOTENT_MARK = '/*[r198free]*/'
 
+# ---- 退役针脚标记（0.9.36 起）----
+# 语义：本环（R-198）**排在 R-200 之前**套用 ⇒ apply 时 `保留 r189ui 首免后缀` 针脚指的老形态**仍在**（count==1）；
+#   而 R-200（0.9.36）已把 R-167「当日首次免费」整条移除（删进食按钮后缀 `\u4eca\u65e5\u9996\u6b21\u514d\u8d39`）
+#   ⇒ 终态该串必须为 0。
+# 单条 (needle, expect) 无法同时满足 apply 态(1) 与终态(0)，故退役 = **终态专用**：
+#   · dryrun 读 gates() 在终态复核（期望 0，如实反映 R-200 移除后的形态）；
+#   · 本环 apply/--check 时跳过（不检、不计 FAIL），避免「老补丁依赖新补丁」——终态形态由 R-200 自己的门禁负责。
+RETIRED_TAG = '【已退役·终态专用】'
+
 # --------------------------------------------------------------------------- 替换项
 # ★ 形态约定：bundle 妖灵页签区域中文为**字面 `\uXXXX`**（六字符）⇒ 本 .py 源码保持纯 ASCII，
 #   用 `\\uXXXX`（双反斜杠）写出，运行期字符串即 `\uXXXX`。
@@ -287,7 +296,8 @@ def gates():
         ('R198\u00b7YlxwR18MiscRow \u672a\u52a8', 'function YlxwR18MiscRow(', 1, '==', '点化/归位行未动'),
         ('R198\u00b7YlxwPetShell \u672a\u52a8', 'function YlxwPetShell(', 1, '==', '融合壳未动'),
         # ---- 既有 r189ui 首免后缀保留（本环不动进食文案）----
-        ('R198\u00b7\u4fdd\u7559 r189ui \u9996\u514d\u540e\u7f00', '\\u4eca\\u65e5\\u9996\\u6b21\\u514d\\u8d39', 1, '==', '进食行未动'),
+        ('R198\u00b7\u4fdd\u7559 r189ui \u9996\u514d\u540e\u7f00' + RETIRED_TAG, '\\u4eca\\u65e5\\u9996\\u6b21\\u514d\\u8d39', 0, '==',
+         'R-200（0.9.36）已移除首免后缀 ⇒ 终态归 0；apply 态仍为 1 故本环跳过'),
         # ---- 玩法说明②：过时文案已修（买额度 2→5 + 免费玩法）----
         ('R198\u00b7\u8bf4\u660e\u2461\u5df2\u6539\u300c\u514d\u8d39\u73a9\u6cd5\u300d',
          '\\u2461 \\u514d\\u8d39\\u73a9\\u6cd5\\uff1a', 1, '==', '说明②新前缀「② 免费玩法：」'),
@@ -367,6 +377,10 @@ def _count(out, needle):
 def _run_gates(out):
     """返回 None=全绿；否则返回失败串。"""
     for label, needle, expect, op, note in gates():
+        if RETIRED_TAG in label:
+            # 退役针脚（终态专用）：本环 apply/--check 时 R-200 尚未套用，首免后缀仍在（count==1）⇒ 不检；
+            # 终态由复核（期望 0）负责，终态形态由 R-200 自己的门禁负责。
+            continue
         c = _count(out, needle)
         if op == '==' and c != expect:
             return 'GATE FAIL %s: count=%d expect %d' % (label, c, expect)
@@ -530,7 +544,10 @@ def main():
     if args.check:
         print('[r198] check OK (%d -> %d chars, %+d)' % (len(s0), len(out), len(out) - len(s0)))
         for label, needle, expect, op, note in gates():
-            print('    gate %-46s %s' % (label, 'OK'))
+            if RETIRED_TAG in label:
+                print('    [SKIP] %s 已退役（终态由 R-200 门禁复核）' % label.replace(RETIRED_TAG, ''))
+            else:
+                print('    gate %-46s %s' % (label, 'OK'))
         return 0
 
     ts = datetime.now().strftime('%Y%m%d_%H%M%S')
@@ -541,7 +558,10 @@ def main():
     print('[r198] patched: %d -> %d chars (%+d) (backup %s)'
           % (len(s0), len(out), len(out) - len(s0), os.path.basename(bak)))
     for label, needle, expect, op, note in gates():
-        print('    gate %-46s %s' % (label, 'OK'))
+        if RETIRED_TAG in label:
+            print('    [SKIP] %s 已退役（终态由 R-200 门禁复核）' % label.replace(RETIRED_TAG, ''))
+        else:
+            print('    gate %-46s %s' % (label, 'OK'))
     return 0
 
 

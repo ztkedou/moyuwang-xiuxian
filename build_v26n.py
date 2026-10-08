@@ -338,7 +338,7 @@ from yl_r067_ext import apply as v28_r067_apply  # noqa: E402
 from yl_068_ext import apply as v28_r068_apply  # noqa: E402
 
 BASE = os.path.join(HERE, 'build', 'assets', 'index-v26m-20260927.js')
-OUT = os.path.join(HERE, 'build', 'assets', 'index-v2935-20261008.js')
+OUT = os.path.join(HERE, 'build', 'assets', 'index-v2936-20261008.js')
 
 # v28 模块调用顺序（锚点稳定性 + num-balance 必须最后）：
 #   saveretry → arb → version → mail → entry → sectgf → char → bond → ui
@@ -627,6 +627,7 @@ STANDALONE_CLIENT = [
     ('r197', os.path.join(HERE, 'localtest', 'yl_r197_ext.py')),  # R-197 R-189② UI 调整：①「灵宠口径参考（非当前加成）」整块搬到妖灵卡片正下方（红框位）并改名「妖灵折算灵宠属性（参考）」②「融合玩法」整块搬进灵宠弹窗右列（「我的灵宠 (N)」正上方），妖灵页签内移除（顺带消除 YlxwPetOnFuseRef 隐式依赖）（纯客户端）
     ('r198', os.path.join(HERE, 'localtest', 'yl_r198_ext.py')),  # R-198 R-189③④ 免费玩法栏：新增「免费玩法」分组（免费进食 +100 喂食度/每日3次/冷却30分 + 免费互动三按钮，三按钮为**搬移**非新增）→ 再接「进食」→「买额度」上限 2→5（3 项共用）；并修「玩法说明②」过时文案（纯客户端；服务端见 srv_patch_r198.py 第 85 环）
     ('r199', os.path.join(HERE, 'localtest', 'yl_r199_ext.py')),  # R-199 自动历练频率调快：冷却 d(9) → d(7)（**只改 3 处自动历练常规单轮**：正常收尾 finally / 商店跳过 / 商店访问）⇒ 单轮 10.44s → 8.44s（每轮精确快 2s）；★ 打坐(2s)与 B 组手动/避战/天地之魄(1~2s)一律不动（改 7 反而变慢）（纯客户端）
+    ('r200', os.path.join(HERE, 'localtest', 'yl_r200_ext.py')),  # R-192 去掉 R-167「当日首次免费」喂养（客户端半边）：进食三档按钮文案删掉后缀 `+ (fq.free ? " · 今日首次免费" : "")`，并连带删除因此变死变量的 `var fq = (t && t.feedQuota) || {};`；★「玩法说明①」本来就没提首免 ⇒ 一字未动（纯客户端；服务端见 srv_patch_r200.py 第 86 环）
 ]
 
 

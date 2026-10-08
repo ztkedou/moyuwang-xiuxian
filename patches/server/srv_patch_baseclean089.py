@@ -31,13 +31,13 @@ const path = require('path');  // :2903  ← 冗余：path 已在文件头 :8 im
 `__dirname` **可用**（基座 `:18` 已建），且 `fs`/`path` 均已由文件头 `import` 绑定 ⇒
 无需任何替代变量、无需自己造。
 
-### ② `GM_PASSWORD` 弱口令缺省 —— `.env` 丢失会静默退回 `'gamer'`
+### ② `GM_PASSWORD` 弱口令缺省 —— `.env` 丢失会静默退回 `'<WEAK_PASSWORD>'`
 
 ```js
-const GM_PASSWORD = process.env.GM_PASSWORD || 'gamer';   // :1094
+const GM_PASSWORD = process.env.GM_PASSWORD || '<WEAK_PASSWORD>';   // :1094
 ```
 
-`'gamer'` 是弱口令。`.env` 丢失（或变量误删）时**静默降级**为可猜口令，
+`'<WEAK_PASSWORD>'` 是弱口令。`.env` 丢失（或变量误删）时**静默降级**为可猜口令，
 GM 后台（`/api/gm/*`，含发钱/改档/封号）即被弱口令保护 —— 属**静默失效的安全降级**。
 
 **修法**：缺省即硬失败 `process.exit(1)`，不静默降级。
@@ -159,7 +159,7 @@ C1_NEW = """    // BASECLEAN089: require 在 ESM 下未定义（fs/path 已由�
 # C2 · GM_PASSWORD 弱口令缺省 → 启动硬失败
 #     锚点 = :1094 那一行（唯一）
 # ─────────────────────────────────────────────────────────
-C2_OLD = "const GM_PASSWORD = process.env.GM_PASSWORD || 'gamer';"
+C2_OLD = "const GM_PASSWORD = process.env.GM_PASSWORD || '<WEAK_PASSWORD>';"
 
 C2_NEW = """// BASECLEAN089: 原写法带「弱口令兜底」（env 缺失时回落固定口令）—— .env 丢失会静默降级为
 //   可猜口令，使 /api/gm/*（发钱/改档/封号）暴露在弱口令下。改为**启动时硬失败**，不静默降级。
@@ -321,7 +321,7 @@ def selftest() -> int:
 
     # 门禁
     gate('G1 require( 已清零', out.count('require(') == 0, '实际 %d' % out.count('require('))
-    gate("G2 弱口令缺省 || 'gamer' 已清零", out.count("|| 'gamer'") == 0, "实际 %d" % out.count("|| 'gamer'"))
+    gate("G2 弱口令缺省 || '<WEAK_PASSWORD>' 已清零", out.count("|| '<WEAK_PASSWORD>'") == 0, "实际 %d" % out.count("|| '<WEAK_PASSWORD>'"))
     gate('G3 GM_PASSWORD 硬失败就位', 'if (!GM_PASSWORD)' in out and 'process.exit(1)' in out)
     gate('G4 红：GM_PASSWORD 比对处未动', out.count("password !== GM_PASSWORD") == 1)
     gate('G5 game-dicts.json 的 path.join 仍在', out.count("path.join(__dirname, 'game-dicts.json')") == 1)
@@ -418,7 +418,7 @@ def main() -> int:
         gates.append((name, bool(cond), detail))
 
     gate('G1 require( 已清零', text.count('require(') == 0, '实际 %d' % text.count('require('))
-    gate("G2 弱口令缺省 || 'gamer' 已清零", text.count("|| 'gamer'") == 0, "实际 %d" % text.count("|| 'gamer'"))
+    gate("G2 弱口令缺省 || '<WEAK_PASSWORD>' 已清零", text.count("|| '<WEAK_PASSWORD>'") == 0, "实际 %d" % text.count("|| '<WEAK_PASSWORD>'"))
     gate('G3 GM_PASSWORD 硬失败就位', 'if (!GM_PASSWORD)' in text and 'process.exit(1)' in text)
     gate('G4 红：GM_PASSWORD 比对处未动', text.count("password !== GM_PASSWORD") == 1)
     gate('G5 game-dicts.json 的 path.join 仍在', text.count("path.join(__dirname, 'game-dicts.json')") == 1)

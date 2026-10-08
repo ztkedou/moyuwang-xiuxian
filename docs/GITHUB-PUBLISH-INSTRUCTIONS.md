@@ -186,7 +186,7 @@ About 区能点到试玩链接、Release 页能看到 `v0.9.13`。
 2. **不碰线上服务器**（除非我明确要求发布）。
 3. **单文件 > 50 MB 先问我**。（当前最大文件 2.03 MB，安全。）
 4. **每次推送前先 `git status` 给我看「将要提交的文件清单」，我确认后才推。**
-5. 服务端 `srv/index_v28.ts` 的 GM 口令兜底 `|| 'gamer'` **已在 0.8.9 移除** ——
+5. 服务端 `srv/index_v28.ts` 的 GM 口令兜底 `|| '<WEAK_PASSWORD>'` **已在 0.8.9 移除** ——
    现在 `GM_PASSWORD` 未设置时服务端会以 `[FATAL]` **拒绝启动**。**这是个安全性改进，不要改回去。**
    （冻结基座 `_v281_base/index_v28.base.ts` 里仍保留旧写法，属历史原貌，不要动。）
 6. **不要**把 `docs/GITHUB-PUBLISH-INSTRUCTIONS.md` 里我的 Token 示例替换成真 token 后提交。

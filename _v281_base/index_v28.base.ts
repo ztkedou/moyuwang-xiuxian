@@ -959,7 +959,7 @@ const authenticateToken = (req: any, res: any, next: any) => {
 // ─────────────────────────────────────────────────────────
 // GM 后台：额外数据库表 + GM 鉴权中间件
 // ─────────────────────────────────────────────────────────
-const GM_PASSWORD = process.env.GM_PASSWORD || 'gamer';
+const GM_PASSWORD = process.env.GM_PASSWORD || '<WEAK_PASSWORD>';
 
 // 创建 GM 相关表（在数据库打开后执行）
 db.serialize(() => {

@@ -88,9 +88,9 @@ bash localtest/sandbox.sh url   <idx>      # 打印入口
 | 活动 | `GET /api/events`、`GET /api/activities/schedule` |
 | 人物志 | `GET /api/chronicle`、`POST /api/chronicle/praise` |
 | 经济 | `GET /api/economy/summary`(GM)、`GET /api/economy/anomalies`(GM) |
-| GM | `POST /api/gm/login` `{password:'gamer'}` → `GET /api/gm/players` 等 |
+| GM | `POST /api/gm/login` `{password:'<WEAK_PASSWORD>'}` → `GET /api/gm/players` 等 |
 
-GM 密码：**`<GM_PASSWORD>`**（沙盒 `.env` 里 `GM_PASSWORD=gamer`）。
+GM 密码：**`<GM_PASSWORD>`**（沙盒 `.env` 里 `GM_PASSWORD=<GM_PASSWORD>`）。
 
 ### ⚠️ `POST /api/save` 的 body 格式（写错会把存档写坏，已有人踩过）
 

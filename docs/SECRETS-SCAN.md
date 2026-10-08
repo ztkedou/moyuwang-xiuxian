@@ -76,9 +76,9 @@
 ### 4.3 `GM_PASSWORD`（14 个文件）
 - `srv/index_v28.ts`：**0.8.9 起已移除兜底默认值**，改为
   `const GM_PASSWORD = process.env.GM_PASSWORD; if (!GM_PASSWORD) { [FATAL] 拒绝启动 }`。
-  **源码中已无 `'gamer'` 字面量**（见第五节「需确认项 A」——已解决）。
-- `_v281_base/index_v28.base.ts`（冻结基座）：仍保留历史写法 `|| 'gamer'`，由 `srv_patch_baseclean089.py` 移除；
-  `srv_patch_baseclean089.py` 内含 `'gamer'` 字面量（作为被清除的旧代码与门禁断言），属**代码事实，非凭据**。
+  **源码中已无 `'<WEAK_PASSWORD>'` 字面量**（见第五节「需确认项 A」——已解决）。
+- `_v281_base/index_v28.base.ts`（冻结基座）：仍保留历史写法 `|| '<WEAK_PASSWORD>'`，由 `srv_patch_baseclean089.py` 移除；
+  `srv_patch_baseclean089.py` 内含 `'<WEAK_PASSWORD>'` 字面量（作为被清除的旧代码与门禁断言），属**代码事实，非凭据**。
 - `.env.example`：占位符 `change-me-gm-password`。
 - 文档/测试说明：已脱敏。
 
@@ -126,7 +126,7 @@
 早先 `srv/index_v28.ts` 第 1094 行为：
 
 ```ts
-const GM_PASSWORD = process.env.GM_PASSWORD || 'gamer';
+const GM_PASSWORD = process.env.GM_PASSWORD || '<WEAK_PASSWORD>';
 ```
 
 **0.8.9 已移除该兜底**，产物 `srv/index_v28.ts` 现为（`:1129-1131`）：
@@ -139,8 +139,8 @@ if (!GM_PASSWORD) {
 }
 ```
 
-- 产物中 `'gamer'` 字面量**已清零**（`grep -c "|| 'gamer'" srv/index_v28.ts` = 0）。
-- 冻结基座 `_v281_base/index_v28.base.ts` 与移除它的补丁 `srv_patch_baseclean089.py` 中仍有 `'gamer'` 字面量，
+- 产物中 `'<WEAK_PASSWORD>'` 字面量**已清零**（`grep -c "|| '<WEAK_PASSWORD>'" srv/index_v28.ts` = 0）。
+- 冻结基座 `_v281_base/index_v28.base.ts` 与移除它的补丁 `srv_patch_baseclean089.py` 中仍有 `'<WEAK_PASSWORD>'` 字面量，
   属**历史基座原貌 + 补丁逻辑**，非凭据。
 - README 部署章节已同步改写为「未设置 `GM_PASSWORD` 则服务端拒绝启动」。
 
@@ -207,7 +207,7 @@ if (!GM_PASSWORD) {
 |---|---|
 | 同步至 0.8.9 | 新增 8 个 `yl_*_ext.py` + 9 个 `srv_patch_*.py` + 客户端产物 `index-v288-20260929.js`；更新 `srv/index_v28.ts` / `build_v26n.py` / `localtest/chain_build.py` / 7 个既有模块 / `CHANGELOG.md` |
 | 删除旧产物 | `build/assets/index-v287-20260929.js`（仅保留冻结基座 v26m + 当前产出 v2810） |
-| README | GM 段落改写：兜底 `'gamer'` 已移除 → `GM_PASSWORD` 未设置即 `[FATAL]` 拒绝启动 |
+| README | GM 段落改写：兜底 `'<WEAK_PASSWORD>'` 已移除 → `GM_PASSWORD` 未设置即 `[FATAL]` 拒绝启动 |
 | 设计文档 | `docs/0.8.8-design/` 更新 5 份 + 新增 5 份（共 11 份）；**排除**含凭据的 GM 文档与内部交接稿 |
 
 **复扫结果（真实密钥/隐私）**：

@@ -593,10 +593,18 @@ SRV_CHAIN = [
                              #     客户端 _ylExpCap = 0.25×ad(...) 而 ad() 含 K ⇒ 改前服务端比客户端紧约 138 倍（炼气期），
                              #     注释写的「÷10 同源」从未成立、会误杀合法离线收益；乘 K 后第一次真正成立 ⇒ 属修正非放松
                              #   · ★ 刻意不动 arenaTrialMaxExp（走另一张表 ARENA_TRIAL_REALMS，有意不复用 realmMaxExp）
+      # ---- 2026-10-08 0.9.39 批（R-198 心法改「点一次加经验」）----
+      'srv_patch_r207.py',   # R-198 心法六卷改「点一次加经验」（第 88 环 / 新末环）
+                             #   · 用户原话：「心法学习也变成点一次增加经验，不要每次升一级，并且大幅度提高点一次所需的灵石数量」
+                             #   · 关键：`player_gongfa.exp` 语义本就是「累计投入灵石」+ `gongfaLevelFromExp()` 已存在
+                             #     ⇒ 把「扣满整级价 → level+1」改成「扣按档单价 P → exp += P → level 由 exp 反推」，无需新字段
+                             #   · **C 方案**（三条约束不可全兼得，优先「点一次加经验」）：阈值表 ×7.5、单价按档 = 现状档位 ×2.5
+                             #     ⇒ 每档点击数恒为 3.000（十档全等）；满级 528,000 → 3,960,000（×7.5）
+                             #   · 上限 GONGFA_MAX_LEVEL=100 / 六卷 key 集合 / 表结构 一律未动
 ]
 
 # ---- 前端产物路径（0.9.31 换名：index-v2931-20261007.js，与 build_v26n.py OUT 逐字一致）----
-CLIENT_OUT = os.path.join(ROOT, 'build', 'assets', 'index-v2938-20261008.js')
+CLIENT_OUT = os.path.join(ROOT, 'build', 'assets', 'index-v2939-20261008.js')
 SRV_OUT = os.path.join(ROOT, 'srv', 'index_v28.ts')
 
 

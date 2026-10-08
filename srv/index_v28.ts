@@ -6948,7 +6948,19 @@ const GONGFA_MAX_LEVEL = 100;
 // 0.8.7 T3（《数值表-T2T3》§5.2）：升到 L 级的单级消耗 = TIER[floor((L-1)/10)] × 品级乘数。
 // TIER = 每 10 级一档的每级基价（L1-10 每级 300 … L91-100 每级 20000，玄品口径）；
 // 满级累计投入：黄 264,000 / 玄 528,000 / 地 1,056,000 / 天 2,112,000。
-const GONGFA_TIER_COST = [300, 500, 800, 1200, 2000, 3000, 5000, 8000, 12000, 20000];
+// [r207gf] R-198（C 方案）：心法改「点一次 +经验」（不再每次升一级），并大幅提高点一次灵石。
+//   ★ 覆盖上方 0.8.7 旧口径：
+//   ① 每级阈值表 ×7.5：满级累计投入 528000 → 3960000（7.5 倍）。
+//   ② 每次点击单价按档位取 P 表（=现状档位价 ×2.5）→ 每档点击数 = 7.5/2.5 = 3 次（全档恒定 3 次）。
+//   ③ 点击后 exp += P → 等级由 gongfaLevelFromExp 反推（不再每次必升一级）。
+const GONGFA_TIER_COST = [2250, 3750, 6000, 9000, 15000, 22500, 37500, 60000, 90000, 150000];
+const GONGFA_CLICK_COST = [750, 1250, 2000, 3000, 5000, 7500, 12500, 20000, 30000, 50000]; /*[r207gf]*/
+// 升到 L 级的每次点击单价（按 L 所在档位取 P 表）；非法输入钳 1..100
+function gongfaClickCost(level: unknown): number {
+  const l = Math.min(GONGFA_MAX_LEVEL, Math.max(1, Math.floor(Number(level) || 1)));
+  const seg = Math.min(GONGFA_CLICK_COST.length - 1, Math.floor((l - 1) / 10));
+  return GONGFA_CLICK_COST[seg];
+}
 const GONGFA_GRADE_MULT: Record<string, number> = { huang: 0.5, xuan: 1, di: 2, tian: 4 };
 const GONGFA_GRADE_DEFAULT = 'xuan'; // 六卷未设品级，一律按玄（×1）计；乘数表随公式留档，定品级时直接挂表
 // 属性成长（《数值表-T2T3》§5.1）：攻/防/血 +1%/级（满级恰 ×2.00），其余三卷 +0.2%/级（满级恰 ×1.20）
@@ -9152,7 +9164,7 @@ app.get('/api/gongfa', authenticateToken, rateLimit({ windowMs: 60 * 1000, max: 
       const shown = byKey[k]
         ? Math.min(GONGFA_MAX_LEVEL, Math.max(0, Math.floor(Number(byKey[k].level) || 0)))
         : 0;
-      const next = shown < GONGFA_MAX_LEVEL ? gongfaCostToReach(shown + 1) : null;
+      const next = shown < GONGFA_MAX_LEVEL ? gongfaClickCost(shown + 1) : null; // [r207gf] R-198：点一次按档位单价
       const stepPct = shown > 0 ? gongfaBonusPct(k, shown) : (GONGFA_MAIN_KEYS[k] ? GONGFA_MAIN_STEP_PCT : GONGFA_MINOR_STEP_PCT);
       return {
         key: k,
@@ -9163,6 +9175,9 @@ app.get('/api/gongfa', authenticateToken, rateLimit({ windowMs: 60 * 1000, max: 
         exp,
         costNext: next == null ? 0 : next,
         costToNext: next == null ? 0 : next,
+        // [r207gf] R-198：本级进度（exp 落入当前级的量 / 当前级所需量），供客户端进度条与文案。
+        levelExp: Math.max(0, exp - gongfaExpToReach(shown)),
+        levelNeed: Math.max(1, (shown < GONGFA_MAX_LEVEL ? gongfaExpToReach(shown + 1) : gongfaExpToReach(GONGFA_MAX_LEVEL)) - gongfaExpToReach(shown)),
         bonusPct: gongfaBonusPct(k, shown),
         bonusText: shown > 0 ? `${d.statName} +${gongfaPctStr(gongfaBonusPct(k, shown))}%` : `${d.statName}加成（修炼后 +${gongfaPctStr(stepPct)}%/级）`,
         maxed: shown >= GONGFA_MAX_LEVEL,
@@ -9175,6 +9190,7 @@ app.get('/api/gongfa', authenticateToken, rateLimit({ windowMs: 60 * 1000, max: 
       tierCost: GONGFA_TIER_COST,
       gradeMult: GONGFA_GRADE_MULT,
       maxExpTotal: GONGFA_MAX_EXP_TOTAL,
+      clickCost: GONGFA_CLICK_COST, // [r207gf] R-198：点一次单价表（按档位）
       balance,
       hasSave: !!saveRow,
     });
@@ -9203,7 +9219,14 @@ app.post('/api/gongfa/levelup', authenticateToken, rateLimit({ windowMs: 60 * 10
     const row = await dbGet('SELECT level, exp FROM player_gongfa WHERE player_id = ? AND gongfa_id = ?', [userId, gid]);
     const curLevel = Math.min(GONGFA_MAX_LEVEL, Math.max(0, Math.floor(Number(row?.level) || 0)));
     if (curLevel >= GONGFA_MAX_LEVEL) return res.status(409).json({ error: '该功法已大成（Lv100），无法再进阶' });
-    const cost = gongfaCostToReach(curLevel + 1);
+    // [r207gf] R-198（C 方案）：本次点击单价按**目标等级所在档位**取 P 表（=现状档位价 ×2.5）。
+    //   exp += 单价，等级由 exp 反推（每档恒 3 次点击/级）。
+    //   ★ 旧档 exp 为旧口径（×1）：先对齐到当前等级的新口径下限（一次性、幂等），避免等级回退。
+    const curExp = Math.max(0, Math.floor(Number(row?.exp) || 0));
+    const baseExp = Math.max(curExp, gongfaExpToReach(curLevel));
+    const cost = gongfaClickCost(curLevel + 1);
+    const nextExp = baseExp + cost;
+    const nextLevel = Math.min(GONGFA_MAX_LEVEL, gongfaLevelFromExp(nextExp));
     // 预检：角色与灵石余额（只读快查；权威校验在【扣款】锁内二次进行）
     const saveRow = await dbGet('SELECT save_data FROM saves WHERE user_id = ?', [userId]);
     if (!saveRow) return res.status(404).json({ error: '请先进游戏创建角色' });
@@ -9215,13 +9238,14 @@ app.post('/api/gongfa/levelup', authenticateToken, rateLimit({ windowMs: 60 * 10
     let inserted = false;
     if (row) {
       const up = await dbRun(
-        'UPDATE player_gongfa SET level = level + 1, updated_at = CURRENT_TIMESTAMP WHERE player_id = ? AND gongfa_id = ? AND level = ?',
-        [userId, gid, curLevel]
+        // [r207gf] R-198：占位改为「exp 累加 + level 反推」，WHERE exp=旧值保连点幂等。
+        'UPDATE player_gongfa SET exp = exp + ?, level = ?, updated_at = CURRENT_TIMESTAMP WHERE player_id = ? AND gongfa_id = ? AND exp = ?',
+        [cost, nextLevel, userId, gid, curExp]
       );
       advanced = up.changes > 0;
     } else {
       try {
-        const ins = await dbRun('INSERT INTO player_gongfa (player_id, gongfa_id, level, exp) VALUES (?, ?, 1, 0)', [userId, gid]);
+        const ins = await dbRun('INSERT INTO player_gongfa (player_id, gongfa_id, level, exp) VALUES (?, ?, ?, ?)', [userId, gid, nextLevel, nextExp]);
         advanced = ins.changes > 0;
         inserted = advanced;
       } catch (e: any) {
@@ -9243,25 +9267,23 @@ app.post('/api/gongfa/levelup', authenticateToken, rateLimit({ windowMs: 60 * 10
     });
     if (!paid.ok || short) {
       // 3)【补偿】扣款失败：守卫回退等级位（本次占位不作数可重试）；首建行直接删行
+      // [r207gf] R-198：补偿回退改为 exp 反向（首建行按 nextExp 删行）。
       const rev = inserted
-        ? await dbRun('DELETE FROM player_gongfa WHERE player_id = ? AND gongfa_id = ? AND level = 1', [userId, gid])
-        : await dbRun('UPDATE player_gongfa SET level = level - 1, updated_at = CURRENT_TIMESTAMP WHERE player_id = ? AND gongfa_id = ? AND level = ?', [userId, gid, curLevel + 1]);
-      if (!rev.changes) console.error('gongfa levelup revert failed: user=%s gongfa=%s level=%s', userId, key, curLevel + 1);
+        ? await dbRun('DELETE FROM player_gongfa WHERE player_id = ? AND gongfa_id = ? AND exp = ?', [userId, gid, nextExp])
+        : await dbRun('UPDATE player_gongfa SET exp = exp - ?, level = ?, updated_at = CURRENT_TIMESTAMP WHERE player_id = ? AND gongfa_id = ? AND exp = ?', [cost, curLevel, userId, gid, nextExp]);
+      if (!rev.changes) console.error('gongfa levelup revert failed: user=%s gongfa=%s exp=%s', userId, key, nextExp);
       return res.status(409).json({ error: short ? '灵石不足' : (paid.error === 'No save found' ? '请先进游戏创建角色' : '修炼失败，请重试') });
     }
     // 投入入账：exp=累计投入，服务端侧累加（守卫 WHERE level=新值，防并发串档）；失败仅日志（展示面）
-    await dbRun(
-      'UPDATE player_gongfa SET exp = exp + ?, updated_at = CURRENT_TIMESTAMP WHERE player_id = ? AND gongfa_id = ? AND level = ?',
-      [cost, userId, gid, curLevel + 1]
-    ).catch((e: any) => console.error('gongfa exp update error:', e?.message || e));
-    const newLevel = curLevel + 1;
+    // [r207gf] R-198: exp already accumulated atomically in the placeholder step above; no second pass.
+    const newLevel = nextLevel;
     const d = GONGFA_LIST[key];
     res.json({
       ok: true,
       gongfa: key,
       name: d.name,
       level: newLevel,
-      exp: Math.max(0, Math.floor(Number(row?.exp) || 0)) + cost,
+      exp: nextExp,
       cost,
       spent: cost,
       bonusPct: gongfaBonusPct(key, newLevel),

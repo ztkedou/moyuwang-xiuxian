@@ -338,7 +338,7 @@ from yl_r067_ext import apply as v28_r067_apply  # noqa: E402
 from yl_068_ext import apply as v28_r068_apply  # noqa: E402
 
 BASE = os.path.join(HERE, 'build', 'assets', 'index-v26m-20260927.js')
-OUT = os.path.join(HERE, 'build', 'assets', 'index-v2938-20261008.js')
+OUT = os.path.join(HERE, 'build', 'assets', 'index-v2939-20261008.js')
 
 # v28 模块调用顺序（锚点稳定性 + num-balance 必须最后）：
 #   saveretry → arb → version → mail → entry → sectgf → char → bond → ui
@@ -631,6 +631,9 @@ STANDALONE_CLIENT = [
     ('r202', os.path.join(HERE, 'localtest', 'yl_r202_ext.py')),  # R-195 灵宠喂养「文字 vs 实现」审计与修复：修 8 处过期文字（血量喂养 200→1000、批量喂血 /200→/1000、物品/修为喂养亲密度 +2~5→+1~2、修为喂养 5%→25%、两处 toast/报错数字），并全游戏核过 8 个玩法说明块与实现一致（纯客户端；落盘号 r202 —— 旧 R-195「妖灵归位」占用 yl_r195_ext.py）
     ('r203', os.path.join(HERE, 'localtest', 'yl_r203_ext.py')),  # R-196 冷却「静态快照」→「走秒倒计时」：新增 YlxwR196Tick/Remain/Left/Cd 四个 helper + 在 6 处（8 个代码点：免费进食 / 奇遇抽奖 / 秘境+地宫 / 灵田照料×2 / 万妖巢穴 / 渡劫面板）接上组件内局部 tick；把服务端下发的「剩余量」换算成绝对 deadline 后每秒重算；★ 无全局 setInterval、不改任何文案（纯客户端；落盘号 r203 —— 旧 R-196「灵纹重设」占用 yl_r196_ext.py）
     ('r204', os.path.join(HERE, 'localtest', 'yl_r204_ext.py')),  # R-197 修为喂养改 2% + 转换比例下调：消耗（文案/闸门/实扣三处）25%→**2%**、倍率 U 2→**0.5**（hp 0.03 / item 3.5 未动）；★ 真·正比（获得=消耗×R）经测算不可用（跨境界差 500 倍）⇒ 保留按境界算固定量的机制（纯客户端；落盘号 r204）
+    ('r206', os.path.join(HERE, 'localtest', 'yl_r206_ext.py')),  # R-199 挂机历练寿命消耗下调：YLXW_LIFE_AUTO_MUL 0.05→**0.0125** ⇒ 挂机单次 0.4×0.0125 = **0.005**（原 0.02）；★ 手动历练 0.4 未动（纯客户端；落盘号 r206）
+    ('r207', os.path.join(HERE, 'localtest', 'yl_r207_ext.py')),  # R-198 心法学习改「点一次加经验」：六卷面板改读 levelExp/levelNeed 进度 + 「点一次消耗 P 灵石 · 本级进度 X/Y」；★ 配套服务端见 srv_patch_r207.py 第 88 环（C 方案：阈值×7.5 / 单价按档×2.5 / 每档恒定 3 次 / 满级 396 万）（纯客户端半边）
+    ('r208', os.path.join(HERE, 'localtest', 'yl_r208_ext.py')),  # R-208 历练结算「分档」标签改名：常态→寻常 / 几百→丰厚 / 几千→横财（只改渲染行三个词，代码注释里的旧词逐字保留）（纯客户端）
 ]
 
 

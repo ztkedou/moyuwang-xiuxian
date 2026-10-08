@@ -80,11 +80,27 @@ STAB_SHUOMING = rb'\u73a9\u6cd5\u8bf4\u660e'
 # V28_BAN_PATTERNS（交接手册 §2.4）：注入串不得含
 BAN = [b'iframe', b'postMessage', b'XMLHttpRequest', b'auth_token', b'X-YL-']
 
+# ★ 0.9.31 R-187：①行里程碑数字被再次改写（6000/8000/20000 → 8600/9900/61000，逐字等于服务端
+#   GUIDE_STEPS）。终态①行形态 = R-187 改写后整行；本环 apply 时（R-187 之前）该形态尚未出现。
+NEW1_FINAL = (rb'\u2460 \u91cc\u7a0b\u7891\uff1a\u521b\u5efa\u89d2\u8272 2000 / \u603b\u7b49\u7ea7 3 \u5f97 3000'
+              rb' / \u603b\u7b49\u7ea7 9 \u5f97 8600 / \u603b\u7b49\u7ea7 10 \u5f97 9900 / \u52a0 1 \u4f4d\u597d\u53cb 3000'
+              rb' / \u62dc\u5e08 6000 / \u603b\u7b49\u7ea7 19 \u5f97 61000 / \u7ed3\u9053\u4fa3 12000\uff0c'
+              rb'\u8fbe\u6807\u540e\u624b\u52a8\u9886\u53d6\u3001\u5404\u4e00\u6b21\u6027\u3002')
+
+# ---- 终态专用针脚标记（0.9.31 起）----
+# 语义：本环（R-123）**排在 R-187 之前**套用 ⇒ apply 时①行是本环 NEW1 形态；而 R-187（0.9.31）
+#   已**合法改写**①行为 8600/9900/61000 ⇒ 终态必须是 R-187 形态。单条 (needle, expect) 无法
+#   同时满足 apply 态(0) 与终态(1)，故 = **终态专用**：dryrun 在终态复核（期望 1，如实反映
+#   R-187 改写后的形态）；本环 apply 时跳过（不检）—— 避免「老补丁依赖新补丁」。
+FINAL_ONLY_TAG = '【终态专用·R-187 已改值】'
+
 
 def gates():
     """补丁后形态的门禁五元组（name, needle, count, op, note）——供 dryrun 表收录。"""
     return [
-        ('R123·指引①行新数值在位', NEW1.decode('ascii'), 1, '==', '说明文案=服务端新档（Σ60,000）'),
+        # ★ 0.9.31 R-187 改写①行数字后，本环①行终态形态 = R-187 形态 ⇒ 终态专用（见 tag 说明）
+        ('R123·指引①行新数值在位' + FINAL_ONLY_TAG, NEW1_FINAL.decode('ascii'), 1, '==',
+         'R-187 改写后形态（8600/9900/61000，与服务端 GUIDE_STEPS 一致）'),
         ('R123·指引①行旧值清零', ANC1.decode('ascii'), 0, '==', '旧 Σ15,100 口径退场'),
         ('R123·七日②行新数值在位', NEW2.decode('ascii'), 1, '==', '说明文案=服务端新档（Σ50,000）'),
         ('R123·七日②行旧值清零', ANC2.decode('ascii'), 0, '==', '旧 Σ15,300 口径退场'),
@@ -151,6 +167,10 @@ def main(argv=None):
 
     # 内存自检：导出门禁全过 + 稳定性 before==after 才写盘
     for name, needle, want, op, _note in gates():
+        if FINAL_ONLY_TAG in name:
+            # 终态专用（R-187 已改值）：本环 apply 时①行仍是本环 NEW1 形态 ⇒ 不检；
+            # 终态由 dryrun 复核（期望 1），新形态亦由 R-187 自身门禁负责。
+            continue
         got = patched.count(needle.encode('ascii'))
         if op == '==' and got != want:
             return fail(1, '门禁自检 FAIL：%s count=%d（期望 %d）' % (name, got, want))
@@ -176,6 +196,8 @@ def main(argv=None):
     if rev != b:
         return fail(1, 'round-trip 失败：新→旧还原 != 补丁前字节')
     for name, needle, want, op, _note in gates():
+        if FINAL_ONLY_TAG in name:
+            continue
         got = back.count(needle.encode('ascii'))
         if got != want:
             return fail(1, '落盘门禁 FAIL：%s count=%d（期望 %d）' % (name, got, want))

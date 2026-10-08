@@ -159,6 +159,14 @@ FRZ_ITEM = ('if(f.itemObtained&&f.itemObtained.rarity&&'
 # 既有标记（必须与 MARK 互不包含）
 OTHER_MARKS = ['YLXW_R142_V2918', 'YLXW_R143_V2918', 'YLXW_R144_V2919']
 
+# ---- 退役针脚标记（0.9.30 起）----
+# 语义：本环（R-145）**排在 R-180 之前**套用 ⇒ apply 时该冻结形态**仍在**（count==1）；
+#   而 R-180（0.9.30）已**合法改写**它（E5b：`t.hpChange<0?…` 整段重写为「按 maxHp 百分比 +
+#   几率触发」）⇒ 终态（dryrun 复核）必须为 0。单条 (needle, expect) 无法同时满足
+#   apply 态(1) 与终态(0)，故退役 = **终态专用**：dryrun 在终态复核（期望 0）；
+#   本环 apply 时跳过（不检），避免「老补丁依赖新补丁」——新形态由 R-180 自己的门禁负责。
+RETIRED_TAG = '【已退役·终态专用】'
+
 
 def gates():
     """补丁后形态的门禁五元组 (name, needle, count, op, note) —— 供 dryrun 门禁表收录。"""
@@ -169,7 +177,7 @@ def gates():
         ('R145·零灵石兜底已注入', M_FLOOR, 1, 'eq', 'min(50,max(1,floor(exp*0.5)))'),
         ('R145·旧 ×5 形态已消失', OLD_TAIL, 0, 'eq', '原 *5 表达式不再存在'),
         ('冻结·expChange 字段未动', FRZ_EXP, 1, 'eq', '修为公式不改'),
-        ('冻结·hpChange 字段未动', FRZ_HP, 1, 'eq', ''),
+        ('冻结·hpChange 字段未动' + RETIRED_TAG, FRZ_HP, 0, 'eq', 'R-180/0.9.30 已合法改写此形态 ⇒ 本环冻结针脚退役'),
         ('冻结·Ym 函数头未动', FRZ_YM_HEAD, 1, 'eq', ''),
         ('冻结·karma 分支未动', FRZ_KARMA, 1, 'eq', ''),
         ('冻结·item 分支未动', FRZ_ITEM, 1, 'eq', ''),
@@ -294,6 +302,11 @@ def main() -> int:
     text = out.decode('utf-8', errors='replace')
     gs = gates()
     for label, needle, exp, op, note in gs:
+        if RETIRED_TAG in label:
+            # 退役针脚（终态专用）：本环 apply 时 R-180 尚未套用，冻结形态仍在 ⇒ 不检；
+            # 终态由 dryrun 复核（期望 0），新形态由 R-180 自己的门禁负责。
+            print('  [SKIP] %-28s 已退役（终态由 R-180 门禁复核）' % label.replace(RETIRED_TAG, ''))
+            continue
         act = _count(text, needle)
         good = _gate_ok(act, exp, op)
         ok = ok and good

@@ -70,15 +70,28 @@ FR_NORMAL_DANGER = b'expChange:Ge(t,50,150,160)'      # 正常历练 danger 修�
 FR_SUB_BRANCH = b'expChange:220'                      # 奇遇子事件激进分支（≤220，不动）
 
 
+# ---- 退役针脚标记（0.9.30 起）----
+# 语义：本环（R-134）**排在 R-180 之前**套用 ⇒ apply 时这些针脚指的老形态**仍在**（count==1）；
+#   而 R-180（0.9.30）已**合法改写**它们 ⇒ 终态（dryrun 复核）必须为 0。
+# 单条 (needle, expect) 无法同时满足 apply 态(1) 与终态(0)，故退役 = **终态专用**：
+#   · dryrun 读 gates() 在终态复核（期望 0，如实反映 R-180 改写后的形态）；
+#   · 本环 apply 时跳过（不检），避免「老补丁依赖新补丁」——新形态由 R-180 自己的门禁负责。
+# ★ 0.9.31 变更：R-180 v2 **回滚 E3**（奇遇灵石 20,70 → 200,500）⇒ 「奇遇灵石」老形态回归
+#   （apply 态(1) 与终态(1) 一致）⇒ 该针脚**重新激活**（去掉 RETIRED_TAG、期望改回 1）。
+#   「奇遇 HP」仍被 R-180 v2 的 E4（30,80 → 0,0）改写 ⇒ 保持退役（终态 0）。
+RETIRED_TAG = '【已退役·终态专用】'
+
+
 def gates():
     """补丁后形态的门禁五元组（name, needle, count, op, note）——供 dryrun 门禁表收录。"""
     return [
         ('R134·奇遇修为改值在位', NEW.decode('ascii'), 1, '==', '200~300'),
         ('R134·旧奇遇修为清零', OLD.decode('ascii'), 0, '==', ''),
         ('R134·在位标记', FR_MARK.decode('ascii'), 1, '==', ''),
-        ('R134·冻结 奇遇灵石', FR_LUCKY_STONE.decode('ascii'), 1, '==', '灵石不变'),
+        ('R134·冻结 奇遇灵石', FR_LUCKY_STONE.decode('ascii'), 1, '==',
+         'R-180 v2（0.9.31）已回滚 E3（20,70 → 200,500）⇒ 原量级形态回归，重新激活'),
         ('R134·冻结 奇遇类型', FR_LUCKY_TYPE.decode('ascii'), 1, '==', ''),
-        ('R134·冻结 奇遇HP', FR_LUCKY_HP.decode('ascii'), 1, '==', ''),
+        ('R134·冻结 奇遇HP' + RETIRED_TAG, FR_LUCKY_HP.decode('ascii'), 0, '==', 'R-180/0.9.30 已合法改写此形态 ⇒ 本环冻结针脚退役'),
         ('R134·冻结 奇遇掉落', FR_LUCKY_ITEM.decode('ascii'), 1, '==', ''),
         ('R134·冻结 奇遇秘境', FR_LUCKY_REALM.decode('ascii'), 1, '==', ''),
         ('R134·冻结 奇遇子事件', FR_LUCKY_SUB.decode('ascii'), 1, '==', '机缘共鸣 18%'),
@@ -139,6 +152,11 @@ def main() -> int:
     # 4) 门禁
     ok = True
     for label, needle, exp, op, note in gates():
+        if RETIRED_TAG in label:
+            # 退役针脚（终态专用）：本环 apply 时 R-180 尚未套用，老形态仍在 ⇒ 不检；
+            # 终态由 dryrun 复核（期望 0），新形态由 R-180 自己的门禁负责。
+            print('  [SKIP] %-26s 已退役（终态由 R-180 门禁复核）' % label.replace(RETIRED_TAG, ''))
+            continue
         act = out.decode('utf-8', errors='replace').count(needle)
         good = (act == exp)
         ok = ok and good

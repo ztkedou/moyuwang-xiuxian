@@ -201,7 +201,9 @@ yl_r179_ext.py — R-179 自动历练「结算/汇总文案」重排 + 去重（
       if (dh < 0) S.hpDown += 1;               ← 受伤口径未动
   打后：A_OLD==0 · B_OLD==0 · C_OLD==0 · D_OLD==0 · /*YLXW_R161_DEDUP*/==0 ·
         「耗时 」==0 · 「本次自动历练」==0 · 「其他：」==0 · 显式「奇遇 N 次」==0 ·
-        [r179advlog]==1 · A_NEW==1 · B_NEW==1 · C_NEW==1 · D_NEW==1
+        [r179advlog]==1 · B_NEW==1 · D_NEW==1
+        （★ 0.9.34 起：A_NEW / C_NEW 被 R-191 合法改写 ⇒ 两针脚改「已退役·终态专用」，
+          终态期望 0；见 gates() 内 RETIRED_TAG 说明）
 
 ==============================================================================
 七、契约（照 localtest/yl_r169b_ext.py）
@@ -355,11 +357,28 @@ FREEZE = [
 #                （去重**改由构造保证**，不再需要「从 _l155[0] 取头行总计 + 剥前缀」那套字符串去重）
 
 
+# ---- 退役针脚标记（0.9.34 起）----
+# 语义：本环（R-179）**排在 R-191 之前**套用 ⇒ apply 时下列两条针脚指的老形态**仍在**（count==1）；
+#   而 R-191（0.9.34，结算日志新增「分档 常态/几百/几千」）已**合法改写**它们：
+#     · A_NEW（重排后的 Summary 整串）→ R-191 的 B3 在「事件类型」行后追加「分档」行 ⇒ 整串不再匹配；
+#     · C_NEW（YlxwAdvStatNew 模板含 life:0）→ R-191 的 B1 在 types 之后追加 tierLow/tierMid/tierHigh
+#       ⇒ 整串（第二行尾）不再匹配（`life: 0` 本身仍由 R-191 的 B1 锚点原样保留）。
+#   ⇒ 终态（dryrun 复核）这两条老形态必须为 0。
+# 单条 (needle, expect) 无法同时满足 apply 态(1) 与终态(0)，故退役 = **终态专用**：
+#   · dryrun 读 gates() 在终态复核（期望 0，如实反映 R-191 改写后的形态）；
+#   · 本环 apply/selftest 时跳过（不检），避免「老补丁依赖新补丁」——新形态由 R-191 自己的门禁负责：
+#       Summary 分档行 → R191③·分档渲染在位；StatNew 分档字段 → R191②·分档字段初始化。
+#   ★ 覆盖说明：`life: 0` 字段在终态无独立 dryrun 断言（原由本环 C_NEW 断言），但其保留由
+#     R-191 的 B1 替换锚点强制（B1_OLD 必含 life:0 才可套用；B1_NEW 原样保留）——已向 team-lead 报备。
+RETIRED_TAG = '【已退役·终态专用】'
+
+
 def gates():
     """返回 5 元组列表 (label, needle, expect, op, note)，对**补丁后**产物校验。"""
     g = [
         ('R179·幂等标记唯一', IDEMPOTENT_MARK, 1, '==', '[r179advlog] 恰好 1 处'),
-        ('R179·主结算段已注入', A_NEW, 1, '==', '重排后的 Summary 恰好 1 处'),
+        ('R179·主结算段已注入' + RETIRED_TAG, A_NEW, 0, '==',
+         'R-191/0.9.34 已在明细段追加「分档」行 ⇒ 本环原 A_NEW 整串终态清零（新形态由 R191③ 覆盖）'),
         ('R179·会话装配已改写', B_NEW, 1, '==', '收尾装配恰好 1 处'),
         ('R179·旧 Summary 已消失', A_OLD, 0, '==', '旧 6 行拼装已删除'),
         ('R179·旧装配已消失', B_OLD, 0, '==', '旧头行+R161去重已删除'),
@@ -378,7 +397,8 @@ def gates():
         ('R179·旧寿命占位已清零', '\\u5bff\\u547d " + (st.life', 0, '==', '旧占位写法已删'),
         ('R179·寿命累加已注入', 'var __r179dl = Number(res.lifespanChange) || 0;', 1, '==', 'E4 累加唯一'),
         ('R179·寿命累加不 floor', 'if (__r179dl) S.life += __r179dl;', 1, '==', '小数口径（不 floor）'),
-        ('R179·统计模板已加 life', C_NEW, 1, '==', 'YlxwAdvStatNew 模板含 life:0'),
+        ('R179·统计模板已加 life' + RETIRED_TAG, C_NEW, 0, '==',
+         'R-191/0.9.34 已加 tierLow/tierMid/tierHigh ⇒ 本环原 C_NEW 整串终态清零（新形态由 R191② 覆盖；life:0 由 R191 B1 锚点保证）'),
         ('R179·旧统计模板已消失', C_OLD, 0, '==', ''),
         ('R179·气血字段在主结算', '\\u6c14\\u8840 " + (st.hp', 1, '==', '第1段「气血 ±hp」'),
         ('R179·物品获得在主结算', '\\u7269\\u54c1\\u83b7\\u5f97\\uff08', 1, '==', '第1段「物品获得」'),
@@ -450,6 +470,10 @@ def apply_patch(src):
 def _run_gates(out):
     """返回 None=全绿；否则返回失败串。"""
     for label, needle, expect, op, note in gates():
+        if RETIRED_TAG in label:
+            # 退役针脚（终态专用）：本环 apply/selftest 时 R-191 尚未套用，老形态仍在 ⇒ 不检；
+            # 终态由 dryrun 复核（期望 0），新形态由 R-191 自己的门禁负责。
+            continue
         c = out.count(needle)
         if op == '==' and c != expect:
             return 'GATE FAIL %s: count=%d expect %d' % (label, c, expect)
@@ -467,7 +491,7 @@ def _roundtrip_ok(out, s0):
 
 def _find_node():
     cand = [os.environ.get('NODE'), shutil.which('node'),
-            'C:/Users/<USER>/.workbuddy-ai/binaries/node/versions/22.22.2-3/node.exe']
+            'C:/Users/27026/.workbuddy-ai/binaries/node/versions/22.22.2-3/node.exe']
     for c in cand:
         if c and os.path.exists(c):
             return c

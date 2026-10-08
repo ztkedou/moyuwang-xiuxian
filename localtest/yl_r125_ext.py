@@ -145,6 +145,20 @@ FR_FULL = 'children:"扩地已满"'
 FR_PR = 'Pr=[{level:1,name:"简陋洞府"'
 FR_TOAST = '种植槽位 ${N.maxHerbSlots} 个'
 FR_LINK = '"灵田联动"'
+# ★ 0.9.31 R-185 v2：「灵田联动」行从右列（裸 UTF-8）搬到左列灵田页（字面 \uXXXX，变量
+#   T.level → gl）。终态标题形态 = 转义串 `"\u7075\u7530\u8054\u52a8"`（实测 count==1）。
+FR_LINK_ESC = '"\\u7075\\u7530\\u8054\\u52a8"'
+# ★ 0.9.31 R-185 v2：右列「灵田联动」整行搬迁到左列并重写结构（产出/催熟去重、变量
+#   T.level → gl）⇒ 终态「联动总览」新式为 gl 版（带 `",…,` 边界，实测 count==1）。
+NEW5_GATE = b'",3+(gl-1)+(gl>=9?4:gl>=7?2:gl>=5?1:0),'
+
+# ---- 终态专用针脚标记（0.9.31 起）----
+# 语义：本环（R-125）**排在 R-185 之前**套用 ⇒ apply 时针脚指的老形态仍在（右列裸 UTF-8 /
+#   T.level 版），而 R-185 v2 已**合法搬迁**该行 ⇒ 终态必须是左列新形态。单条 (needle, expect)
+#   无法同时满足 apply 态(0) 与终态(1)，故 = **终态专用**：dryrun 在终态复核（期望 1，如实反映
+#   搬迁后的新形态）；本环 apply 时跳过（不检）—— 避免「老补丁依赖新补丁」，搬迁形态亦由
+#   R-185 自身门禁（R185v2·左列 headroom 式在位 / 转义「灵田联动」在左列）负责。
+FINAL_ONLY_TAG = '【终态专用·R-185 已搬迁】'
 
 
 def headroom_new(level: int) -> int:
@@ -160,7 +174,8 @@ def gates():
     g = []
     for name, new, cnt in [('R125·E1 新上限式', NEW1, 1), ('R125·E7 新上限式', NEW2, 1),
                            ('R125·价格 18 档展开式', NEW3, 2), ('R125·联动toast 新式(完整式)', NEW4, 1),
-                           ('R125·联动总览 新式(边界锚)', NEW5, 1)]:
+                           # ★ 0.9.31 R-185 v2 搬迁后，本式终态在左列（gl 版）——终态专用（见 tag 说明）
+                           ('R125·联动总览 新式(边界锚)' + FINAL_ONLY_TAG, NEW5_GATE, 1)]:
         g.append((name, new.decode('ascii'), cnt, '==', ''))
     for name, old in [('R125·旧E1上限式清零', b'const __hr=3+Math.floor((R.level-1)/2)+(R.level>=9?7'),
                       ('R125·旧E7上限式清零', b'const __hr=3+Math.floor((T.level-1)/2)+(T.level>=9?7'),
@@ -177,7 +192,8 @@ def gates():
     g.append(('冻结·R49 扩地已满', FR_FULL, 1, '==', ''))
     g.append(('冻结·Pr 等级表未动', FR_PR, 1, '==', ''))
     g.append(('冻结·升级toast基础槽位', FR_TOAST, 1, '==', ''))
-    g.append(('冻结·灵田联动标题', FR_LINK, 1, '==', ''))
+    # ★ 0.9.31 R-185 v2 把该行搬到左列灵田页（裸 UTF-8 → 字面 \uXXXX）⇒ 终态标题形态为转义串
+    g.append(('冻结·灵田联动标题' + FINAL_ONLY_TAG, FR_LINK_ESC, 1, '==', 'R-185 v2 已搬迁至左列（转义形态）'))
     for nm, nd, c in [('冻结·extraSlots=12', 'extraSlots', 12),
                       ('冻结·maxHerbSlots=24', 'maxHerbSlots', 24),
                       ('冻结·T.extraSlots=5', 'T.extraSlots', 5),
@@ -276,6 +292,11 @@ def main() -> int:
     ok = True
     text = out.decode('utf-8', errors='replace')
     for label, needle, exp, op, note in gates():
+        if FINAL_ONLY_TAG in label:
+            # 终态专用（R-185 已搬迁）：本环 apply 时左列新形态尚未出现 ⇒ 不检；
+            # 终态由 dryrun 复核（期望 1），搬迁形态亦由 R-185 自身门禁负责。
+            print('  [SKIP] %-26s 终态专用（R-185 已搬迁）' % label.replace(FINAL_ONLY_TAG, ''))
+            continue
         act = text.count(needle)
         good = (act == exp)
         ok = ok and good

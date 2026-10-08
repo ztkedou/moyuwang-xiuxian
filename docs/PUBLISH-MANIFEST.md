@@ -1,9 +1,9 @@
 # 发布清单 · PUBLISH-MANIFEST
 
 > 本文件说明：哪些文件会进入公开的 GitHub 仓库、为什么可发；哪些文件被排除、为什么排除。
-> 生成时间：2026-09-29 ｜ 最后更新：2026-10-07（同步至 **0.9.29** 后复扫）
+> 生成时间：2026-09-29 ｜ 最后更新：2026-10-08（同步至 **0.9.35** 后复扫）
 > staging 目录：`<WORKDIR>\github-moyuwang-xiuxian\`
-> 统计：**362 个文件 / 约 14.3 MB**（不含 `.git`）
+> 统计：**430 个文件 / 约 14.3 MB**（不含 `.git`）
 
 ---
 
@@ -17,7 +17,7 @@
 | `LICENSE` | MIT 全文 + 上游 fansj 版权行 | 上游为 MIT，二次开发同样以 MIT 发布，符合许可要求 |
 | `.gitignore` | 忽略规则 | 纯规则文本 |
 | `.env.example` | 环境变量**键名**示例（值为占位符） | 只有键名，无任何真实值 |
-| `CHANGELOG.md` | 0.3.8 ~ 0.9.29 逐版更新日志 | 玩家可见内容，无敏感信息 |
+| `CHANGELOG.md` | 0.3.8 ~ 0.9.35 逐版更新日志 | 玩家可见内容，无敏感信息 |
 
 ### 2. 前端装配管线（根目录）
 
@@ -39,7 +39,7 @@
 |---|---|---|---|---|
 | `build/index.html` | 2 KB | — | ✅ | 页面外壳，引用最终 bundle |
 | `build/assets/index-v26m-20260927.js` | 1.51 MB | `b315eb1a04e967a66c128861b3a3dadd` | ✅ | **前端冻结基座（装配输入）**，不可变，复现必需 |
-| `build/assets/index-v2929-20261007.js` | 2.30 MB | `5d16be3568e02d2cde14c4302e74c7cf` | ✅ | **装配产出 = 0.9.29 定版产物**，作为可校验的参考物（见下方「关于产物是否入库」） |
+| `build/assets/index-v2935-20261008.js` | 2.32 MB | `af2883a4a7fa489b9b5c3851d1c85948` | ✅ | **装配产出 = 0.9.35 定版产物**，作为可校验的参考物（见下方「关于产物是否入库」） |
 | `build/assets/index-ZuV-l8Gt.css` | 160 KB | — | ✅ | 样式表，前端运行必需 |
 | `build/assets/logo-BInDl5Di.png` | 145 KB | — | ✅ | 站点 Logo |
 
@@ -176,5 +176,5 @@
 |---|---|---|
 | 1 | `_v281_base/game-dicts.base.json` 与 `srv/game-dicts.json` 内容完全相同（各 1.24 MB），是否保留两份？ | **建议保留**：`chain_build.py` 的基座指纹校验依赖前者，删了会破坏可复现性 |
 | 2 | 是否发布 `docs/0.8.8-design/`（含 0.8.8 / 0.8.9 / 0.8.10 批次设计）？ | ✅ **已发布**（11 份）：设计文档体现开发过程，且已扫描干净；含凭据的 GM 文档与内部交接稿已排除 |
-| 3 | `srv/index_v28.ts` 的 GM 口令兜底 —— **0.8.9 起已移除**（不再有 `\|\| 'gamer'`） | ✅ **已解决**：产物中 `GM_PASSWORD` 未设置即 `[FATAL]` 拒绝启动；仅冻结基座 `_v281_base/index_v28.base.ts` 保留历史写法（由 `srv_patch_baseclean089.py` 移除） |
+| 3 | `srv/index_v28.ts` 的 GM 口令兜底 —— **0.8.9 起已移除**（不再有 `\|\| '<WEAK_PASSWORD>'`） | ✅ **已解决**：产物中 `GM_PASSWORD` 未设置即 `[FATAL]` 拒绝启动；仅冻结基座 `_v281_base/index_v28.base.ts` 保留历史写法（由 `srv_patch_baseclean089.py` 移除） |
 | 4 | ~~README / LICENSE 中的作者名占位符~~ | ✅ **已完成**：用户拍板署名 `Fipken`，已写入 README 与 LICENSE |

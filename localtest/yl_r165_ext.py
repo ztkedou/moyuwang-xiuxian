@@ -85,8 +85,8 @@ yl_r165_ext.py — R-165 打坐「顿悟」同一触发点产生悟道心得（s
 ==============================================================================
 六、自测记录（本机实测，命令 + 结果）
 ==============================================================================
-  NODE = C:/Users/<USER>/.workbuddy-ai/binaries/node/versions/22.22.2-3/node.exe
-  TMP  = C:/Users/<USER>/AppData/Local/Temp/r165t/t.js   （build 产物临时副本）
+  NODE = C:/Users/27026/.workbuddy-ai/binaries/node/versions/22.22.2-3/node.exe
+  TMP  = C:/Users/27026/AppData/Local/Temp/r165t/t.js   （build 产物临时副本）
 
   [1] 首次补丁：  python localtest/yl_r165_ext.py --src $TMP
         -> rc=0
@@ -182,9 +182,12 @@ def gates():
         ('R165·走项目请求包装', 'YlxwPost("/wudao/enlighten", {})', 1, '==',
          '必须用 YlxwPost，禁裸 fetch/XMLHttpRequest'),
         ('R165·仅成功才补日志', 'r.ok && r.daoName', 1, '==', '失败/频控不补日志'),
+        # ★ 0.9.31 R-184 在 `function YlxwMedTick(S, insight) {` **之前**插入 HELPER_BLOCK，
+        #   打断本针脚原「助手收尾紧跟 YlxwMedTick」的相邻性假设 ⇒ 改为以助手自身尾部
+        #   （esc 文案 + 内层 try/catch + .catch 吞 + 外层 catch）为锚，不再依赖邻居。
         ('R165·失败静默(无外层抛出)',
-         '}).catch(function () {});\n  } catch (e) {}\n}\nfunction YlxwMedTick(S, insight) {',
-         1, '==', '请求失败自吞(紧跟 YlxwMedTick 收尾，唯一)'),
+         'r.expGain || 0), "special"); } catch (e) {}\n      }\n    }).catch(function () {});\n  } catch (e) {}\n}',
+         1, '==', '请求失败自吞(内层 try/catch + .catch 吞 + 外层 catch，唯一；不再依赖 YlxwMedTick 相邻)'),
         ('R165·传入 addLog', 'YlxwWudaoEnlighten(c)', 1, '==', '复用顿悟分支的 addLog'),
     ] + [('冻结 ' + n[:24], n, c, '==', '冻结既有形态') for n, c in FREEZE]
 

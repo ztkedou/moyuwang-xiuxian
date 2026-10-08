@@ -240,24 +240,41 @@ FREEZE = [
 ]
 
 
+# ---- 退役针脚标记（0.9.30 起）----
+# 语义：本环（R-177/R-178）**排在 R-180 之前**套用 ⇒ apply 时这三条自产形态**仍在**（count==1）；
+#   而 R-180（0.9.30）已**合法改写**它们（E2：Fm 中档权重 `$>100?x*=.88` → `$>100?x*=.30`，
+#   整个权重块随之变化）⇒ 终态（dryrun 复核）必须为 0。单条 (needle, expect) 无法同时满足
+#   apply 态(1) 与终态(0)，故退役 = **终态专用**：dryrun 在终态复核（期望 0）；
+#   本环 apply 时跳过（不检），避免「老补丁依赖新补丁」——新形态由 R-180 自己的门禁负责。
+#
+# ★ 0.9.35 扩充（R-199）：本环排在 R-199 之前 ⇒ apply 时自产的 3 条 d(9) 形态**仍在**（各 count==1）；
+#   而 R-199（0.9.35）已**合法改写**为 d(7)（正常收尾 finally / 商店跳过 / 商店访问）⇒ 终态必须为 0。
+#   同理由：3 条「已 9s」门禁退役 = 终态专用（dryrun 终态复核期望 0；本环 apply 跳过）；
+#   新形态由 R-199 自己的门禁负责（R199·主路冷却已 7s / 商店跳过已 7s / 商店访问已 7s == 1，且 全库 d(9)==0 / d(7)==3）。
+RETIRED_TAG = '【已退役·终态专用】'
+
+
 def gates():
     """返回 5 元组列表 (label, needle, expect, op, note)，对**补丁后**产物校验。"""
     g = [
         ('R177·幂等标记唯一', IDEMPOTENT_MARK, 1, '==', '[r177adv] 恰好 1 处'),
-        ('R177·主路冷却已 9s', '}finally{c(!1),d(9)}', 1, '==', '主路收尾 d(9) 恰好 1 处'),
+        ('R177·主路冷却已 9s' + RETIRED_TAG, '}finally{c(!1),d(9)}', 0, '==',
+         'R-199/0.9.35 已合法改写为 d(7) ⇒ 本环自产 9s 形态终态清零（新形态由 R199·主路冷却已 7s 覆盖）'),
         ('R177·主路冷却旧值已清零', '}finally{c(!1),d(10)}', 0, '==', 'd(10) 已消失'),
-        ('R177·商店跳过已 9s', 'c(!1),d(9);else{', 1, '==', '商店跳过 d(9) 恰好 1 处'),
+        ('R177·商店跳过已 9s' + RETIRED_TAG, 'c(!1),d(9);else{', 0, '==',
+         'R-199/0.9.35 已合法改写为 d(7) ⇒ 本环自产 9s 形态终态清零（新形态由 R199·商店跳过已 7s 覆盖）'),
         ('R177·商店跳过旧值已清零', 'c(!1),d(2);else{', 0, '==', 'd(2) 已消失'),
-        ('R177·商店访问已 9s', 'v(ee),c(!1),d(9)},3e2);return}', 1, '==', '商店访问 d(9) 恰好 1 处'),
+        ('R177·商店访问已 9s' + RETIRED_TAG, 'v(ee),c(!1),d(9)},3e2);return}', 0, '==',
+         'R-199/0.9.35 已合法改写为 d(7) ⇒ 本环自产 9s 形态终态清零（新形态由 R199·商店访问已 7s 覆盖）'),
         ('R177·商店访问旧值已清零', 'v(ee),c(!1),d(2)},3e2);return}', 0, '==', 'd(2) 已消失'),
         ('R177·结算展示延时未动', 'await new Promise(oe=>setTimeout(oe,1500)),V=', 1, '==', '1.5s 延时保持'),
-        ('R178·权重块已替换', A4_NEW, 1, '==', '新权重块恰好 1 处'),
+        ('R178·权重块已替换' + RETIRED_TAG, A4_NEW, 0, '==', 'R-180/0.9.30 已合法改写此形态 ⇒ 本环冻结针脚退役'),
         ('R178·权重块旧值已清零', A4_OLD, 0, '==', '旧权重块已消失'),
         ('R178·高档权重 .5', '$>500?x*=.5:', 1, '==', '高档 ×0.50'),
-        ('R178·中档权重 .88', '$>100?x*=.88:', 1, '==', '中档 ×0.88'),
+        ('R178·中档权重 .88' + RETIRED_TAG, '$>100?x*=.88:', 0, '==', 'R-180/0.9.30 已合法改写此形态 ⇒ 本环冻结针脚退役'),
         ('R178·旧高档权重已清零', '$>500?x*=.2+f*1.5', 0, '==', ''),
         ('R178·旧中档阈值已清零', '$>200?x*=.5+f', 0, '==', ''),
-        ('R178·中档阈值已下移', '$>100?x*=.88', 1, '==', '中档由 200 下移至 100'),
+        ('R178·中档阈值已下移' + RETIRED_TAG, '$>100?x*=.88', 0, '==', 'R-180/0.9.30 已合法改写此形态 ⇒ 本环冻结针脚退役'),
         ('冲突·结算汇总函数仍在', 'YlxwAdvSummary', 1, '>=', '未触碰并行改动对象'),
         ('冲突·结算统计函数仍在', 'YlxwAdvStatNew', 1, '>=', '未触碰并行改动对象'),
         ('冲突·结算累计函数仍在', 'YlxwAdvStatAcc', 1, '>=', '未触碰并行改动对象'),
@@ -321,6 +338,10 @@ def apply_patch(src):
 def _run_gates(out):
     """返回 None=全绿；否则返回失败串。"""
     for label, needle, expect, op, note in gates():
+        if RETIRED_TAG in label:
+            # 退役针脚（终态专用）：本环 apply 时 R-180 尚未套用，自产形态仍在 ⇒ 不检；
+            # 终态由 dryrun 复核（期望 0），新形态由 R-180 自己的门禁负责。
+            continue
         c = out.count(needle)
         if op == '==' and c != expect:
             return 'GATE FAIL %s: count=%d expect %d' % (label, c, expect)
@@ -338,7 +359,7 @@ def _roundtrip_ok(out, s0):
 
 def _find_node():
     cand = [os.environ.get('NODE'), shutil.which('node'),
-            'C:/Users/<USER>/.workbuddy-ai/binaries/node/versions/22.22.2-3/node.exe']
+            'C:/Users/27026/.workbuddy-ai/binaries/node/versions/22.22.2-3/node.exe']
     for c in cand:
         if c and os.path.exists(c):
             return c
@@ -470,7 +491,8 @@ def main():
     if args.check:
         print('[r177] check OK (%d -> %d chars, %+d)' % (len(s0), len(out), len(out) - len(s0)))
         for label, needle, expect, op, note in gates():
-            print('    gate %-40s %s' % (label, 'OK'))
+            print('    gate %-40s %s' % (label.replace(RETIRED_TAG, ''),
+                                         'SKIP(退役·终态复核)' if RETIRED_TAG in label else 'OK'))
         return 0
 
     ts = datetime.now().strftime('%Y%m%d_%H%M%S')
@@ -481,7 +503,8 @@ def main():
     print('[r177] patched: %d -> %d chars (%+d) (backup %s)'
           % (len(s0), len(out), len(out) - len(s0), os.path.basename(bak)))
     for label, needle, expect, op, note in gates():
-        print('    gate %-40s %s' % (label, 'OK'))
+        print('    gate %-40s %s' % (label.replace(RETIRED_TAG, ''),
+                                     'SKIP(退役·终态复核)' if RETIRED_TAG in label else 'OK'))
     return 0
 
 

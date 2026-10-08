@@ -36,7 +36,15 @@ BASE_DIR = os.path.join(ROOT, '_v281_base')
 STAGE = os.path.join(ROOT, '_chainstage')
 
 PY = sys.executable
-NODE = r'C:/Users/<USER>/.workbuddy-ai/binaries/node/versions/22.22.2-3/node.exe'
+# ★ 2026-10-08 修：原为写死 `…/node/versions/22.22.2-3/node.exe`，
+#   但本机 node 已随工具升级为 22.22.2-6（旧目录被删）⇒ 写死路径会 FileNotFoundError。
+#   改为：YL_NODE 环境变量 → versions 目录下**按名排序取最新** → 兜底裸 `node`。
+_NROOT = r'C:/Users/27026/.workbuddy-ai/binaries/node/versions'
+_NCANDS = []
+if os.path.isdir(_NROOT):
+    _NCANDS = sorted(os.path.join(_NROOT, _d, 'node.exe') for _d in os.listdir(_NROOT))
+    _NCANDS = [_c for _c in _NCANDS if os.path.isfile(_c)]
+NODE = os.environ.get('YL_NODE') or (_NCANDS[-1] if _NCANDS else 'node')
 
 # ---- 冻结基座指纹（改这里 = 改事实源，须有明确理由）----
 BASE_FP = {
@@ -505,10 +513,74 @@ SRV_CHAIN = [
                            #   · ★ 只改境界组 10 条 reward；修行/战斗/财富/任务 四组一行未动（用户「财富组先不压」）
                            #   · ★ target 一行未动 ⇒ 不影响玩家已有进度判定；发放式（reward 一律累加成灵石）未动
                            #   · 纯服务端环（客户端本批仅版本号 0.9.29）
+    # ---- 2026-10-07 0.9.30 批（R-186 挂机收益恒 0；★ 锚区与 r170b 零交集）----
+    'srv_patch_r186.py',   # R-186 离线挂机收益恒为 0（第 80 环 / 新末环）
+                           #   · 根因 = R-173 的 offlineAnchor 在 last_active_at 分支**取错了窗口末端**：
+                           #     `end = (r != null && r > a) ? r : nowMs`，其中 r=last_resume_at（客户端 back 写的，
+                           #     只比服务端打点 a 晚 1~2 秒）⇒ 窗口 ≈1.4s < OFFLINE_MIN_MS(5min) ⇒ report 恒 hours=0。
+                           #   · 更致命：ylTouchActive 用同一锚点判 pending ⇒ pending=false ⇒
+                           #     `UPDATE saves SET last_active_at = now` ⇒ **真离线一整天的窗口被当场抹掉**。
+                           #   · 线上铁证（同库天然对照）：user82 r-a=+1432ms ⇒ hours=0；user81 last_resume_at=NULL ⇒ 窗口≈12h（正确）。
+                           #   · 修法（2 处）：① `end` 仅在 r-a >= OFFLINE_MIN_MS 时才用 r；② ylTouchActive 封口条件同步收紧。
+                           #   · ★ 红线未动：offlineRewards/offlineWindow/offlineCapHours/offlineRatePerHour、OFFLINE_* 常量、
+                           #     月卡判定、offline_claimed_until 幂等、presence 本体、report/claim 端点。
+                           #   · ★ 客户端零改动（YlxwTOffline 只渲染 /offline/report 的字段，无本地计算）。
+    # ---- 2026-10-07 0.9.31 批（R-182 纯卖钱草利润重定档；★ 锚区与 r186 零交集）----
+    'srv_patch_r182.py',   # R-182 纯卖钱草利润重定档 + 催熟费同步抬高（第 81 环 / 新末环）
+                           #   · 用户原话：「3000灵石成本，卖只有3600太不合理了。这个要120分钟才能成熟，利润起码2W4。按这个标准给其他卖钱草也修改。」
+                           #   · 定价逻辑 100% 在服务端 farmCropDefs()（客户端 bundle 无灵田数值表 ⇒ 改客户端=假修复）
+                           #   · 5 条 k==='sell' 由 R-168 钉死「净赚恒 300/h」；本环改为「净利 = 成熟分钟 × 200」：
+                           #     linggusi 120→变卖 27000 / ziwenlingdao 180→42000 / jinsuiteng 300→72000 /
+                           #     xianyulian 480→120000 / shencangjinshen 720→192000（净利/h 全部 12000）
+                           #   · ★ 种子价 / 成熟时长 / 服用修为(exp) **逐字不变**，只覆写 stones
+                           #   · ★ 沿用 R-168 范式「另插 R182_FARM_TABLE 覆盖表」，不原地改带中文尾注的旧表
+                           #   · ★ 用户拍板接受回收率 4.0~9.0（突破 R-168 的 1.5 红线）：灵田复利有界
+                           #     （一块地 120 分钟才收一茬，7 块地 ≈84,000/h，与历练 ≈42,000/h 同量级）
+                           #   · 催熟费 FARM_BOOST_COST_PER_MIN 100 → **300**（防催熟变刷钱口）：
+                           #     设净收益 P=200×分钟、催熟费 C=rate×分钟，防刷钱 ⇔ C≥P ⇔ rate≥200；取 300 = 1.5×200
+                           #     ⇒ 满周期催熟净额 = −0.5P（纯回收口，恢复 R-168 原则并留 50% 余量）
+                           #   · ⚠️ 副作用：催熟费是**全局函数** ⇒ 该费率会同步抬高所有作物（含 mix/cult/rare）；
+                           #     那几类本就亏本/为换修为，提价只是把回收口收紧，方向一致。
+      # ---- 2026-10-08 0.9.34 批（R-189 第 2 批：主人加成 6% → 10%）----
+      'srv_patch_r191.py',   # R-189 主人加成 6% → **10%**（第 82 环 / 新末环）
+                             #   · 用户原话：「**①加成改到 10%**」
+                             #   · 常量是唯一权威源：`const R018_CONVERT = 0.06;` → `0.10;`（改 1 处覆盖 4 个使用点 + 对外暴露）
+                             #     自动跟随（一行未动）：r018SpiritBonus 的 4 个使用点、r018bSpiritBonus、GET /api/pet 的 convert
+                             #   · ★ 不动**别的** 0.06：`:6455-6457 (1 + lv * 0.06)` 妖灵本体成长系数（3 处）、
+                             #     `:5402 bonusChance: 0.06`、`:5680 0.06→0.006`（冻结针脚钉住）
+                             #   · 红线未动：无新增 require( / 403 / setInterval / PRAGMA
+                             #   · 配套客户端文案同步见 standalone `r189b`（4 处「6%」→「10%」）
+      # ---- 2026-10-08 0.9.34 批（R-196 灵纹前 4 条重设）----
+      'srv_patch_r196.py',   # R-196 灵纹前 4 条加成重设（第 83 环）
+                             #   · 用户拍板：「**数值可以微改，属性要重新设置一下**」
+                             #   · 锐纹 critRate .015 → **.02 + critDamage .08**（新增暴伤；暴伤原无占用，封顶 .8）
+                             #   · 御纹 damageReduction .02 → **.03**；疾纹 dodgeRate .015 → **.02**；噬纹 lifeLeech .01 → **.02**
+                             #   · ★ 后 2 条（蕴纹 expMul .30 / 天纹 ppMul .10）**逐字未动**（门禁冻结）
+                             #   · ★ 放弃「防御%/身法%」副属性（量化：petSpirit.defense 仅 2~145，再 ×5% 且 floor ⇒ +0~7，可忽略）
+                             #   · 配套客户端接线（新增 payload 键 runeCritDmg）见 standalone `r196`
+      # ---- 2026-10-08 0.9.34 批（R-194 悟道十道均匀随机）----
+      'srv_patch_r194.py',   # R-194 悟道「随机加一种道」（第 84 环 / 新末环）
+                             #   · 用户原话：「这个触发要变成**随机加一种道**，而不是固定第一个」
+                             #   · 取证：选道逻辑在服务端 :9023-9026，**本来就在随机**，但**只在「已开放的道」里随机**；
+                             #     血道门槛=0 ⇒ 炼气期 pool=['pill'] 唯一 ⇒ 恒血道。客户端只 POST {}、不传道 ⇒ 纯客户端改永不生效。
+                             #   · 方案 A：改为 `const dao = keys[Math.floor(Math.random()*keys.length)];` ⇒ 十道均匀（各 ≈10%）
+                             #   · ★ 副作用（用户已认可）：低境界也会随机到稀有道心得（越过 R-110 手动门槛）
+                             #   · 冻结：WUDAO_DAOS 10 key / WUDAO_DAO_REALM_GATE 10 门槛 / 端点其余逻辑（经验发放/日志/响应）逐字未动
+      # ---- 2026-10-08 0.9.35 批（R-198 免费玩法：免费进食每日 3 次 + 买额度 5 次）----
+      'srv_patch_r198.py',   # R-198 妖灵「免费玩法」服务端支持（第 85 环 / 新末环）
+                             #   · 用户原话：「在『培养（出口：妖灵之力 PP）』加一栏『免费玩法』，里面放一个免费进食的按钮，
+                             #     喂食度一次加 100，一日 3 次，冷却 30 分钟……买额度改成 5 次，3 个选项共用 5 次上限」
+                             #   · 买额度：`R018_BUY_DAILY_MAX` 2 → **5**（「3 选项共用」本就成立，同一 bought 计数；闸门 SQL 一行未动）
+                             #   · 免费进食：**复用 `pet_feed_log`** + 幂等加 2 列（`free_times` / `last_free_at`）
+                             #     单语句原子闸门（照 R-167 口径）；**冷却与次数全在服务端判定**；+100 走既有结算
+                             #     ⇒ 天然守「喂食度 9999 / 99 级」上限与「跨 10 级妖灵精魄」；失败回退时清冷却
+                             #   · 返回体带 `freeFeed:{used,left,cdLeftMs,max,cdMs}`；`consts` 补 3 字段
+                             #   · ★ 旧「当日首次免费」（R-167）**逐字保留**（在 else 分支），两套免费机制独立共存
+                             #   · 红线未动：无新增 require( / 403 / setInterval / PRAGMA（safeAddColumn 为既有幂等加列）
 ]
 
-# ---- 前端产物路径（0.9.29 换名：index-v2929-20261007.js，与 build_v26n.py OUT 逐字一致）----
-CLIENT_OUT = os.path.join(ROOT, 'build', 'assets', 'index-v2929-20261007.js')
+# ---- 前端产物路径（0.9.31 换名：index-v2931-20261007.js，与 build_v26n.py OUT 逐字一致）----
+CLIENT_OUT = os.path.join(ROOT, 'build', 'assets', 'index-v2935-20261008.js')
 SRV_OUT = os.path.join(ROOT, 'srv', 'index_v28.ts')
 
 

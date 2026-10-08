@@ -115,6 +115,17 @@ FR_KCUR = b'k.current()'               # 冻结：1
 FR_CIU = b'clearInterval(U)'           # 旧清理形态清零
 FR_CD = b'a(x=>x>0?x-1:0)'             # 冻结：冷却每秒 -1 语义不变
 
+# ---- 退役针脚标记（0.9.30 起）----
+# 语义：本环（R-139）**排在 R-180 之前**套用 ⇒ apply 时这两条自产形态**仍在**（count==1）；
+#   而 R-180（0.9.30）已**合法改写**它们（E6a 历练循环插 60 分上限分支 / E7 改写被动回血式）
+#   ⇒ 终态（dryrun 复核）必须为 0。单条 (needle, expect) 无法同时满足 apply 态(1) 与终态(0)，
+#   故退役 = **终态专用**：dryrun 在终态复核（期望 0）；本环 apply 时跳过（不检），
+#   避免「老补丁依赖新补丁」——新形态由 R-180 自己的门禁负责。
+# ★ 0.9.31 变更：R-180 v2 **删掉 60 分硬上限**整套（E6a 回退）⇒ 「新历练驱动」老形态回归
+#   （apply 态(1) 与终态(1) 一致）⇒ 该针脚**重新激活**（去掉 RETIRED_TAG、期望改回 1）。
+#   「新冷却倒计时」仍被 R-180 v2 的 E7（被动回血式改写）打断 ⇒ 保持退役（终态 0）。
+RETIRED_TAG = '【已退役·终态专用】'
+
 
 def gates():
     """补丁后形态的门禁五元组（name, needle, count, op, note）——供 dryrun 门禁表收录。"""
@@ -125,10 +136,11 @@ def gates():
         ('R139·调用 YlxwBgInterval', FR_CALL_I.decode('ascii'), 3, '==', '两条循环 + 冷却倒计时'),
         ('R139·调用 YlxwBgClear', FR_CALL_C.decode('ascii'), 3, '==', '三处清理'),
         ('R139·新打坐驱动在位', _A1_NEW.decode('ascii'), 1, '==', ''),
-        ('R139·新历练驱动在位', _A2_NEW.decode('ascii'), 1, '==', ''),
+        ('R139·新历练驱动在位', _A2_NEW.decode('ascii'), 1, '==',
+         'R-180 v2（0.9.31）已删 60 分硬上限 ⇒ 原驱动形态回归，重新激活'),
         ('R139·新打坐清理在位', _A3_NEW.decode('ascii'), 1, '==', ''),
         ('R139·新历练清理在位', _A4_NEW.decode('ascii'), 1, '==', ''),
-        ('R139·新冷却倒计时在位', _A5_NEW.decode('ascii'), 1, '==', ''),
+        ('R139·新冷却倒计时在位' + RETIRED_TAG, _A5_NEW.decode('ascii'), 0, '==', 'R-180/0.9.30 已合法改写此形态 ⇒ 本环冻结针脚退役'),
         ('R139·旧打坐形态清零', _A1_OLD.decode('ascii'), 0, '==', ''),
         ('R139·旧历练形态清零', _A2_OLD.decode('ascii'), 0, '==', ''),
         ('R139·旧打坐清理清零', _A3_OLD.decode('ascii'), 0, '==', ''),
@@ -206,6 +218,11 @@ def main() -> int:
     # 4) 门禁
     ok = True
     for label, needle, exp, op, note in gates():
+        if RETIRED_TAG in label:
+            # 退役针脚（终态专用）：本环 apply 时 R-180 尚未套用，自产形态仍在 ⇒ 不检；
+            # 终态由 dryrun 复核（期望 0），新形态由 R-180 自己的门禁负责。
+            print('  [SKIP] %-28s 已退役（终态由 R-180 门禁复核）' % label.replace(RETIRED_TAG, ''))
+            continue
         act = out.decode('utf-8', errors='replace').count(needle)
         good = (act == exp)
         ok = ok and good

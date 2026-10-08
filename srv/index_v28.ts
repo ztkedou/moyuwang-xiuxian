@@ -588,6 +588,11 @@ db.serialize(() => {
       FOREIGN KEY (player_id) REFERENCES users (id)
     )
   `);
+  // [r198free] R-198：免费进食额度列（**幂等加列**，DDL 自带幂等；紧贴 CREATE 之后 ⇒ 冷启动表已存在）。
+  //   · free_times   —— 当日免费进食已用次数（0..R198_FREE_FEED_MAX）
+  //   · last_free_at —— 上次免费进食时刻（ms；30 分钟冷却基准）
+  safeAddColumn('pet_feed_log', 'free_times', 'ALTER TABLE pet_feed_log ADD COLUMN free_times INTEGER NOT NULL DEFAULT 0');
+  safeAddColumn('pet_feed_log', 'last_free_at', 'ALTER TABLE pet_feed_log ADD COLUMN last_free_at INTEGER');
   // Y18：pet_care_log——喂养/嬉戏/收养/精魄流水（伴生页"喂养记录"；每次写入后裁剪至 PET_CARE_LOG_KEEP 条防膨胀）
   db.run(`
     CREATE TABLE IF NOT EXISTS pet_care_log (
@@ -5554,7 +5559,12 @@ function offlineAnchor(
   const aRaw = Number(lastActiveAtMs);
   const a = (lastActiveAtMs != null && Number.isFinite(aRaw) && aRaw > 0) ? aRaw : null;
   if (a != null) {
-    const end = (r != null && r > a) ? r : nowMs;
+    // ★ R-186（[r186offline]）：R-173 用 last_resume_at(r) 当窗口末端——但 r 常是**上一段会话**
+    //   遗留的「回来」时刻（客户端最后一次 back 只比最后一次服务端打点 a 晚 1~2 秒）。
+    //   此时窗口 = r-a ≈ 1~2s < OFFLINE_MIN_MS ⇒ 面板恒 0（R-173 上线后「挂机收益还是 0」根因）。
+    //   仅当 r 相对 a 至少晚 OFFLINE_MIN_MS（确属本次离线结束后的首次回归时刻）才用它封口；
+    //   否则窗口末端回落 nowMs（用户仍在线/刚回来 ⇒ now 即正确末端）。
+    const end = (r != null && r > a && (r - a) >= OFFLINE_MIN_MS) ? r : nowMs;
     return { anchorMs: Math.max(a, cl), endMs: end, source: 'last_active_at' };
   }
   if (l != null && l > cl) {
@@ -5614,7 +5624,12 @@ function ylTouchActive(userId: number): void {
           const anchorForResume = a != null ? a : anc.anchorMs;
           const rRaw = Number(row.last_resume_at);
           const r = (row.last_resume_at != null && Number.isFinite(rRaw) && rRaw > 0) ? rRaw : null;
-          if (r == null || (anchorForResume != null && r <= anchorForResume)) {
+          // ★ R-186（[r186offline]）：旧条件只认「r 早于锚点」才落封口；但上一段会话遗留的 r
+          //   常**略晚于**锚点（r-a 仅 1~2s）⇒ 旧条件判为「已有有效封口」而不写 ⇒ r 永远停在
+          //   旧值 ⇒ 窗口恒 = r-a ≈ 0，且 pending 判假 ⇒ 锚点被推进 now ⇒ 整段离线被抹掉。
+          //   改为：r 相对锚点不足 OFFLINE_MIN_MS（含 r<a）即视为「本段尚无有效封口」⇒ 用 now 落一次。
+          //   （每段离线只落一次：落完后 r-a 即为真实离线时长 ≥ 阈值 ⇒ 后续请求不再重落。）
+          if (r == null || (anchorForResume != null && (r - anchorForResume) < OFFLINE_MIN_MS)) {
             await dbRun('UPDATE saves SET last_resume_at = ? WHERE user_id = ?', [now, uid]);
           }
         } else {
@@ -6033,6 +6048,25 @@ function farmCropDefs(): Record<string, { name: string; seed: number; minutes: n
     const _v168 = R168_FARM_TABLE[_k168];
     out[_k168] = Object.assign({}, _d168, { seed: _v168[0], stones: _v168[1], exp: _v168[2] });
   }
+  // /*[r182herb]*/ R-182 纯卖钱草（kind=sell）变卖价重定档（在 R168 覆盖之后再覆写一遍；
+  //   R163/R168 表保留为历史档，最终值以本表为准）。
+  //   净利 = 成熟分钟 × 200（用户锚 120min→24000 ⇒ 12000 灵石/h）；
+  //   种子价 / 成熟时长 / 服用修为逐字不变，仅覆写 stones（变卖灵石）。
+  //   ★ 回收率升至 4.0~9.0（R-168 红线 ≤1.5）—— 用户已拍板接受（详见 srv_patch_r182.py 文件头）。
+  const R182_FARM_TABLE: Record<string, [number, number, number]> = {
+    // R-182 纯卖钱草（kind=sell）变卖价：净利 = 成熟分钟 × 200（用户锚 120min→24000 ⇒ 12000 灵石/h）。
+    linggusi:        [3000,  27000,  400],     // 凡品 灵谷穗  120min  净赚 24000  回收 9.000
+    ziwenlingdao:    [6000,  42000,  600],     // 灵品 紫纹灵稻 180min  净赚 36000  回收 7.000
+    jinsuiteng:      [12000, 72000,  1000],    // 玄品 金髓藤  300min  净赚 60000  回收 6.000
+    xianyulian:      [24000, 120000, 1600],    // 仙品 仙玉莲  480min  净赚 96000  回收 5.000
+    shencangjinshen: [48000, 192000, 2400],    // 神品 神藏金参 720min  净赚 144000 回收 4.000
+  };
+  for (const _k182 of Object.keys(R182_FARM_TABLE)) {
+    const _d182 = out[_k182];
+    if (!_d182) continue;
+    const _v182 = R182_FARM_TABLE[_k182];
+    out[_k182] = Object.assign({}, _d182, { seed: _v182[0], stones: _v182[1], exp: _v182[2] });
+  }
   return out;
 }
 // T5：变卖出口定价（纯）：与收获结算同源（farmYield 基准 × 洞府/照料乘区，提前减半）——
@@ -6131,8 +6165,13 @@ function farmPestToday(playerId: number, slot: number, cropKey: string, plantedA
 }
 // T10 催熟费（纯）：max(起价, 剩余分钟×单价)——公式同构洞府加速 Br={minCost:1000,costPerMinute:100}，
 // 常量独立不引客户端符号；催熟是纯灵石回收口（全周期催熟费恒高于作物净收益，不构成刷钱口）
+// R-182 催熟单价 100→300/min：纯卖钱草净利重定为 200/min 后，旧单价（100/min）
+//   使满周期催熟费(120min=12000) < 净利(24000) ⇒ 催熟一轮净赚 +12000（新刷钱口）。
+//   新单价 300/min = 1.5 × 净利率(200/min) ⇒ 满周期催熟费 = 1.5 × 净收益 > 净收益
+//   ⇒ 催熟一轮净额 < 0（纯灵石回收口，恢复 R-168「全周期催熟费恒高于作物净收益」原则）。
+const R182_BOOST_COST_PER_MIN = 300;
 function farmBoostCost(leftMs: number): number {
-  return Math.max(FARM_BOOST_MIN_COST, Math.ceil(Math.max(0, leftMs) / 60000) * FARM_BOOST_COST_PER_MIN);
+  return Math.max(FARM_BOOST_MIN_COST, Math.ceil(Math.max(0, leftMs) / 60000) * R182_BOOST_COST_PER_MIN);
 }
 // T10 每日催熟总次数上限（纯）：基础 10 + 逐级 +3/+2（L1=10…L10=32）（#6；与客户端洞府页联动展示同式）[r050boost] R-050：基础 3→10 且公式改逐级 +3/+2（客户端两处展示同步见 yl_050_ext.py）
 function farmBoostCap(grottoLevel: number): number {
@@ -6376,8 +6415,14 @@ const R018_BOND_MAX = 500;          // 羁绊封顶（决策点 4 = A）
 const R018_APTITUDE_MAX = 100;      // 资质上限
 const R018_APTITUDE_COST = 30000;   // 点化单次价（决策点 5 = A）
 const R018_APTITUDE_STEP = 3;       // 随机 +1~3（均值 +2.0）
-const R018_BUY_COST = 20000;        // 买互动额度单次价（决策点 7 = A）
-const R018_BUY_DAILY_MAX = 2;       // 每日买额度上限
+const R018_BUY_COST = 20000;
+// [r198free] R-198：免费玩法·免费进食（每日 3 次 · 30 分钟冷却 · +100 喂食度 · 免灵石）
+//   · 与 R-167「当日首次免费」**独立共存**（各用各的计数列：free_times / times，互不影响）。
+//   · MAX 每日次数上限；CD_MS 冷却毫秒；HUNGER 单次喂食度（+100 仍受 PET_HUNGER_MAX=9999 封顶）。
+const R198_FREE_FEED_MAX = 3;
+const R198_FREE_FEED_CD_MS = 30 * 60 * 1000;
+const R198_FREE_FEED_HUNGER = 100; /*[r198free]*/        // 买互动额度单次价（决策点 7 = A）
+const R018_BUY_DAILY_MAX = 5;       // 每日买额度上限
 const R018_EXPED_COST = 5000;       // 秘径派遣价
 const R018_EXPED_HUNGER = 80;       // 秘径归来喂食度
 const R018_EXPED_BOND = 15;         // 秘径归来羁绊
@@ -6386,7 +6431,7 @@ const R018_EXPED_MS = 4 * 60 * 60 * 1000; // 秘径时长 4 小时（决策点 6
 const R018_MILESTONE_STEP = 10;     // 妖灵精魄：每 10 级一次（决策点 10 = C）
 const R018_MILESTONE_BOND = 20;     // 每次里程碑 bond（与旧 PET_BATTLE_BOND 同值）
 const R018_MILESTONE_STONES = 1000; // 每次里程碑邮件灵石（与旧 PET_BATTLE_STONES 同值）
-const R018_CONVERT = 0.06;          // 转化率（决策点 3 = A）
+const R018_CONVERT = 0.10; /*[r191conv]*/          // 转化率（决策点 3 = A）
 
 // [r071] R-071 / R-072 / R-075 妖灵「收养 / 归位 / 放生」定价（本环新增 2 个消耗常量）
 //   · 收养 20000 —— 与「买互动额度 / 灵兽远征」同档（同系统既有价格点），作妖灵入口门票；
@@ -6424,7 +6469,7 @@ function r018SpiritStats(rarity: unknown, level: unknown): { attack: number; def
     speed:   Math.floor((20 + b * 5) * (1 + lv * 0.03)),
   };
 }
-// 主人加成 = floor(妖灵属性 × 0.06 × PP)
+// 主人加成 = floor(妖灵属性 × 0.10 × PP)
 function r018SpiritBonus(rarity: unknown, level: unknown, bond: unknown, aptitude: unknown): { pp: number; attack: number; defense: number; maxHp: number; speed: number } {
   const pp = r018SpiritPP(rarity, level, bond, aptitude);
   const s = r018SpiritStats(rarity, level);
@@ -6679,16 +6724,16 @@ app.post('/api/pet/spirit/release', authenticateToken, rateLimit({ windowMs: 60 
 //         蕴纹 → 服务端秘径修为 +30%；天纹 → 服务端 PP ×1.10。
 //   消耗：首次激活免费；此后换纹 50,000 灵石/次（策划 §2 D5「任选 1 条生效」+「换纹 50,000/次」）。
 const R018B_RUNE_COST = 50000;      // 换纹单价（首次激活免费）
-const R018B_RUNE_TABLE: Record<string, { key: string; name: string; unlock: number; kind: string; value: number; desc: string }> = {
-  rui:  { key: 'rui',  name: '锐纹', unlock: 10, kind: 'critRate',        value: 0.015, desc: '主人暴击率 +1.5%' },
-  yu:   { key: 'yu',   name: '御纹', unlock: 20, kind: 'damageReduction', value: 0.02,  desc: '主人减伤 +2%' },
-  ji:   { key: 'ji',   name: '疾纹', unlock: 30, kind: 'dodgeRate',       value: 0.015, desc: '主人闪避 +1.5%' },
-  shi:  { key: 'shi',  name: '噬纹', unlock: 40, kind: 'lifeLeech',       value: 0.01,  desc: '主人吸血 +1%' },
+const R018B_RUNE_TABLE: Record<string, { key: string; name: string; unlock: number; kind: string; value: number; kind2?: string; value2?: number; desc: string }> = { /*[r196rune]*/
+  rui:  { key: 'rui',  name: '锐纹', unlock: 10, kind: 'critRate',        value: 0.02,  kind2: 'critDamage', value2: 0.08, desc: '主人暴击率 +2%、暴击伤害 +8%' },
+  yu:   { key: 'yu',   name: '御纹', unlock: 20, kind: 'damageReduction', value: 0.03,  desc: '主人减伤 +3%' },
+  ji:   { key: 'ji',   name: '疾纹', unlock: 30, kind: 'dodgeRate',       value: 0.02,  desc: '主人闪避 +2%' },
+  shi:  { key: 'shi',  name: '噬纹', unlock: 40, kind: 'lifeLeech',       value: 0.02,  desc: '主人吸血 +2%' },
   yun:  { key: 'yun',  name: '蕴纹', unlock: 50, kind: 'expMul',          value: 0.30,  desc: '妖灵秘径修为产出 +30%' },
   tian: { key: 'tian', name: '天纹', unlock: 60, kind: 'ppMul',           value: 0.10,  desc: '妖灵之力 PP ×1.10' },
 };
 // 灵纹定义（未知 key ⇒ null）
-function r018bRuneDef(key: unknown): { key: string; name: string; unlock: number; kind: string; value: number; desc: string } | null {
+function r018bRuneDef(key: unknown): { key: string; name: string; unlock: number; kind: string; value: number; kind2?: string; value2?: number; desc: string } | null {
   const k = String(key == null ? '' : key);
   return Object.prototype.hasOwnProperty.call(R018B_RUNE_TABLE, k) ? R018B_RUNE_TABLE[k] : null;
 }
@@ -6701,8 +6746,8 @@ function r018bRuneList(level: unknown): any[] {
   });
 }
 // 当前生效灵纹的效果（未解锁 / 未激活 ⇒ 全 0、乘数 1）
-function r018bRuneEffect(key: unknown, level: unknown): { key: string; critRate: number; dodgeRate: number; lifeLeech: number; damageReduction: number; expMul: number; ppMul: number } {
-  const zero = { key: '', critRate: 0, dodgeRate: 0, lifeLeech: 0, damageReduction: 0, expMul: 0, ppMul: 1 };
+function r018bRuneEffect(key: unknown, level: unknown): { key: string; critRate: number; critDamage: number; dodgeRate: number; lifeLeech: number; damageReduction: number; expMul: number; ppMul: number } {
+  const zero = { key: '', critRate: 0, critDamage: 0, dodgeRate: 0, lifeLeech: 0, damageReduction: 0, expMul: 0, ppMul: 1 };
   const d = r018bRuneDef(key);
   if (!d) return zero;
   const lv = Math.max(0, Math.min(99, Math.floor(Number(level) || 0)));
@@ -6714,10 +6759,11 @@ function r018bRuneEffect(key: unknown, level: unknown): { key: string; critRate:
   else if (d.kind === 'damageReduction') o.damageReduction = d.value;
   else if (d.kind === 'expMul') o.expMul = d.value;
   else if (d.kind === 'ppMul') o.ppMul = 1 + d.value;
+  if (d.kind2 === 'critDamage') o.critDamage = d.value2 || 0;
   return o;
 }
 // 基础加成 + 灵纹（天纹 ×1.10）→ 存档 payload（与 GET /api/pet 回显同源同式）
-function r018bApplyRune(b: { pp: number; attack: number; defense: number; maxHp: number; speed: number }, rn: { key: string; critRate: number; dodgeRate: number; lifeLeech: number; damageReduction: number; ppMul: number }): any {
+function r018bApplyRune(b: { pp: number; attack: number; defense: number; maxHp: number; speed: number }, rn: { key: string; critRate: number; critDamage: number; dodgeRate: number; lifeLeech: number; damageReduction: number; ppMul: number }): any {
   const mul = (rn && rn.ppMul) ? rn.ppMul : 1;
   return {
     pp: Math.round(b.pp * mul * 10000) / 10000,
@@ -6727,6 +6773,7 @@ function r018bApplyRune(b: { pp: number; attack: number; defense: number; maxHp:
     speed: Math.floor(b.speed * mul),
     rune: rn ? rn.key : '',
     runeCrit: rn ? rn.critRate : 0,
+    runeCritDmg: rn ? rn.critDamage : 0,
     runeDodge: rn ? rn.dodgeRate : 0,
     runeLeech: rn ? rn.lifeLeech : 0,
     runeDR: rn ? rn.damageReduction : 0,
@@ -8987,9 +9034,7 @@ app.post('/api/wudao/enlighten',
       let realmIdx = 0;
       try { realmIdx = wudaoRealmIndex(JSON.parse(String(srow.save_data || '{}'))?.player?.realm); } catch { realmIdx = 0; }
       const keys = Object.keys(WUDAO_DAOS);
-      const open = keys.filter((k) => realmIdx >= wudaoDaoGateRealm(k));
-      const pool = open.length > 0 ? open : [keys[0]];
-      const dao = pool[Math.min(pool.length - 1, Math.max(0, Math.floor(Math.random() * pool.length)))];
+      const dao = keys[Math.floor(Math.random() * keys.length)]; /*[r194dao]*/
       const added = await wudaoAddExp(userId, dao, WUDAO_INSIGHT_EXP, 'idle');
       if (!added) return res.json({ ok: false, reason: 'fail' });
       return res.json({
@@ -13308,6 +13353,17 @@ function petView(p: any): any {
 }
 
 // GET /api/pet — 我的宠物全量（宠物卡 + 今日嬉戏次数 + 喂养记录 + 常量表）
+// [r198free] R-198 免费进食额度视图（读 pet_feed_log 当日行；供 GET /api/pet 与 feed 响应）。
+//   cdLeftMs：距下次可免费进食的剩余毫秒（left<=0 或从未进食 ⇒ 0）。
+async function r198FreeFeedQuota(userId: number, date: string): Promise<{ used: number; left: number; cdLeftMs: number; max: number; cdMs: number }> {
+  const row: any = await dbGet('SELECT free_times, last_free_at FROM pet_feed_log WHERE player_id = ? AND date = ?', [userId, date]);
+  const used = Math.min(R198_FREE_FEED_MAX, Math.max(0, Number(row?.free_times) || 0));
+  const left = Math.max(0, R198_FREE_FEED_MAX - used);
+  const lastAt = Number(row?.last_free_at) || 0;
+  const cdLeftMs = (left <= 0 || !lastAt) ? 0 : Math.max(0, R198_FREE_FEED_CD_MS - (Date.now() - lastAt));
+  return { used, left, cdLeftMs, max: R198_FREE_FEED_MAX, cdMs: R198_FREE_FEED_CD_MS };
+}
+
 app.get('/api/pet', authenticateToken, rateLimit({ windowMs: 60 * 1000, max: 60, keyFn: (req: any) => `pet:me:${req.user?.id ?? req.ip}` }), async (req: any, res: any) => {
   const userId = req.user.id;
   try {
@@ -13316,7 +13372,7 @@ app.get('/api/pet', authenticateToken, rateLimit({ windowMs: 60 * 1000, max: 60,
     const [play, feed, logs, exped] = await Promise.all([
       dbGet('SELECT times, tease, brush, talk, bought FROM pet_play_log WHERE player_id = ? AND date = ?', [userId, today]),
       // [r167feed] R-167：喂养当日免费额度回显源（pet_feed_log 当日 times）
-      dbGet('SELECT times FROM pet_feed_log WHERE player_id = ? AND date = ?', [userId, today]),
+      dbGet('SELECT times, free_times, last_free_at FROM pet_feed_log WHERE player_id = ? AND date = ?', [userId, today]),
       dbAll('SELECT kind, detail, created_at FROM pet_care_log WHERE player_id = ? ORDER BY id DESC LIMIT 20', [userId]),
       dbGet('SELECT started_at, claimed FROM pet_spirit_exped WHERE player_id = ? AND date = ?', [userId, today]),
     ]);
@@ -13343,6 +13399,14 @@ app.get('/api/pet', authenticateToken, rateLimit({ windowMs: 60 * 1000, max: 60,
         used: Math.min(1, Number(feed?.times) || 0),
         free: (Number(feed?.times) || 0) < 1,
       },
+      // [r198free] R-198：免费进食额度（used/left/cdLeftMs/max/cdMs）—— 与 R-167 feedQuota 并列回显。
+      freeFeed: (() => {
+        const _u = Math.min(R198_FREE_FEED_MAX, Math.max(0, Number(feed?.free_times) || 0));
+        const _l = Math.max(0, R198_FREE_FEED_MAX - _u);
+        const _la = Number(feed?.last_free_at) || 0;
+        const _cd = (_l <= 0 || !_la) ? 0 : Math.max(0, R198_FREE_FEED_CD_MS - (Date.now() - _la));
+        return { used: _u, left: _l, cdLeftMs: _cd, max: R198_FREE_FEED_MAX, cdMs: R198_FREE_FEED_CD_MS };
+      })(),
       exped: exped ? {
         startedAt: Number(exped.started_at) || 0,
         claimed: Number(exped.claimed) || 0,
@@ -13357,6 +13421,7 @@ app.get('/api/pet', authenticateToken, rateLimit({ windowMs: 60 * 1000, max: 60,
         battleLevel: PET_BATTLE_LEVEL,
         bondMax: R018_BOND_MAX, aptitudeMax: R018_APTITUDE_MAX, aptitudeCost: R018_APTITUDE_COST,
         buyCost: R018_BUY_COST, buyDailyMax: R018_BUY_DAILY_MAX,
+        freeFeedMax: R198_FREE_FEED_MAX, freeFeedCdMs: R198_FREE_FEED_CD_MS, freeFeedHunger: R198_FREE_FEED_HUNGER,
         expedCost: R018_EXPED_COST, expedMs: R018_EXPED_MS, expedHunger: R018_EXPED_HUNGER,
         expedBond: R018_EXPED_BOND, expedExp: R018_EXPED_EXP,
         convert: R018_CONVERT, feedTiers: R018_FEED_TIERS, playKinds: R018_PLAY_KINDS,
@@ -13424,11 +13489,17 @@ app.post('/api/pet/feed', authenticateToken, rateLimit({ windowMs: 60 * 1000, ma
   let _feedFree = false;
   let _feedDate = '';
   let _feedDone = false;
+  let _freeReq = false; // [r198free] R-198：本次是否「免费进食」（catch 兜底回退分支用）
   try {
     // [r167feed] 复制一份**可变**档位：r018FeedTier 返回的是 R018_FEED_TIERS 的共享引用，
     //   直接改 .cost 会污染全局常量 ⇒ 必须复制；仅当「当日首次免费」时把 _feed.cost 置 0。
+    // [r198free] R-198：免费进食分支（每日 3 次 · 30 分钟冷却 · +100 喂食度 · 免灵石）。
+    //   请求体 { free: true } ⇒ 走免费闸门；否则照 R-167 付费进食（含当日首次免费，逐字保留）。
+    _freeReq = !!req.body?.free;
     const _feedTier = r018FeedTier(req.body?.tier);
-    const _feed = { cost: _feedTier.cost, hunger: _feedTier.hunger, name: _feedTier.name };
+    const _feed = _freeReq
+      ? { cost: 0, hunger: R198_FREE_FEED_HUNGER, name: '免费进食' }
+      : { cost: _feedTier.cost, hunger: _feedTier.hunger, name: _feedTier.name };
     const pet: any = await dbGet('SELECT id, name, hunger, level, merged FROM pets WHERE player_id = ?', [userId]);
     if (pet && Number(pet.merged) > 0) return res.status(409).json({ error: '妖灵已归位，无法再喂养' });
     if (!pet) return res.status(404).json({ error: '请先收养一只灵宠' });
@@ -13446,16 +13517,39 @@ app.post('/api/pet/feed', authenticateToken, rateLimit({ windowMs: 60 * 1000, ma
     //   ★ 失败补偿：后续任一环节失败（余额不足 / 扣费失败 / 宠物行缺失 / 异常）回退本次计数，
     //     避免玩家白占一次免费额度（与 play 端点 @13340-13343 同款补偿口径）。
     _feedDate = petDate(Date.now());
-    const _feedGate = await dbRun(
-      'INSERT INTO pet_feed_log (player_id, date, times) VALUES (?, ?, 1) ON CONFLICT(player_id, date) DO UPDATE SET times = times + 1 WHERE times < 1',
-      [userId, _feedDate]
-    );
-    _feedFree = _feedGate.changes > 0;
-    if (_feedFree) _feed.cost = 0;
+    if (_freeReq) {
+      // [r198free] R-198 免费进食闸门：每日 3 次 + 30 分钟冷却（单语句原子；changes>0 才放行）。
+      //   INSERT ... DO UPDATE SET free_times=free_times+1, last_free_at=excluded.last_free_at
+      //     WHERE free_times < 3 AND (last_free_at IS NULL OR (now-last_free_at) >= 30min)
+      //   ★ 新行（当日首次）走 INSERT 分支：无冷却继承（跨日重置）；WHERE 仅在已存在行时生效。
+      //   ★ 拒绝时回显剩余次数 / 剩余冷却毫秒（客户端据此渲染按钮态）。
+      const _nowMs = Date.now();
+      const _freeGate = await dbRun(
+        'INSERT INTO pet_feed_log (player_id, date, free_times, last_free_at) VALUES (?, ?, 1, ?) ON CONFLICT(player_id, date) DO UPDATE SET free_times = free_times + 1, last_free_at = excluded.last_free_at WHERE free_times < ? AND (last_free_at IS NULL OR (? - last_free_at) >= ?)',
+        [userId, _feedDate, _nowMs, R198_FREE_FEED_MAX, _nowMs, R198_FREE_FEED_CD_MS]
+      );
+      if (!_freeGate.changes) {
+        const _q = await r198FreeFeedQuota(userId, _feedDate);
+        return res.status(409).json({ error: _q.left <= 0 ? `今日免费进食已用完（每日 ${R198_FREE_FEED_MAX} 次）` : `免费进食冷却中（还需 ${Math.ceil(_q.cdLeftMs / 60000)} 分钟）`, freeFeed: _q });
+      }
+      _feedFree = true; // [r198free] 占用一次免费额度（下游失败时回退）
+    } else {
+      // [r167feed] R-167 原「当日首次免费」闸门（本环一行未动）
+      const _feedGate = await dbRun(
+        'INSERT INTO pet_feed_log (player_id, date, times) VALUES (?, ?, 1) ON CONFLICT(player_id, date) DO UPDATE SET times = times + 1 WHERE times < 1',
+        [userId, _feedDate]
+      );
+      _feedFree = _feedGate.changes > 0;
+      if (_feedFree) _feed.cost = 0;
+    }
     const _feedRollback = async (): Promise<void> => {
       if (!_feedFree || _feedDone) return; // 未占用 or 已成功 ⇒ 无需回退（幂等）
       _feedFree = false;                    // 至多回退一次
-      await dbRun('UPDATE pet_feed_log SET times = MAX(0, times - 1) WHERE player_id = ? AND date = ?', [userId, _feedDate]);
+      if (_freeReq) {
+        await dbRun('UPDATE pet_feed_log SET free_times = MAX(0, free_times - 1), last_free_at = NULL WHERE player_id = ? AND date = ?', [userId, _feedDate]);
+      } else {
+        await dbRun('UPDATE pet_feed_log SET times = MAX(0, times - 1) WHERE player_id = ? AND date = ?', [userId, _feedDate]);
+      }
     };
     if (bal < _feed.cost) return res.status(409).json({ error: `灵石不足：需 ${_feed.cost}，现有 ${bal}` });
 
@@ -13506,10 +13600,10 @@ app.post('/api/pet/feed', authenticateToken, rateLimit({ windowMs: 60 * 1000, ma
       }
       fresh = await dbGet('SELECT name, rarity, hunger, exp, bond, aptitude, merged FROM pets WHERE player_id = ?', [userId]); // 精魄 bond 后回读
     }
-    logPetCare(userId, 'feed', `喂食「${String(pet.name)}」，喂食度 +${PET_HUNGER_PER_FEED}`);
-    res.json({ ok: true, pet: petView(fresh), battleReached, milestones: _miles, spirit: await r018SpiritSync(userId) });
+    logPetCare(userId, 'feed', `喂食「${String(pet.name)}」，喂食度 +${_freeReq ? R198_FREE_FEED_HUNGER : PET_HUNGER_PER_FEED}`);
+    res.json({ ok: true, pet: petView(fresh), battleReached, milestones: _miles, spirit: await r018SpiritSync(userId), freeFeed: await r198FreeFeedQuota(userId, _feedDate) });
   } catch (e: any) {
-    if (_feedFree && !_feedDone) { _feedFree = false; try { await dbRun('UPDATE pet_feed_log SET times = MAX(0, times - 1) WHERE player_id = ? AND date = ?', [userId, _feedDate]); } catch {} } // [r167feed] 异常兜底：回退未落库成功的免费额度
+    if (_feedFree && !_feedDone) { _feedFree = false; try { await dbRun(_freeReq ? 'UPDATE pet_feed_log SET free_times = MAX(0, free_times - 1), last_free_at = NULL WHERE player_id = ? AND date = ?' : 'UPDATE pet_feed_log SET times = MAX(0, times - 1) WHERE player_id = ? AND date = ?', [userId, _feedDate]); } catch {} } // [r167feed] 异常兜底：回退未落库成功的免费额度
     console.error('pet feed error:', e?.message || e);
     res.status(500).json({ error: '服务器繁忙' });
   }

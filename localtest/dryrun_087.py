@@ -143,8 +143,8 @@ NEW_MODULES = ['grotto087', 'farm087', 'xinfa087', 't6chardex',
                'r111', 'r113', 'r114', 'r115',  # 2026-10-02 0.9.12 R-111 签到 / R-113 万妖五boss / R-114 历练收获 / R-115 洞府灵田
                'r124']  # 2026-10-02 0.9.13 R-124 灵田服用预览 spirit→神识（r116/r118 standalone 不在此表）
 
-VERSION = '0.9.29'
-BUNDLE_BASENAME = 'index-v2929-20261007.js'   # 与 build_v26n.OUT / chain_build.CLIENT_OUT / build/index.html 逐字一致
+VERSION = '0.9.35'
+BUNDLE_BASENAME = 'index-v2935-20261008.js'   # 与 build_v26n.OUT / chain_build.CLIENT_OUT / build/index.html 逐字一致
 # ★ 升版四件套之外的第 5 处：本文件的 VERSION 必须同步（下方 wiring_checks 用它交叉校验
 #   yl_version_ext.DEFAULT_VERSION 与 CHANGELOG 最新条目，两者都对上才算过）。
 
@@ -436,8 +436,17 @@ def main():
 
     if fails:
         print('\n失败明细 %d 条:' % len(fails))
-        for name, s, expect, cmp, note, actual in fails:
-            print('  [FAIL] %-36s 期望 %s %s  实际=%d  %s' % (name, cmp, expect, actual, note))
+        # ★ 0.9.35 修（原为死代码级缺陷）：fails 里**两种元组混用** ——
+        #   5 元组 (name, s, expect, cmp, note)：接线 WIRE / EV 红线 / 门禁 / T7 403 / standalone 套用失败；
+        #   6 元组 (…, actual)              ：仅 standalone 门禁一处（见上方 :429）。
+        #   原代码写死 6 元组解包 ⇒ **只要有任何 5 元组失败就抛 ValueError**，
+        #   失败明细在最需要它的时刻反而打不出来（只剩 traceback）⇒ 按长度分派。
+        for _row in fails:
+            name, s, expect, cmp, note = _row[:5]
+            if len(_row) > 5:
+                print('  [FAIL] %-36s 期望 %s %s  实际=%s  %s' % (name, cmp, expect, _row[5], note))
+            else:
+                print('  [FAIL] %-36s 期望 %s %s  针脚=%s  %s' % (name, cmp, expect, s, note))
         return 1
     print('\n门禁结果: PASS（FAIL=0）')
     return 0

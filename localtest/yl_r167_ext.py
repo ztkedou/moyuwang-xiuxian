@@ -102,11 +102,13 @@ yl_r167_ext.py — R-167 仙务·妖灵：并入重复的「喂养/嬉戏」按�
            YlxwR18Card(t, m)==2 · YlxwTSpiritUse, { pet: m }==1 · playDailyMax==1
            "/pet/feed"==2 · "/pet/play"==7
   打后   : "/pet/feed"==1 · "/pet/play"==6 · [r167pet]==1
+  ★ 0.9.35 起：R-198 新增「免费进食」入口 ⇒ **终态** "/pet/feed"==2（apply 态仍 1）。
+    故「/pet/feed 仅剩进食档位」门禁退役为**终态专用**（dryrun 终态复核期望 2；本环 apply 跳过）。
 
 ==============================================================================
 六、自测记录（本机实测 · 全程只动临时副本）
 ==============================================================================
-  NODE = C:/Users/<USER>/.workbuddy-ai/binaries/node/versions/22.22.2-3/node.exe
+  NODE = C:/Users/27026/.workbuddy-ai/binaries/node/versions/22.22.2-3/node.exe
   [1] --check：门禁全绿 + round-trip identical=True（除 2 处外逐字节一致）
   [2] 首次补丁：rc=0，落 test.js.bak-r167-<ts>，chars 2134673 -> 2134476（delta -197）
   [3] 幂等重跑：rc=3 "already patched (idempotent skip)"（未写盘）
@@ -170,6 +172,15 @@ FREEZE = [
 
 IDEMPOTENT_MARK = '[r167pet]'
 
+# ---- 退役针脚标记（0.9.35 起）----
+# 语义：本环（R-167）**排在 R-198 之前**套用 ⇒ apply 时 `/pet/feed` 仅剩进食档位 1 处（本环已删
+#   独立「喂养」入口）；而 R-198（0.9.35）新增「免费进食」入口
+#   `f("r18freefeed", "/pet/feed", { free: true }, …)` ⇒ 终态（dryrun 复核）`"/pet/feed"` == 2。
+#   单条 (needle, expect) 无法同时满足 apply 态(1) 与终态(2)，故退役 = **终态专用**：
+#   dryrun 在终态复核（期望 2）；本环 apply 时跳过（不检），避免「老补丁依赖新补丁」——
+#   新形态由 R-198 自己的门禁负责（R198·免费进食请求 `f("r18freefeed", "/pet/feed", { free: true }` == 1）。
+RETIRED_TAG = '【已退役·终态专用】'
+
 
 def gates():
     """返回 5 元组列表 (label, needle, expect, op, note)，对**补丁后**产物校验。"""
@@ -178,9 +189,16 @@ def gates():
         ('R167·并入尾就位(含[r167pet])', E1_NEW, 1, '==', '删除后与 YlxwTSpiritUse 相邻'),
         ('R167·幂等标记唯一', IDEMPOTENT_MARK, 1, '==', '[r167pet] 恰好 1 处'),
         ('R167·旧标题已改写', E2_OLD, 0, '==', '原「今日互动 X/Y」必须消失'),
-        ('R167·新标题就位', E2_NEW, 1, '==', '自解释标题恰好 1 处'),
-        ('R167·首免文案在位', esc('每种每日首次免费'), 1, '==', '明确「每种每日首次免费」'),
-        ('R167·/pet/feed 仅剩进食档位', '"/pet/feed"', 1, '==', '独立喂养入口已删除'),
+        # [retired 0.9.33] 原两条针脚在此**退役**：
+        #   ('R167·新标题就位', E2_NEW, 1, ...)      —— 钉的是本环写下的标题表达式
+        #   ('R167·首免文案在位', esc('每种每日首次免费'), 1, ...)
+        #   R-189 第 1 批**合法改写**了该标题（→「免费互动已用 N/3 次（逗弄/梳毛/夜话 每种每日免费 1 次…）」，
+        #   并改用 playQuota 计数、去掉虚假的 playTimes 总上限），并把首免提示移到**进食行**（「· 今日首次免费」）。
+        #   ⇒ 这两条已非真命题，**退役**（新形态由 R-189 自己的门禁覆盖：
+        #     R189②·新互动标题「免费互动已用」/ R189③·「今日首次免费」标记 / R189③·free 判定在位）。
+        #   ★ 不把 needle 改成新形态 —— 那会让 r167 依赖 r189，单独 apply 就炸。
+        ('R167·/pet/feed 仅剩进食档位' + RETIRED_TAG, '"/pet/feed"', 2, '==',
+         'R-198/0.9.35 新增免费进食入口 ⇒ 终态共 2 处（进食档位 + 免费进食；新形态由 R198·免费进食请求覆盖）'),
         ('R167·/pet/play 仅剩互动档位', '"/pet/play"', 6, '==', '独立嬉戏入口已删除'),
         ('冻结 互动行未动', 'YlxwR18PlayRows(t, m, f, u)', 2, '==', '互动三档结构未改'),
         ('冻结 进食行未动', 'YlxwR18FeedRow(t, m, f, u)', 2, '==', '进食三档结构未改'),
@@ -249,6 +267,10 @@ def apply_patch(src):
 def _run_gates(out):
     """返回 None=全绿；否则返回失败串。"""
     for label, needle, expect, op, note in gates():
+        if RETIRED_TAG in label:
+            # 退役针脚（终态专用）：本环 apply 时 R-198 尚未套用，`"/pet/feed"` 仍仅 1 处 ⇒ 不检；
+            # 终态由 dryrun 复核（期望 2），新形态由 R-198 自己的门禁负责。
+            continue
         c = out.count(needle)
         if op == '==' and c != expect:
             return 'GATE FAIL %s: count=%d expect %d' % (label, c, expect)
@@ -266,7 +288,7 @@ def _roundtrip_ok(out, s0):
 
 def _find_node():
     cand = [os.environ.get('NODE'), shutil.which('node'),
-            'C:/Users/<USER>/.workbuddy-ai/binaries/node/versions/22.22.2-3/node.exe']
+            'C:/Users/27026/.workbuddy-ai/binaries/node/versions/22.22.2-3/node.exe']
     for c in cand:
         if c and os.path.exists(c):
             return c
@@ -357,7 +379,8 @@ def main():
     if args.check:
         print('[r167] check OK (%d -> %d chars, %+d)' % (len(s0), len(out), len(out) - len(s0)))
         for label, needle, expect, op, note in gates():
-            print('    gate %-34s %s' % (label, 'OK'))
+            print('    gate %-34s %s' % (label.replace(RETIRED_TAG, ''),
+                                         'SKIP(退役·终态复核)' if RETIRED_TAG in label else 'OK'))
         return 0
 
     ts = datetime.now().strftime('%Y%m%d_%H%M%S')
@@ -368,7 +391,8 @@ def main():
     print('[r167] patched: %d -> %d chars (%+d) (backup %s)'
           % (len(s0), len(out), len(out) - len(s0), os.path.basename(bak)))
     for label, needle, expect, op, note in gates():
-        print('    gate %-34s %s' % (label, 'OK'))
+        print('    gate %-34s %s' % (label.replace(RETIRED_TAG, ''),
+                                     'SKIP(退役·终态复核)' if RETIRED_TAG in label else 'OK'))
     return 0
 
 

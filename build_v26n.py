@@ -338,7 +338,7 @@ from yl_r067_ext import apply as v28_r067_apply  # noqa: E402
 from yl_068_ext import apply as v28_r068_apply  # noqa: E402
 
 BASE = os.path.join(HERE, 'build', 'assets', 'index-v26m-20260927.js')
-OUT = os.path.join(HERE, 'build', 'assets', 'index-v2929-20261007.js')
+OUT = os.path.join(HERE, 'build', 'assets', 'index-v2935-20261008.js')
 
 # v28 模块调用顺序（锚点稳定性 + num-balance 必须最后）：
 #   saveretry → arb → version → mail → entry → sectgf → char → bond → ui
@@ -601,6 +601,32 @@ STANDALONE_CLIENT = [
     ('r176', os.path.join(HERE, 'localtest', 'yl_r176_ext.py')),   # R-176 抽奖券抽奖：奖品池按「玩家境界 ↔ 奖品境界」差 d 收敛（倍率 1e7/1e4/1e2/1）**+ 删除「越阶→折算灵石」兜底段**（★ 真对象是客户端；服务端 srv_patch_r176.py 经判定越界、不接线）
     ('r177', os.path.join(HERE, 'localtest', 'yl_r177_ext.py')),   # R-177+R-178 历练：①节奏统一冷却到 9s（主路 10→9 / 商店路 2→9，消除 5.2 倍带宽）②三档权重改为 高档×0.5 / 中档×0.88（阈值 200→100，原中档是死代码）/ 低档×1（纯客户端）
     ('r179', os.path.join(HERE, 'localtest', 'yl_r179_ext.py')),   # R-179 历练结算信息：去 3 处重复（时长/次数/奇遇）+ 按「时长·次数·修为·灵石·寿命·气血·物品」重排 + 「——— 明细 ———」分割 + 新增寿命变化累加与条件渲染（纯客户端）
+    # ---- 2026-10-07 0.9.30 批（R-180/R-181/R-183/R-185/R-188；序=编号序，
+    #      ★ 五脚本已用「串行套用 + node --check」实证零交集；r188 原先钉死 [r180adv]==0 的跨补丁针脚已删（8 条），
+    #        现两顺序产物 SHA256 逐位相同 ⇒ 顺序无关）----
+    ('r180', os.path.join(HERE, 'localtest', 'yl_r180_ext.py')),   # R-180 历练三合一：①寿命减少累计（接进 Pc() 的 h）②灵石事件概率（主路中档 ×.30 + 奇遇量级降）③掉血改「按 maxHp 百分比 + 几率触发」、回血几率化 + 60 分硬上限（阈值=0 时上限也关）（纯客户端）
+    ('r181', os.path.join(HERE, 'localtest', 'yl_r181_ext.py')),   # R-181 筑基奇物属性实装：把 Vn[player.foundationTreasure].effects 接进 xt() 的 YlxwSpiritExtras 钩子（原 9 个读取点全是只读展示）+ 神识/身法 ÷8 归一（纯客户端）
+    ('r183', os.path.join(HERE, 'localtest', 'yl_r183_ext.py')),   # R-183 修为体系重定档：升级所需经验分级倍率 K=[14,6,4,2.5,1.5,1,1]（炼气 5.82h/层，高阶段只收紧不放松）（纯客户端）
+    ('r185', os.path.join(HERE, 'localtest', 'yl_r185_ext.py')),   # R-185 洞府「灵田联动」文案：可开垦 → 最大可扩展（把 headroom 与总数区分开，消除与左侧灵田页的术语冲突）（纯客户端）
+    ('r188', os.path.join(HERE, 'localtest', 'yl_r188_ext.py')),   # R-188 打坐：天赋「一念悟道」的 15% 顿悟从未接线（triggerChance 全 bundle 无一处被读取）⇒ 按既有范式 player.talentIds.includes("instant-dao") 接进判定行（单次 Math.random 保持）（纯客户端）
+    # ---- 2026-10-07 0.9.31 批（R-184 / R-187 / R-190；序=编号序）----
+    #      ★★ 集成顺序硬约束：**R-180（v2，E3 回滚）必须先于 R-184**（上面 r180 已在前）——
+    #         R-184 的触发判据建立在「奇遇灵石量级已恢复 Ge(t,200,500,490)」之上；
+    #         顺序颠倒时炼气期命中率实测 = 0.000%（等于没修）。详见 yl_r184_ext.py docstring §二。
+    ('r184', os.path.join(HERE, 'localtest', 'yl_r184_ext.py')),   # R-184 功法悟道：历练侧从未接线（YlxwWudaoEnlighten 唯一调用点=打坐顿悟分支）⇒ 挂到「加几千灵石」的稀有事件上（判据 tpl.spiritStonesChange>=200，恰 ⟺ 奇遇事件；★ 依赖 R-180 v2 先套用）（纯客户端）
+    ('r187', os.path.join(HERE, 'localtest', 'yl_r187_ext.py')),   # R-187 仙途指引：R-172 只改了服务端半边、漏了客户端「玩法说明」⇒ 面板说明数字与服务端实发不一致（说明 6000/8000/20000 vs 实发 8600/9900/61000）⇒ 同步为实发值（纯客户端）
+    ('r190', os.path.join(HERE, 'localtest', 'yl_r190_ext.py')),   # R-190 灵宠血量喂养：收益倍率 U 1.5→0.03（÷50，目标「几次满血才升一级」）+ 血量喂养不再给亲密度（hp 走 0，修为/物品逐字不变）+ 闸门口径对齐实扣（200→1000）（纯客户端）
+    ('r189', os.path.join(HERE, 'localtest', 'yl_r189_ext.py')),   # R-189 妖灵系统文案与实际对齐（第 1 批，纯文案/标签）：①「灵宠作用/妖灵本体」标注为「灵宠口径参考（非当前加成）」②互动次数标题去掉虚假总上限 ③进食行补「今日首次免费」④术语统一 喂食度/收养/进食/互动 ⑤两个「秘径」区分为 妖灵秘径·派遣 / 灵兽秘径·单次 ⑥玩法记录补全 7 类标签（斗法→精魄）⑦补 品阶K/等级K/资质K 定义（纯客户端）
+    ('r189b', os.path.join(HERE, 'localtest', 'yl_r189b_ext.py')), # R-189 第 2 批：主人加成 6% → **10%** 的**客户端文案**同步（4 处；服务端常量改动见 srv_patch_r191.py 第 82 环）
+    ('r189c', os.path.join(HERE, 'localtest', 'yl_r189c_ext.py')), # R-189 第 2 批：灵纹**可见化** —— 4 条加成经取证**全部已实装生效**（用户判断不成立）⇒ 数值零改动，仅在灵纹区新增一行显示当前生效灵纹的真实战斗贡献（读 petSpirit.rune*）
+    ('r191', os.path.join(HERE, 'localtest', 'yl_r191_ext.py')),  # R-191 奇遇率修复：`V=Math.min(.3,0.01+luck*.001)` 被幸运项淹没（天赋/命运 nt-50/nt-69 经 R-132 覆盖表给 luck:300 ⇒ V=0.30=30%）⇒ 改 `V=0.01+Math.min(0.01,luck*0.00003)`（1%~2% 封顶，不引入境界项）+ 结算日志新增「分档 常态/几百/几千」触发次数（纯客户端）
+    ('r192', os.path.join(HERE, 'localtest', 'yl_r192_ext.py')),  # R-191（台账号）融合弹窗：`YlxwPetShell` 的 doToast 完全无视 tone、恒调 error 提示器 ⇒ 成功消息被套进「错误」弹窗（融合本身确实成功，纯客户端）⇒ 按 tone 分派（danger→Je 红；其它→ia 绿）（纯客户端）
+    ('r193', os.path.join(HERE, 'localtest', 'yl_r193_ext.py')),  # R-193 奇遇率 v2（用户拍板「幸运彻底移除 + 称号最大加成 3%」）：`V=0.01+Math.min(0.03, $a(titleId,unlockedTitles).luck*0.0003)` —— 用「纯称号来源」的 $a()（不含天赋 luck）⇒ 默认 1%、顶配称号 4%（纯客户端）
+    ('r195', os.path.join(HERE, 'localtest', 'yl_r195_ext.py')),  # R-195 妖灵归位：① 修「等级 1 属性」bug（改用妖灵真实等级）② 整体乘 M=1.5×(1+羁绊/1000)×(1+资质/200)∈[1.5,3.375] ③ 名称改「妖灵·<原名>」（species 一字未动，保进化/秘径）④ 落 isSpirit 标记做独立一类灵宠；并让属性重算闭包 j 感知 spiritMul（5 处调用点，普通宠传 0 ⇒ 零回归）（纯客户端）
+    ('r196', os.path.join(HERE, 'localtest', 'yl_r196_ext.py')),  # R-196 灵纹前 4 条重设（客户端半边）：锐纹新增暴伤需客户端接线（读 petSpirit.runeCritDmg）+ 可见化行追加暴伤展示；★ 依赖顺序 r189c → r196（纯客户端）
+    ('r197', os.path.join(HERE, 'localtest', 'yl_r197_ext.py')),  # R-197 R-189② UI 调整：①「灵宠口径参考（非当前加成）」整块搬到妖灵卡片正下方（红框位）并改名「妖灵折算灵宠属性（参考）」②「融合玩法」整块搬进灵宠弹窗右列（「我的灵宠 (N)」正上方），妖灵页签内移除（顺带消除 YlxwPetOnFuseRef 隐式依赖）（纯客户端）
+    ('r198', os.path.join(HERE, 'localtest', 'yl_r198_ext.py')),  # R-198 R-189③④ 免费玩法栏：新增「免费玩法」分组（免费进食 +100 喂食度/每日3次/冷却30分 + 免费互动三按钮，三按钮为**搬移**非新增）→ 再接「进食」→「买额度」上限 2→5（3 项共用）；并修「玩法说明②」过时文案（纯客户端；服务端见 srv_patch_r198.py 第 85 环）
+    ('r199', os.path.join(HERE, 'localtest', 'yl_r199_ext.py')),  # R-199 自动历练频率调快：冷却 d(9) → d(7)（**只改 3 处自动历练常规单轮**：正常收尾 finally / 商店跳过 / 商店访问）⇒ 单轮 10.44s → 8.44s（每轮精确快 2s）；★ 打坐(2s)与 B 组手动/避战/天地之魄(1~2s)一律不动（改 7 反而变慢）（纯客户端）
 ]
 
 
@@ -1146,7 +1172,15 @@ def _js_syntax_check(src):
     「我改了我想改的」，不能证明「产物还是合法 JS」。
     """
     import subprocess, tempfile, os as _os
-    node = _os.environ.get('YL_NODE') or r'C:\Users\<USER>\.workbuddy-ai\binaries\node\versions\22.22.2-3\node.exe'
+    # ★ 2026-10-08 修：原为写死 `…\node\versions\22.22.2-3\node.exe`，
+    #   但本机 node 已随工具升级为 22.22.2-6（旧目录被删）⇒ 写死路径会 FileNotFoundError。
+    #   改为：YL_NODE 环境变量 → versions 目录下**按名排序取最新** → 兜底裸 `node`。
+    _nroot = r'C:\Users\27026\.workbuddy-ai\binaries\node\versions'
+    _ncands = []
+    if _os.path.isdir(_nroot):
+        _ncands = sorted(_os.path.join(_nroot, _d, 'node.exe') for _d in _os.listdir(_nroot))
+        _ncands = [_c for _c in _ncands if _os.path.isfile(_c)]
+    node = _os.environ.get('YL_NODE') or (_ncands[-1] if _ncands else 'node')
     if not _os.path.exists(node):
         print('[WARN] 找不到 node，跳过 JS 语法门禁：%s' % node)
         return

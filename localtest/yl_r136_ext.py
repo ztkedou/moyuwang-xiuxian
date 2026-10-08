@@ -106,13 +106,23 @@ FR_GATE = b'ylDgGate'                                         # 地宫门禁（�
 FR_CD_MS = b'YLXW_DG_CD_MS'                                   # 地宫本地冷却常量（冻结不碰）
 
 
+# ★ 2026-10-08（0.9.37）新增：退役针机制（照 yl_r120 / yl_r139 / yl_r183 既有实现）。
+#   语义：标签含本串的门禁 —— **apply 态跳过**（那时后续补丁还没套用、形态还是旧的），
+#   **终态仍检**（期望值写成「全部补丁套用后」的值）。
+RETIRED_TAG = '【已退役·终态专用】'
+
+
 def gates():
     """补丁后形态的门禁五元组（name, needle, count, op, note）——供 dryrun 门禁表收录。"""
     return [
         ('R136·地宫冷却行在位', NEW.decode('ascii'), 1, '==', ''),
         ('R136·旧单行锚点清零', OLD.decode('ascii'), 0, '==', ''),
         ('R136·在位标记', FR_MARK.decode('ascii'), 1, '==', ''),
-        ('R136·新字段引用数', b't.rogueCdLeftMs'.decode('ascii'), 2, '==', '仅新行（判空+取值）'),
+        # ★ 2026-10-08（0.9.37 / R-196）：2→4 并打退役标签 —— r203 的 S3b 归一化行
+        #   `rogueCdLeftMs: YlxwR196Remain(__cdR, YlxwNum(t.rogueCdLeftMs), t.rogueCdLeftMs)`
+        #   自身含 2 处 `t.rogueCdLeftMs` ⇒ apply 态仍是 2、终态才是 4
+        #   ⇒ 按本仓口径：**apply 态跳过、终态仍检**（期望写终态值 4，非放松）。
+        ('R136·新字段引用数' + RETIRED_TAG, b't.rogueCdLeftMs'.decode('ascii'), 4, '==', '仅新行（判空+取值）+ R-196 归一化 2 处'),
         ('R136·冻结 普通冷却行', FR_NORM_CD.decode('ascii'), 1, '==', '普通秘境冷却语义不碰'),
         ('R136·冻结 手札标题', FR_TITLE.decode('ascii'), 1, '==', 'zh 转义域'),
         ('R136·冻结 status 端点', FR_STATUS_API.decode('ascii'), 1, '==', ''),
@@ -174,6 +184,9 @@ def main() -> int:
     # 4) 门禁
     ok = True
     for label, needle, exp, op, note in gates():
+        if RETIRED_TAG in label:            # ★ 退役针：apply 态跳过（终态由 dryrun 的 standalone 段复核）
+            print('  [SKIP] %-26s 已退役（终态复核）' % label.replace(RETIRED_TAG, ''))
+            continue
         act = out.decode('utf-8', errors='replace').count(needle)
         good = (act == exp)
         ok = ok and good

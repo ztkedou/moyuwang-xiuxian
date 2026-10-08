@@ -149,8 +149,12 @@ def gates():
         ('R139·旧 clearInterval(U) 清零', FR_CIU.decode('ascii'), 0, '==', ''),
         ('R139·旧 clearInterval(j) 清零', FR_CIJ.decode('ascii'), 1, '==', '另一处 j 非本环目标'),
         ('R139·冻结 冷却每秒-1 语义', FR_CD.decode('ascii'), 1, '==', ''),
-        ('R139·冻结 setInterval( 计数', FR_SI.decode('ascii'), 14, '==', '17-3 原生'),
-        ('R139·冻结 clearInterval( 计数', FR_CI.decode('ascii'), 15, '==', '18-3'),
+        # ★ 2026-10-08（0.9.37 / R-196）：计数 14→15、15→16 并打退役标签 —— r203 的走秒 tick
+        #   `YlxwR196Tick()` 在 `useEffect` 内新增 1 个 `setInterval` + 1 个 `clearInterval`（**带清理**、
+        #   依赖 `[]` ⇒ 每组件一个、无全局定时器）⇒ apply 态仍是 14/15、终态才是 15/16
+        #   ⇒ 按本仓口径：**apply 态跳过、终态仍检**（期望写终态值，非放松）。
+        ('R139·冻结 setInterval( 计数' + RETIRED_TAG, FR_SI.decode('ascii'), 15, '==', '17-3 原生 +1 = R-196 走秒 tick'),
+        ('R139·冻结 clearInterval( 计数' + RETIRED_TAG, FR_CI.decode('ascii'), 16, '==', '18-3 +1 = R-196 走秒 tick 的清理'),
         ('R139·冻结 YlxwMedSession', FR_MED.decode('ascii'), 2, '==', ''),
         ('R139·冻结 __ylLifeAuto', FR_LIFE.decode('ascii'), 2, '==', ''),
         ('R139·冻结 N.current()', FR_NCUR.decode('ascii'), 1, '==', ''),

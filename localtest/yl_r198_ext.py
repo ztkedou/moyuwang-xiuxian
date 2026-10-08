@@ -263,7 +263,11 @@ def gates():
         ('R198\u00b7\u514d\u8d39\u73a9\u6cd5\u5206\u7ec4\u6807\u9898',
          'children: "\\u514d\\u8d39\\u73a9\\u6cd5" })', 1, '==', '「免费玩法」标题'),
         ('R198\u00b7\u65b0\u51fd\u6570 YlxwR18FreeRow', 'function YlxwR18FreeRow(', 1, '==', '免费玩法行'),
-        ('R198\u00b7Panel \u63d2\u5165 FreeRow', 'YlxwR18FreeRow(t, m, f, u),', 1, '==', 'Panel 子节点'),
+        # ★ 2026-10-08（0.9.37 / R-196）：needle 换新形态 + 打退役标签 —— r203 的 S1d 把
+        #   `YlxwR18FreeRow(t, m, f, u),` 改成 `e.jsx(YlxwR18FreeRow, { t: t, m: m, f: f, u: u }),`
+        #   （把 FreeRow 从普通函数调用转成 React 组件，好让走秒 tick 能合法用 hook）
+        #   ⇒ apply 态还是旧形态、终态才是新形态 ⇒ **apply 态跳过、终态仍检**（断言收紧到新形态、语义不变）。
+        ('R198\u00b7Panel \u63d2\u5165 FreeRow' + RETIRED_TAG, 'e.jsx(YlxwR18FreeRow, { t: t, m: m, f: f, u: u }),', 1, '==', 'Panel 子节点（R-196 已转 e.jsx 形态）'),
         # ---- 免费进食 ----
         ('R198\u00b7\u514d\u8d39\u8fdb\u98df\u6309\u94ae\u6807\u7b7e',
          'children: "\\u514d\\u8d39\\u8fdb\\u98df" })', 1, '==', '「免费进食」行标签'),

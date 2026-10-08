@@ -143,8 +143,8 @@ NEW_MODULES = ['grotto087', 'farm087', 'xinfa087', 't6chardex',
                'r111', 'r113', 'r114', 'r115',  # 2026-10-02 0.9.12 R-111 签到 / R-113 万妖五boss / R-114 历练收获 / R-115 洞府灵田
                'r124']  # 2026-10-02 0.9.13 R-124 灵田服用预览 spirit→神识（r116/r118 standalone 不在此表）
 
-VERSION = '0.9.36'
-BUNDLE_BASENAME = 'index-v2936-20261008.js'   # 与 build_v26n.OUT / chain_build.CLIENT_OUT / build/index.html 逐字一致
+VERSION = '0.9.37'
+BUNDLE_BASENAME = 'index-v2937-20261008.js'   # 与 build_v26n.OUT / chain_build.CLIENT_OUT / build/index.html 逐字一致
 # ★ 升版四件套之外的第 5 处：本文件的 VERSION 必须同步（下方 wiring_checks 用它交叉校验
 #   yl_version_ext.DEFAULT_VERSION 与 CHANGELOG 最新条目，两者都对上才算过）。
 
@@ -405,6 +405,9 @@ def main():
     import yl_r198_ext as _sa_r198
     import yl_r199_ext as _sa_r199
     import yl_r200_ext as _sa_r200
+    # ---- 2026-10-08 0.9.37 批接线（R-195 文案审计 / R-196 冷却走秒）----
+    import yl_r202_ext as _sa_r202
+    import yl_r203_ext as _sa_r203
     n_sa_gates = 0
     with open(stage_path, 'rb') as f:
         final_bytes = f.read()
@@ -432,7 +435,9 @@ def main():
                    ('r189b', _sa_r189b), ('r189c', _sa_r189c), ('r191', _sa_r191),
                    ('r192', _sa_r192), ('r193', _sa_r193), ('r195', _sa_r195),
                    ('r196', _sa_r196), ('r197', _sa_r197), ('r198', _sa_r198),
-                   ('r199', _sa_r199), ('r200', _sa_r200)]
+                   ('r199', _sa_r199), ('r200', _sa_r200),
+                   # ---- 2026-10-08 0.9.37 批 ----
+                   ('r202', _sa_r202), ('r203', _sa_r203)]
     for _tag, _mod in _sa_scripts:
         for _t in _mod.gates():
             name, s, expect, cmp, note = _t[:5]
@@ -465,8 +470,9 @@ def main():
                 # ★ 0.9.28 修：把**真实计数 act** 一起存进 fails —— 原来失败明细里用陈旧变量 out 重算，
                 #   会打印出与实际不符的数字（本轮曾出现「期望 1 实际 1 却 FAIL」的误导显示）。
                 fails.append((name, s, _exp, _op, note, act))
-    print('standalone 门禁: %d 条（r116~r200 共 %d 脚本 gates()，跑在补丁后形态）'
-          % (n_sa_gates, len(_sa_scripts)))
+    # ★ 两端都动态：起于 _sa_scripts[0]、止于 _sa_scripts[-1]（此前尾部写死 r200 ⇒ 新接线时会误报）
+    print('standalone 门禁: %d 条（%s~%s 共 %d 脚本 gates()，跑在补丁后形态）'
+          % (n_sa_gates, _sa_scripts[0][0], _sa_scripts[-1][0], len(_sa_scripts)))
 
     md5 = hashlib.md5(final_bytes).hexdigest()
     print('\n预演产物（未上线）: %s' % os.path.relpath(stage_path, ROOT).replace('\\', '/'))

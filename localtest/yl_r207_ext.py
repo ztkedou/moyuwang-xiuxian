@@ -111,8 +111,17 @@ FREEZE = [
     (r'require(', 0),                                    # 红线：无 require
     (r'res.status(403', 0),                              # 红线：无 403
     (r'PRAGMA', 0),                                      # 红线：无 PRAGMA
-    (r'setInterval(', 15),                               # 红线：定时器计数不增（基线 15）
+    (r'setInterval(', 15),                               # 红线：定时器计数不增（**本环 apply 位置**基线 15）
+                                                         # ★ 0.9.43（R-209）：r213 在此之后新增 1 个 20s 轮询
+                                                         #   ⇒ **终态** 16，由 r139 的「冻结 setInterval( 计数【已退役·终态专用】」
+                                                         #   终态针脚复核（本针脚只保证 r207 位置不增，不得改成 16 —— 那会让 r207 自检 ABORT）
 ]
+
+
+# ★ 0.9.43（R-209）：与 yl_r139_ext.py 同一套「退役标记」机制 ——
+#   本环 apply 位置在 r213 **之前**，故 `setInterval(` 计数在本环仍是 15；
+#   而终态（r213 已套）是 16。⇒ 该针脚打退役标签：**本环自检跳过、终态由 dryrun 复核**。
+RETIRED_TAG = '【已退役·终态专用】'
 
 
 def gates():
@@ -147,7 +156,7 @@ def gates():
         ('R207-maxed text kept', r'"\u5df2\u6ee1\u7ea7\uff0c\u7d2f\u8ba1\u6295\u5165 "', 1, '==', ''),
         ('R207-tier line kept', r'YlxwXinfaTierLine(t && t.tierCost)', 1, '==', ''),
         ('R207-btn maxed kept', r'\u5df2\u5927\u6210', 1, '==', ''),
-        ('R207-timer count kept', r'setInterval(', 15, '==', 'no new timers'),
+        ('R207-timer count kept' + RETIRED_TAG, r'setInterval(', 16, '==', 'no new timers except r213 online-count poll (终态 16)'),
         ('R207-no require', r'require(', 0, '==', ''),
         ('R207-no 403', r'res.status(403', 0, '==', ''),
         ('R207-no PRAGMA', r'PRAGMA', 0, '==', ''),
@@ -214,8 +223,12 @@ def _count(out, needle):
 
 
 def _run_gates(out):
-    """返回 None=全绿；否则返回失败串。"""
+    """返回 None=全绿；否则返回失败串。
+    ★ 带 RETIRED_TAG 的针脚是**终态专用**（本环 apply 位置早于造成终态变化的下游模块）
+      ⇒ 本环自检**跳过**，由 dryrun 在终态复核（与 yl_r139_ext.py 同口径）。"""
     for label, needle, expect, op, note in gates():
+        if RETIRED_TAG in label:
+            continue
         c = _count(out, needle)
         if op == '==' and c != expect:
             return 'GATE FAIL %s: count=%d expect %d' % (label, c, expect)

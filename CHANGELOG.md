@@ -1,5 +1,53 @@
 # 摸鱼修仙传 · 更新日志
 
+## [0.9.43] - 2026-10-09 10:33
+### 在线人数改「我们服务器自己的口径」—— 修复「显示在线 3 但名单只有自己」（1 条 / **纯客户端批**）
+
+#### R-209 在线人数与在线人物名单同源（客户端 `yl_r213_ext.py`）
+
+> 用户报：「yl 显示的在线 3，但是点开之后只能看到我自己，其他在线玩家看不到」
+
+**根因（线上取证）**
+- 头部徽标「在线 N」取的是 **外部 partykit 服务器** `xiuxian-game-party.dnzzk2.partykit.dev` 的
+  `onlineCount`（WebSocket 房间 `global`）。该地址**写死在上游仓库**
+  （`_upstream-xiuxian/.env.production`、`hooks/useParty.ts:16`、`partykit.json`）⇒ 我们 fork 时原样继承
+  ⇒ 它数的是**该 partykit app 的全部连接**（含上游作者部署与其它 fork 的玩家），**与我们站点的玩家无关**。
+- 「在线人物」面板名单取的是**我们自己的服务端** `GET /api/online/players`
+  （双源 UNION：`active_sessions.last_seen` ∪ `saves.updated_at`，窗口 5 分钟）。
+- **线上实测（Azure 104.208.x.x）**：`active_sessions` 9 行中除 uid=13 外全部是 1~6 天前的僵尸行；
+  `saves` 近 5 分钟有存档 1 行；复刻 `/api/online/players` 查询 = **1 人**（uid=13）。
+  ⇒ **面板是对的，头部那个 3 是错的。**
+- 历史成因：`yl_r144_ext.py` 的 docstring 自己写明这是「刻意取舍」——
+  「header『在线 N』仍取 party 实时值 Dr（与徽章同源），名单人数取服务端 players.length」。本环取消该取舍。
+
+**改动（3 处锚点，纯客户端）**
+1. **在线人数的新来源**：在 party hook 的模块级状态声明之后注入 `YLOnlCur / YLOnlSet / YLOnlTick`，
+   2s 首拉 + **20s 轮询** `YlxwGet("/online/players")`，把结果写进 `Dr` 并通知 `Lr` 订阅者。
+2. **掐掉 party 的两个写 `Dr` 分支**：`Dr=l.onlineCount` → `Dr=YLOnlCur`（`onlineCountUpdate` 与 `welcome` 各一处）。
+   ★ 只改「写 Dr 的值」，**不动** `Li`（welcome/聊天消息）与 `sendMessage` ⇒ **世界聊天功能零影响**。
+3. **释放分支不再清零**：`Gr.close(),Gr=null,Dr=0` → `Gr.close(),Gr=null`（避免订阅者重挂载时闪 0）。
+
+**安全边界**
+- 复用既有鉴权封装 `YlxwGet`（模块级 function 声明，提升）。`Xc` 在**无 token 时直接 throw
+  "Not authenticated"、根本不发请求**；401 先 `pS()` 静默续期重试一次
+  ⇒ 未登录时轮询**不会把玩家踢下线**（异常已被 catch 吞掉）。
+- **无效响应守卫**：响应缺 `players` 且缺 `total` 时**不采纳**，保持上一次值（防端点异常把徽标打成 0）。
+- 轮询 20s ≪ 服务端 `rateLimit` 60/min。
+
+**效果**：头部徽标、「在线人物」面板标题的「在线 N」、面板名单人数 **三者恒等**。
+★ 服务端 `srv/index_v28.ts` **一字未动**（仍 88 环）⇒ `--skip-server`、**零停机**。
+
+**验证（六层）**
+
+| 层 | 手段 | 结果 |
+|---|---|---|
+| 1 门禁 | `yl_r213_ext.py` gates | **14/14 PASS** |
+| 2 语法 | `node --check` | PASS |
+| 3 行为（真跑注入块） | `_t_r213_beh.js` | **10/10 PASS**（含 party 覆盖防护 / 无效响应守卫 / 空名单归零 / `total` 兜底） |
+| 4 装配预演 | `dryrun_087.py` | 预演 == 交付 |
+| 5 线上定点 | `remote_check_v2843.sh` | 全绿 |
+| 6 线上真机 | Playwright | 徽标 == 名单人数 |
+
 ## [0.9.42] - 2026-10-08 21:38
 ### 历练分档概率重标定：常态 85% / 稀有 14% / 奇遇 1%（**7 境界全部一致**）（1 条 / **纯客户端批**）
 

@@ -153,7 +153,10 @@ def gates():
         #   `YlxwR196Tick()` 在 `useEffect` 内新增 1 个 `setInterval` + 1 个 `clearInterval`（**带清理**、
         #   依赖 `[]` ⇒ 每组件一个、无全局定时器）⇒ apply 态仍是 14/15、终态才是 15/16
         #   ⇒ 按本仓口径：**apply 态跳过、终态仍检**（期望写终态值，非放松）。
-        ('R139·冻结 setInterval( 计数' + RETIRED_TAG, FR_SI.decode('ascii'), 15, '==', '17-3 原生 +1 = R-196 走秒 tick'),
+        # ★ 2026-10-09（0.9.43 / R-209）：计数 15→16 —— r213 的在线人数轮询新增 1 个**全局** `setInterval`
+        #   （20s，`YLOnlTick`），这是本环的功能本体（徽标必须能自刷新）⇒ 终态 16。
+        #   ★ 该定时器**无 clearInterval**（页面级常驻，与 React 组件生命周期无关）⇒ clearInterval 计数不变（仍 16）。
+        ('R139·冻结 setInterval( 计数' + RETIRED_TAG, FR_SI.decode('ascii'), 16, '==', '17-3 原生 +1 = R-196 走秒 tick +1 = R-209 在线人数 20s 轮询'),
         ('R139·冻结 clearInterval( 计数' + RETIRED_TAG, FR_CI.decode('ascii'), 16, '==', '18-3 +1 = R-196 走秒 tick 的清理'),
         ('R139·冻结 YlxwMedSession', FR_MED.decode('ascii'), 2, '==', ''),
         ('R139·冻结 __ylLifeAuto', FR_LIFE.decode('ascii'), 2, '==', ''),

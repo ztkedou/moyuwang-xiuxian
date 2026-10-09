@@ -338,7 +338,7 @@ from yl_r067_ext import apply as v28_r067_apply  # noqa: E402
 from yl_068_ext import apply as v28_r068_apply  # noqa: E402
 
 BASE = os.path.join(HERE, 'build', 'assets', 'index-v26m-20260927.js')
-OUT = os.path.join(HERE, 'build', 'assets', 'index-v2942-20261008.js')
+OUT = os.path.join(HERE, 'build', 'assets', 'index-v2943-20261009.js')
 
 # v28 模块调用顺序（锚点稳定性 + num-balance 必须最后）：
 #   saveretry → arb → version → mail → entry → sectgf → char → bond → ui
@@ -638,6 +638,8 @@ STANDALONE_CLIENT = [
     ('r210', os.path.join(HERE, 'localtest', 'yl_r210_ext.py')),  # R-202 灵宠经验曲线 1.2^L → **1.1^L**（4 处宠物升级循环）+ 存量宠物 maxExp 迁移（ho 钩子：只降不升、exp 等比缩放 ⇒ 幂等且不爆级）；L1→L100 总需求 2.07e10 → 7.52e6（纯客户端；落盘号 r210）
     ('r211', os.path.join(HERE, 'localtest', 'yl_r211_ext.py')),  # R-204 历练分档阈值**随境界缩放**：判定行逐字不动，改为把**判定输入归一化** `ds/u`（与「阈值×u」严格等价）⇒ 档位概率与境界**无关**（恒 83/16/1）。u 由 `Fg` 经 window.YLXW_ADV_PL 外挂传入（★ 签名/调用点被 r138/r155/r161/r184/r191 钉死，不能改）（纯客户端；落盘号 r211）
     ('r212', os.path.join(HERE, 'localtest', 'yl_r212_ext.py')),  # R-205 分档**频率**重标定（边界 200 不动）：① 战斗触发率 ×0.15（25.3%→9.8%，落进既有下限 0.1 ⇒ 触发率**恒 10%**、境界项被吸收）② 中档模板权重 0.7→0.32 ③ 长生 longevityRule 降权 ×0.05 ⇒ **7 境界全 85/14/1**（代价：均值灵石 炼气 −37.6% / 长生 −67.3%，用户已拍板）（纯客户端；落盘号 r212）
+    # ---- 2026-10-09 0.9.43 批（R-209 在线人数改我方口径；纯客户端）----
+    ('r213', os.path.join(HERE, 'localtest', 'yl_r213_ext.py')),  # R-209 在线人数：头部徽标原取**外部 partykit**（上游作者的服务器）的 onlineCount，与「在线人物」面板（我们服务器 /api/online/players）不同源 ⇒ 显示 3 但名单只有自己。改为轮询我方 /online/players 写入 party hook 的模块级 Dr，并掐掉 party 的两个写 Dr 分支 ⇒ 徽标 / 面板标题 / 名单人数三者恒等（纯客户端；服务端零改动）
 ]
 
 

@@ -164,7 +164,7 @@ M_OPEN = 'ov=MK("div","fixed inset-0 z-[70] bg-black/70 flex items-center justif
 M_TITLE = '"在线人物 · 好友"'
 M_ONLINE_FN = 'function loadOnline(){st("加载在线人物…")'
 M_KK = 'kk(0,60)'  # 已废弃（近似来源），保留常量仅作历史对照，不再入门禁
-M_ONL = '/online/players'
+M_ONL = 'YlxwGet("/online/players").then(function(d){recent='   # ★ 0.9.43（R-209）：收窄为**本面板 loadOnline 专属**调用点（原先只写 '/online/players' ⇒ r213 新增同端点轮询后计数变 2，属跨模块耦合）
 M_MENTOR = 'YlxwPost("/mentor/apprentice",{userId:'
 M_ARENA = 'YlxwPost("/arena/challenge",{name:'
 M_RECENT5 = '最近 5 分钟内有活跃'
@@ -199,7 +199,9 @@ def gates():
         ('R144·面板根节点已注入', M_OPEN, 1, '==', 'fixed inset-0 遮罩'),
         ('R144·面板标题已注入', M_TITLE, 1, '==', '在线人物 · 好友'),
         ('R144·在线人物加载已注入', M_ONLINE_FN, 1, '==', ''),
-        ('R144·真名单来源已接', M_ONL, 1, '==', 'GET /online/players'),
+        # ★ 0.9.43（R-209）：期望保持 1 —— needle 已收窄到本面板专属调用点。
+        #   （「两处同源」这一终态由 r213 自己的门禁 `R209·在线端点两处同源 == 2` 负责。）
+        ('R144·真名单来源已接', M_ONL, 1, '==', 'GET /online/players（本面板 loadOnline 调用点）'),
         ('R144·拜师 API 已接', M_MENTOR, 1, '==', 'YlxwPost(/mentor/apprentice) 入参 userId'),
         ('R144·切磋 API 已接', M_ARENA, 1, '==', 'YlxwPost(/arena/challenge) 入参 name'),
         ('R144·在线口径文案已改', M_RECENT5, 1, '==', '最近 5 分钟内有活跃'),

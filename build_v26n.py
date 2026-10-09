@@ -338,7 +338,7 @@ from yl_r067_ext import apply as v28_r067_apply  # noqa: E402
 from yl_068_ext import apply as v28_r068_apply  # noqa: E402
 
 BASE = os.path.join(HERE, 'build', 'assets', 'index-v26m-20260927.js')
-OUT = os.path.join(HERE, 'build', 'assets', 'index-v2945-20261009.js')
+OUT = os.path.join(HERE, 'build', 'assets', 'index-v2946-20261009.js')
 
 # v28 模块调用顺序（锚点稳定性 + num-balance 必须最后）：
 #   saveretry → arb → version → mail → entry → sectgf → char → bond → ui
@@ -646,6 +646,20 @@ STANDALONE_CLIENT = [
     # ---- 2026-10-09 0.9.45 批（R-213 全站文案 6 处 + R-215 升级经验 ÷2）----
     ('r216', os.path.join(HERE, 'localtest', 'yl_r216_ext.py')),  # R-213 全站文案审计修正 6 处（纯客户端）：① 交易行弹窗「成交收取 10% 手续费」→「挂售成交全额入账、不收取手续费」（服务端全额入账，实为零手续费）；② 奇遇抽奖规则行「消耗当层修为 5%」→ 1%（R-212 只改了服务端常量、漏了文案）；③ 灵田 T5 说明④「照料：每日每田一次」→「每 2 小时一次（每次 +2%，单田当日封顶 +10%）」；④ 天地之髓投喂区间 1-2/3-5/6-10/15-25 → 1/3-4/6-9/16-23（映射表 floor(ge*(.8+X*.4))）；⑤ 师门任务脚注「最多可做 10 条」→ 5 条（棋盘恒 5 条，整体刷新为原地重掷）；⑥ 丹炉「仙品大丹要 9 层造诣」→「九转金丹需 8 层；不死仙丹·天灵根丹·天元丹需 9 层」
     ('r217', os.path.join(HERE, 'localtest', 'yl_r217_ext.py')),  # R-215 整体升级经验 ÷2（客户端半边）：`Cs` 表 7 个境界 `maxExpBase` 全部减半（60000→30000 … 452500000→226250000）；只改该字段，baseAttack/baseMaxHp/K 倍率表一律未动（服务端半边 = SRV_CHAIN 第 90 环 srv_patch_r215.py）
+    # ---- 2026-10-09 0.9.46 批（R-217 开局难度调整：收益倍率 + 困难死亡改造 + UI）----
+    # ★★ 顺序有讲究：**r220 必须排在 r219 之前**——r220 有一条「冻结·涅槃重生弹窗未动」门禁，
+    #    而 r219 的职责正是改那个弹窗。实测：r219→r220 会 fail（两种顺序都试过）；r218 位置无关。
+    ('r218', os.path.join(HERE, 'localtest', 'yl_r218_ext.py')),  # R-217 难度收益倍率：难度表 Qr.difficulty
+    #   每档新增 expMul/stoneMul（easy 1/1｜normal 1.5/1.5｜hard 2/2）+ 取值器 YlxwDiffMul/YlxwDiffGain；
+    #   在 19 个「获取」入账点外包倍率（打坐/历练/秘境/奇遇/回合制/成就/图鉴/宗门/日常/通天塔/灵宠…），
+    #   ★ **消耗点一律不乘**（19 项冻结门禁钉死）（纯客户端；服务端离线收益不涉）
+    ('r220', os.path.join(HERE, 'localtest', 'yl_r220_ext.py')),  # R-217 难度界面文案：开局界面 + 设置面板
+    #   普通/困难两档各 2 处（简单档两条逐字未动，冻结断言）；并**核查**「游戏中无法再更改难度」——
+    #   结论：已成立、无后门（写入点仅开局前/开局瞬间；设置面板纯只读 div；**存档导入不带 difficulty**）
+    ('r219', os.path.join(HERE, 'localtest', 'yl_r219_ext.py')),  # R-217 困难模式死亡：清档 → 三重惩罚
+    #   (1) 装备全掉（equippedItems 清空，背包不动）(2) 掉 40%~50% 属性（attack/defense/spirit/physique/
+    #   speed/maxHp，×[0.50,0.60)，下限 1）(3) 掉一个大境界（复用 fe + ad()；**炼气期跳过**并在日志说明）
+    #   + hard 弹窗新增「继续游戏」+ onContinue 在 hard 下也传入 ⇒ **不再清档**（纯客户端）
 ]
 
 

@@ -638,10 +638,28 @@ SRV_CHAIN = [
                              #   · §18.2 频率放大：离线项随真实时间线性、且 `sec>30` 才结算
                              #     ⇒ 10s/30s 档恒 0，60s 档 = 恰好 1 小时离线收益 ⇒ **放大 1.00x**。
                              #   · mE=1 时两函数与基线**逐位相同**（不误伤普通档玩家）。
+      # ---- 2026-10-09 0.9.51 批（R-225b 服务端冻结难度 = 安全加固）----
+      'srv_patch_r225b.py',  # R-225b 服务端**冻结难度**（第 92 环 / 新末环）
+                             #   · 起因：0.9.50 的 R-225 让离线收益吃难度倍率，但倍率取自
+                             #     `save_data.settings.difficulty` —— 那是**客户端 localStorage 的镜像**
+                             #     ⇒ 玩家改本地存储即可白拿 ×2 离线收益。用户**不接受**该信任边界。
+                             #   · 用户选定方案：「服务端冻结难度」—— 服务端持有权威副本。
+                             #   · 机制：`saves` 表新增 `difficulty` 列（照 `last_seen_at` 的
+                             #     `safeAddColumn` 范式）；**首次写入时记录客户端值**（仅 easy/normal/hard，
+                             #     非法/缺失按 normal），**此后一律忽略客户端改动**；倍率只读服务端该列。
+                             #   · ★ **老行迁移**：`difficulty IS NULL`（0.9.50 之前的老档）首次见到时
+                             #     按客户端值落一次（`UPDATE … WHERE difficulty IS NULL`，幂等），
+                             #     之后冻结 —— **不把老玩家判成作弊、不清空任何存档字段**。
+                             #   · 倍率表**一字不变**（easy 1/1、normal 1.5/1.5、hard 2/2）；
+                             #     `offlineRewards` / `calcOfflineGainV2` 的签名与公式**一字未动**
+                             #     —— 本环只换「难度从哪来」，不动算法。
+                             #   · ★ 本环**只堵离线侧**。**在线收益侧（r218，读 localStorage）未堵**，
+                             #     属 0.9.46 起的旧面、且量级更大 ⇒ 若要做，需客户端改读服务端下发的难度
+                             #     （客户端 + 服务端都动），另立一批。
 ]
 
 # ---- 前端产物路径（0.9.31 换名：index-v2931-20261007.js，与 build_v26n.py OUT 逐字一致）----
-CLIENT_OUT = os.path.join(ROOT, 'build', 'assets', 'index-v2950-20261009.js')
+CLIENT_OUT = os.path.join(ROOT, 'build', 'assets', 'index-v2951-20261009.js')
 SRV_OUT = os.path.join(ROOT, 'srv', 'index_v28.ts')
 
 

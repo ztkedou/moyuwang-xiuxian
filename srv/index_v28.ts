@@ -173,6 +173,11 @@ const db = new sqlite3.Database(dbPath, (err) => {
           //   不参与任何收益公式。建列复用既有列存在性快路径 + safeAddColumn（容忍 duplicate
           //   column name ⇒ 冷启动/重跑幂等），**不新增任何库表探测语句**。
           if (!rows.some((r: any) => r.name === 'last_active_at')) safeAddColumn('saves', 'last_active_at', 'ALTER TABLE saves ADD COLUMN last_active_at INTEGER');
+          // ★ R-225b（[r225b]）：saves.difficulty —— 服务端**冻结**的难度权威副本（easy/normal/hard，NULL=老行/未冻结）。
+          //   0.9.50 的 R-225 读 save_data.settings.difficulty（客户端 localStorage 镜像）⇒ 改本地存储即可白拿 ×2 离线收益。
+          //   本列在**首次写入**时按客户端提交值落一次，此后一律忽略客户端改动；倍率只读本列。
+          //   建列复用既有列存在性快路径 + safeAddColumn（容忍 duplicate column name ⇒ 冷启动/重跑幂等），不新增库表探测语句。
+          if (!rows.some((r: any) => r.name === 'difficulty')) safeAddColumn('saves', 'difficulty', 'ALTER TABLE saves ADD COLUMN difficulty TEXT'); // [r225b]
         }
       });
 
@@ -2016,31 +2021,50 @@ function calcOfflineGainV2(p: any, fromMs: number | null, diffExp: number = 1, d
 //   落库 ⇒ save_data.settings.difficulty ∈ {easy,normal,hard}。缺失/非法回落 normal —— 与客户端
 //   YlxwDiffMul 的默认档（Qr.difficulty[d] || Qr.difficulty.normal）逐字一致。
 // ★ 倍率表与客户端 Qr.difficulty 同源（bundle 实测：easy 1/1、normal 1.5/1.5、hard 2/2）。
-// ★ Object.create(null) + hasOwnProperty 守卫：difficulty 由客户端提交，防 "toString" 之类
-//   命中 Object.prototype（§18.12 原型链泄漏）。
+// ★ 表用 Object.create(null)（无原型）⇒ 键名即使是 "toString" 也取不到 Object.prototype 成员；
+//   取值器再用**显式白名单**（=== 'easy'|'normal'|'hard'）二次收口（§18.12 原型链泄漏）。
 const R225_DIFF_MUL: Record<string, { exp: number; stone: number }> = Object.create(null); // [r225diff]
 R225_DIFF_MUL.easy = { exp: 1, stone: 1 };
 R225_DIFF_MUL.normal = { exp: 1.5, stone: 1.5 };
 R225_DIFF_MUL.hard = { exp: 2, stone: 2 };
-// 难度倍率取值（纯）：saveData = 整包存档对象。key ∈ {'exp','stone'}。缺失/非法 ⇒ normal 档。
-function ylR225DiffMul(saveData: any, key: 'exp' | 'stone'): number {
+// ★ R-225b（[r225b]）服务端**冻结难度**：把「难度从哪来」从客户端镜像（localStorage）改为服务端权威列 saves.difficulty。
+//   客户端难度归一（纯）：仅在**首次冻结**时用来落一次库；此后一律忽略客户端提交。非法/缺失 ⇒ normal。
+function ylR225bClientDiff(src: any): 'easy' | 'normal' | 'hard' {
   try {
-    const d = saveData && saveData.settings ? saveData.settings.difficulty : null;
-    const row = (typeof d === 'string' && Object.prototype.hasOwnProperty.call(R225_DIFF_MUL, d))
-      ? R225_DIFF_MUL[d] : R225_DIFF_MUL.normal;
+    let root: any = src;
+    if (typeof root === 'string') root = JSON.parse(root);
+    const d = root && root.settings ? root.settings.difficulty : null;
+    return (d === 'easy' || d === 'normal' || d === 'hard') ? d : 'normal';
+  } catch { return 'normal'; }
+}
+// 服务端冻结难度（纯）：row.difficulty 合法 ⇒ 用它（**忽略客户端改动**）；NULL/非法（老行/新号）⇒ 首次按客户端值落一次。
+function ylR225bFrozen(row: any, src: any): 'easy' | 'normal' | 'hard' {
+  const col = row ? row.difficulty : null;
+  if (col === 'easy' || col === 'normal' || col === 'hard') return col;
+  return ylR225bClientDiff(src);
+}
+// 离线路由用：返回冻结难度，并（**仅当列 NULL**）把客户端值落一次库（老行迁移；不重置任何存档字段）。
+function ylR225bFreezeRow(userId: number, row: any, src: any): 'easy' | 'normal' | 'hard' {
+  const col = row ? row.difficulty : null;
+  if (col === 'easy' || col === 'normal' || col === 'hard') return col;
+  const d = ylR225bClientDiff(src);
+  try { dbRun('UPDATE saves SET difficulty = ? WHERE user_id = ? AND difficulty IS NULL', [d, userId]).catch(() => {}); } catch { /* 落库失败不影响读取 */ }
+  return d;
+}
+// 难度倍率取值（纯）：读**服务端冻结难度**（不再读客户端存档里的 settings.difficulty）。key ∈ {'exp','stone'}。
+//   入参可为冻结难度串（'easy'|'normal'|'hard'）或含 .difficulty 的行对象。缺失/非法 ⇒ normal 档。
+function ylR225DiffMul(frozenDiff: any, key: 'exp' | 'stone'): number {
+  try {
+    const raw = (frozenDiff && typeof frozenDiff === 'object') ? frozenDiff.difficulty : frozenDiff;
+    const d = (raw === 'easy' || raw === 'normal' || raw === 'hard') ? raw : 'normal';
+    const row = R225_DIFF_MUL[d];
     const v = Number(row ? row[key] : 1);
     return Number.isFinite(v) && v > 0 ? v : 1;
   } catch { return 1; }
 }
-// 难度倍率（接受「整包存档对象」或「原始 JSON 字符串」）：解析失败/缺失 ⇒ normal 档。
-function ylR225OfflineMults(saveData: any): { exp: number; stone: number } {
-  try {
-    let root: any = saveData;
-    if (typeof root === 'string') root = JSON.parse(root);
-    return { exp: ylR225DiffMul(root, 'exp'), stone: ylR225DiffMul(root, 'stone') };
-  } catch {
-    return { exp: ylR225DiffMul(null, 'exp'), stone: ylR225DiffMul(null, 'stone') };
-  }
+// 难度倍率（接受「服务端冻结难度串」或「含 .difficulty 的行对象」）：解析失败/缺失 ⇒ normal 档。
+function ylR225OfflineMults(frozenDiff: any): { exp: number; stone: number } {
+  return { exp: ylR225DiffMul(frozenDiff, 'exp'), stone: ylR225DiffMul(frozenDiff, 'stone') };
 }
 
 // 计数器差值：只认正增量（回档/多端旧档不倒扣，同 Y15/DG 口径）
@@ -2090,7 +2114,7 @@ function ylR112JadeDrop(userId: number, oldSaveJson: unknown, newSd: any, prevUp
 // elapsed minutes (no floor); the per-save CEILING comes from the persisted allowance
 // ledger (saves.econ_win_*) instead of `rate * max(0.5, dt)` -- that per-request floor
 // was what a 120 req/min spammer multiplied into ~60x.
-function settleSaveEconV2(oldSd: any, newSd: any, prevSavedAtMs: number | null, lumpPool?: { tower: number; exped: number }, winState?: { start: number | null; exp: number; stone: number }): string[] {
+function settleSaveEconV2(oldSd: any, newSd: any, prevSavedAtMs: number | null, lumpPool?: { tower: number; exped: number }, winState?: { start: number | null; exp: number; stone: number }, frozenDiff?: string): string[] { // [r225b] frozenDiff = 服务端冻结难度
   const clamped: string[] = [];
   try {
     const np: any = newSd && newSd.player;
@@ -2189,7 +2213,7 @@ function settleSaveEconV2(oldSd: any, newSd: any, prevSavedAtMs: number | null, 
     const dExpedExp = e2Delta(Number(og.expeditionExpGained) || 0, Number(ng.expeditionExpGained) || 0);
 
     // 2) 离线收益重算（服务端权威时间轴）
-    const off = calcOfflineGainV2(op, prevSavedAtMs, ylR225DiffMul(oldSd, 'exp'), ylR225DiffMul(oldSd, 'stone')); // [r225diff] 离线收益吃难度（配额项与发放同档）
+    const off = calcOfflineGainV2(op, prevSavedAtMs, ylR225DiffMul(frozenDiff, 'exp'), ylR225DiffMul(frozenDiff, 'stone')); // [r225b] 离线收益吃难度（配额项读服务端冻结值）
 
     // 3) 逐类配额（公式自客户端锚点提取，上限均含富余）
     const rl = Math.min(9, Math.max(1, Math.floor(Number(np.realmLevel) || 1)));
@@ -2503,7 +2527,7 @@ app.post('/api/save', authenticateToken, rateLimit({ windowMs: 60 * 1000, max: 1
   // 读改写全程持锁，防止与 GM patch（updatePlayerSave）并发互相覆盖（P1-2）
   withSaveLock(req.user.id, (): Promise<void> => new Promise((resolve) => {
     // Y2：读旧存档做差值基线（服务端结算埋点）。行不存在→全零起算；JSON 坏→null 跳过本次计数（防历史计数一次性全额入账）
-    db.get('SELECT save_data, gm_revision, updated_at, tower_lump_left, exped_lump_left, econ_win_start, econ_win_exp, econ_win_stone FROM saves WHERE user_id = ?', [req.user.id], (err, row: any) => {
+    db.get('SELECT save_data, gm_revision, updated_at, tower_lump_left, exped_lump_left, econ_win_start, econ_win_exp, econ_win_stone, difficulty FROM saves WHERE user_id = ?', [req.user.id], (err, row: any) => {
       if (err) {
         res.status(500).json({ error: 'Database error' });
         return resolve();
@@ -2548,12 +2572,14 @@ app.post('/api/save', authenticateToken, rateLimit({ windowMs: 60 * 1000, max: 1
       // v28 P0-1/P0-2b: pool balance + allowance ledger for this save (missing -> defaults).
       const lumpPool = row ? lumpPoolFromRow(row) : { tower: E2_TOWER_EXP_LUMP, exped: E2_EXPED_EXP_LUMP };
       const winState = row ? winStateFromRow(row) : { start: null, exp: 0, stone: 0 };
-      let clampedFields: string[] = settleSaveEconV2(row && !econSkip ? (() => { try { return JSON.parse(row.save_data); } catch { return null; } })() : null, saveData, row && row.updated_at ? (() => { const t = Date.parse(String(row.updated_at).replace(' ', 'T') + 'Z'); return Number.isFinite(t) ? t : null; })() : null, lumpPool, winState);
+      // [r225b] 服务端冻结难度：row.difficulty 合法 ⇒ 权威值（忽略客户端改动）；NULL（新号/老行）⇒ 按本次提交落一次
+      const ylR225bD = ylR225bFrozen(row, saveData);
+      let clampedFields: string[] = settleSaveEconV2(row && !econSkip ? (() => { try { return JSON.parse(row.save_data); } catch { return null; } })() : null, saveData, row && row.updated_at ? (() => { const t = Date.parse(String(row.updated_at).replace(' ', 'T') + 'Z'); return Number.isFinite(t) ? t : null; })() : null, lumpPool, winState, ylR225bD); // [r225b]
       const saveDataStringClamped = clampedFields.length ? JSON.stringify(saveData) : saveDataString;
       if (row) {
         db.run(
-          'UPDATE saves SET save_data = ?, gm_revision = ?, tower_lump_left = ?, exped_lump_left = ?, econ_win_start = ?, econ_win_exp = ?, econ_win_stone = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?', // S2 v26c：玩家写递增修订号
-          [saveDataStringClamped, curRev + 1, lumpPool.tower, lumpPool.exped, winState.start, winState.exp, winState.stone, req.user.id],
+          'UPDATE saves SET save_data = ?, gm_revision = ?, tower_lump_left = ?, exped_lump_left = ?, econ_win_start = ?, econ_win_exp = ?, econ_win_stone = ?, difficulty = COALESCE(difficulty, ?), updated_at = CURRENT_TIMESTAMP WHERE user_id = ?', // S2 v26c：玩家写递增修订号 // [r225b] difficulty 首次落库后冻结（COALESCE 保证只写一次）
+          [saveDataStringClamped, curRev + 1, lumpPool.tower, lumpPool.exped, winState.start, winState.exp, winState.stone, ylR225bD, req.user.id],
           async (updateErr) => {
             if (updateErr) {
               res.status(500).json({ error: 'Error updating save' });
@@ -2576,8 +2602,8 @@ app.post('/api/save', authenticateToken, rateLimit({ windowMs: 60 * 1000, max: 1
         );
       } else {
         db.run(
-          'INSERT INTO saves (user_id, save_data, gm_revision, tower_lump_left, exped_lump_left, econ_win_start, econ_win_exp, econ_win_stone) VALUES (?, ?, 1, ?, ?, ?, ?, ?)', // S2 v26c：首存修订号=1（兼容 C6 首存，无头放行）
-          [req.user.id, saveDataStringClamped, lumpPool.tower, lumpPool.exped, winState.start, winState.exp, winState.stone], // QA-Y fix(BUG#1)：参数反序已修；此处用钳后串：原 [saveDataString, req.user.id] 参数反序——新玩家首存 user_id 写成整包 JSON、save_data 写成数字，GET /save 404、邮件 claim/buff/称号落空，且每次上传再插一行垃圾（UNIQUE 不命中）
+          'INSERT INTO saves (user_id, save_data, gm_revision, tower_lump_left, exped_lump_left, econ_win_start, econ_win_exp, econ_win_stone, difficulty) VALUES (?, ?, 1, ?, ?, ?, ?, ?, ?)', // S2 v26c：首存修订号=1（兼容 C6 首存，无头放行） // [r225b] 首存即冻结 difficulty
+          [req.user.id, saveDataStringClamped, lumpPool.tower, lumpPool.exped, winState.start, winState.exp, winState.stone, ylR225bD], // QA-Y fix(BUG#1)：参数反序已修；此处用钳后串：原 [saveDataString, req.user.id] 参数反序——新玩家首存 user_id 写成整包 JSON、save_data 写成数字，GET /save 404、邮件 claim/buff/称号落空，且每次上传再插一行垃圾（UNIQUE 不命中）
           async (insertErr) => {
             if (insertErr) {
               res.status(500).json({ error: 'Error creating save' });
@@ -13266,7 +13292,7 @@ app.get('/api/adventure/draw', authenticateToken, rateLimit({ windowMs: 60 * 100
 // 有效期内上限 12h + 效率 100%=6%/h；无月卡 8h + 4.8%/h 与改前一致）+ 境界差值提示（离线叠加后修为满槽/
 // 第九层满槽=已满足突破条件）
 app.get('/api/offline/report', authenticateToken, rateLimit({ windowMs: 60 * 1000, max: 60, keyFn: (req: any) => `offline:report:${req.user?.id ?? req.ip}` }), (req: any, res: any) => {
-  db.get('SELECT save_data, updated_at, offline_claimed_until, month_card_until, last_seen_at, last_resume_at, last_active_at FROM saves WHERE user_id = ?', [req.user.id], async (err: any, row: any) => {
+  db.get('SELECT save_data, updated_at, offline_claimed_until, month_card_until, last_seen_at, last_resume_at, last_active_at, difficulty FROM saves WHERE user_id = ?', [req.user.id], async (err: any, row: any) => {
     if (err) return res.status(500).json({ error: 'Database error' });
     if (!row) return res.status(404).json({ error: '请先进游戏创建角色' });
     let p: any;
@@ -13281,7 +13307,7 @@ app.get('/api/offline/report', authenticateToken, rateLimit({ windowMs: 60 * 100
     // ★ R-173（[r173offline]）：最高优先级传入服务端权威 last_active_at（NULL 时 offlineAnchor 自动回落原口径）。
     const ylAnc = offlineAnchor(parseDbTimeMs(row.updated_at), row.last_seen_at, row.last_resume_at, row.offline_claimed_until, nowMs, row.last_active_at);
     const win = offlineWindow(ylAnc.anchorMs, row.offline_claimed_until != null ? Number(row.offline_claimed_until) : null, ylAnc.endMs);
-    const ylR225M = ylR225OfflineMults(row.save_data); // [r225diff]
+    const ylR225M = ylR225OfflineMults(ylR225bFreezeRow(req.user.id, row, row.save_data)); // [r225b] 读服务端冻结难度（老行首次落库）
     const rw = win ? offlineRewards(nr.maxExp, nr.exp, win.windowMs, capHours, ratePerHour, ylR225M.exp, ylR225M.stone) : null;
     // Y21：活动倍率预览（与 claim 同一 resolveEventMults 口径；修为叠乘后仍钳槽内防溢出；引擎读取失败按 ×1 保底）
     let evMult = { events: [] as any[], expMult: 1, stonesMult: 1 };
@@ -13325,7 +13351,7 @@ app.get('/api/offline/report', authenticateToken, rateLimit({ windowMs: 60 * 100
 app.post('/api/offline/claim', authenticateToken, rateLimit({ windowMs: 60 * 1000, max: 10, keyFn: (req: any) => `offline:claim:${req.user?.id ?? req.ip}` }), async (req: any, res: any) => {
   const userId = req.user.id;
   try {
-    const row = await dbGet('SELECT save_data, updated_at, offline_claimed_until, month_card_until, last_seen_at, last_resume_at, last_active_at FROM saves WHERE user_id = ?', [userId]);
+    const row = await dbGet('SELECT save_data, updated_at, offline_claimed_until, month_card_until, last_seen_at, last_resume_at, last_active_at, difficulty FROM saves WHERE user_id = ?', [userId]);
     if (!row) return res.status(404).json({ error: '请先进游戏创建角色' });
     let p: any;
     try { p = JSON.parse(row.save_data)?.player ?? {}; } catch { return res.status(500).json({ error: '存档解析失败' }); }
@@ -13339,7 +13365,8 @@ app.post('/api/offline/claim', authenticateToken, rateLimit({ windowMs: 60 * 100
     const ylAnc = offlineAnchor(parseDbTimeMs(row.updated_at), row.last_seen_at, row.last_resume_at, row.offline_claimed_until, nowMs, row.last_active_at);
     const win = offlineWindow(ylAnc.anchorMs, row.offline_claimed_until != null ? Number(row.offline_claimed_until) : null, ylAnc.endMs);
     if (!win) return res.status(409).json({ error: '暂无可领的离线收益' });
-    const ylR225M = ylR225OfflineMults(row.save_data); // [r225diff]
+    const ylR225bD = ylR225bFreezeRow(userId, row, row.save_data); // [r225b] 读服务端冻结难度（老行首次落库）
+    const ylR225M = ylR225OfflineMults(ylR225bD); // [r225b] 预览
     const rw = offlineRewards(nr.maxExp, nr.exp, win.windowMs, capHours, ratePerHour, ylR225M.exp, ylR225M.stone);
     if (!rw.claimable) return res.status(409).json({ error: '离线时长不足或收益为零（至少离线 5 分钟）' });
     // Y21：活动倍率（结算自动应用；引擎读取失败按 ×1 保底，不阻塞领取）
@@ -13358,7 +13385,7 @@ app.post('/api/offline/claim', authenticateToken, rateLimit({ windowMs: 60 * 100
     const paid = await updatePlayerSave(userId, (sd: any) => {
       if (!sd.player || typeof sd.player !== 'object') return;
       const nrNow = normalizeRealm(sd.player);
-      const ylR225M = ylR225OfflineMults(sd); // [r225diff]
+      const ylR225M = ylR225OfflineMults(ylR225bD); // [r225b] 入档（与预览同源，读服务端冻结难度）
       const r = offlineRewards(nrNow.maxExp, nrNow.exp, win.windowMs, capHours, ratePerHour, ylR225M.exp, ylR225M.stone);
       const gExp = Math.min(actApplyGain(r.expGain, evMult.expMult * mnG.expMult), Math.max(0, nrNow.maxExp - nrNow.exp));
       const gStones = actApplyGain(r.stonesGain, evMult.stonesMult * mnG.stonesMult);

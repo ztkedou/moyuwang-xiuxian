@@ -4898,14 +4898,16 @@ function shouldGrantRankTitle(topUserId: number, boardSize: number, userId: numb
 }
 // ── Y4 渡劫天劫：境界数值表（客户端 assets js Cs 表同源镜像，勿凭记忆改数）──
 // v26f 修为曲线：与客户端 Cs.maxExpBase 逐档同源；本轮修为难度再×10（6000→60000 … 45250000→452500000）
+// /*[r215exp]*/ R-215：整体升级经验 ÷2 —— 仅下调本表 7 个 maxExpBase（其余字段/公式/K 表一律不动）。
+//   客户端同源表 Cs（bundle @246010）同步 ÷2，见 localtest/yl_r217_ext.py。
 const TRIB_REALM_BASES: Record<string, { maxExpBase: number; baseAttack: number; baseDefense: number; baseMaxHp: number }> = {
-  '炼气期': { maxExpBase: 60000, baseAttack: 10, baseDefense: 5, baseMaxHp: 100 },
-  '筑基期': { maxExpBase: 390000, baseAttack: 25, baseDefense: 12, baseMaxHp: 250 },
-  '金丹期': { maxExpBase: 1521000, baseAttack: 50, baseDefense: 25, baseMaxHp: 625 },
-  '元婴期': { maxExpBase: 6592000, baseAttack: 125, baseDefense: 62, baseMaxHp: 1250 },
-  '化神期': { maxExpBase: 26775000, baseAttack: 312, baseDefense: 156, baseMaxHp: 3125 },
-  '合道期': { maxExpBase: 104430000, baseAttack: 781, baseDefense: 390, baseMaxHp: 7812 },
-  '长生境': { maxExpBase: 452500000, baseAttack: 1953, baseDefense: 976, baseMaxHp: 19531 },
+  '炼气期': { maxExpBase: 30000, baseAttack: 10, baseDefense: 5, baseMaxHp: 100 },
+  '筑基期': { maxExpBase: 195000, baseAttack: 25, baseDefense: 12, baseMaxHp: 250 },
+  '金丹期': { maxExpBase: 760500, baseAttack: 50, baseDefense: 25, baseMaxHp: 625 },
+  '元婴期': { maxExpBase: 3296000, baseAttack: 125, baseDefense: 62, baseMaxHp: 1250 },
+  '化神期': { maxExpBase: 13387500, baseAttack: 312, baseDefense: 156, baseMaxHp: 3125 },
+  '合道期': { maxExpBase: 52215000, baseAttack: 781, baseDefense: 390, baseMaxHp: 7812 },
+  '长生境': { maxExpBase: 226250000, baseAttack: 1953, baseDefense: 976, baseMaxHp: 19531 },
 };
 /*[r201k]*/
 // R-201：客户端 R-183 修为分级倍率表（YLXW_R183_K）同序镜像 —— 键与 TRIB_REALM_BASES 逐字一致、同序。

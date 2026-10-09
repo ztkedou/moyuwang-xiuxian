@@ -106,6 +106,9 @@ CNT_10PCT_BEFORE = 25
 CNT_10PCT_AFTER = 29
 
 
+RETIRED_TAG = '【已退役·终态专用】'
+
+
 def gates():
     """返回 5 元组列表 (label, needle, expect, op, note)，对**补丁后**产物校验。"""
     g = [
@@ -119,7 +122,10 @@ def gates():
         ('R189b·③ 旧值 6% 清零', r'b\u518d\u6309 6% \u628a\u5996\u7075', 0, '==', '旧 6% 必须消失'),
         ('R189b·④ 旧值 6% 清零', r'\u6309 6% \u6298\u7b97\u52a0\u6210\u4e3b\u4eba', 0, '==', '旧 6% 必须消失'),
         ('R189b·全 bundle 6% 计数', '6%', CNT_6PCT_AFTER, '==', '10 - 4 = 6（仅动 4 处）'),
-        ('R189b·全 bundle 10% 计数', '10%', CNT_10PCT_AFTER, '==', '25 + 4 = 29'),
+        # ★ R-216（0.9.45）把天地之髓投喂「+6-10%」合法改成「+6-9%」⇒ 全 bundle 10% 计数 29→28。
+        #   本环新增的 4 处 10% 仍逐条在位（见上 ①~④）；apply 态跳过（那时 r216 尚未套用）。
+        ('R189b·全 bundle 10% 计数' + RETIRED_TAG, '10%', 28, '==',
+         '25 + 4 - 1 = 28（R-216 去掉天地之髓「+6-10%」中的 1 处）'),
     ]
     for needle, cnt in FREEZE:
         g.append(('冻结 ' + needle[:32], needle, cnt, '==', '无关文本未动'))
@@ -183,6 +189,8 @@ def apply_patch(src):
 
 def _run_gates(out):
     for label, needle, expect, op, note in gates():
+        if RETIRED_TAG in label:
+            continue  # 退役针脚（终态专用）：本环 apply 时下游尚未套用 ⇒ 不检，终态由复核负责
         c = out.count(needle)
         if op == '==' and c != expect:
             return 'GATE FAIL %s: count=%d expect %d' % (label, c, expect)

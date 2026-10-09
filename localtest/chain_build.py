@@ -612,10 +612,19 @@ SRV_CHAIN = [
                              #   · R-212 用户原话：「抽奖中的奇遇抽奖把消耗改为修为的1%」
                              #     ⇒ 拍板 1% 的基数 = **当层修为槽上限 maxExp**（非玩家当前修为）⇒ 只改常量 ADVENTURE_COST_RATE 0.05→0.01
                              #     ⇒ 消耗式 `Math.max(1, floor(nr0.maxExp * ADVENTURE_COST_RATE))` 一字未动
+      # ---- 2026-10-09 0.9.45 批（R-215 整体升级经验 ÷2）----
+      'srv_patch_r215.py',   # R-215 整体升级经验 ÷2（第 90 环 / 新末环）
+                             #   · 用户原话：「帮我把整体升级经验除以2，今天实测了一下，升级确实有点太慢了，现有的寿命可能不够升级」
+                             #   · 只改 TRIB_REALM_BASES 的 maxExpBase：60000→30000 / 390000→195000 / 1521000→760500 /
+                             #     6592000→3296000 / 26775000→13387500 / 104430000→52215000 / 452500000→226250000
+                             #   · baseAttack/baseDefense/baseMaxHp 与 K 倍率表一律未动
+                             #   · ★ ARENA_TRIAL_REALMS（srv:11931）另有同值 maxExpBase，属**演武场试炼首通奖励**的基数
+                             #     （arenaTrialClearExp = floor(5% × 该槽)），非「升级所需经验」⇒ **按裁决不动**（7 条冻结门禁锁死）
+                             #   · 客户端半边 = STANDALONE_CLIENT r217（Cs 表 7 个 maxExpBase）
 ]
 
 # ---- 前端产物路径（0.9.31 换名：index-v2931-20261007.js，与 build_v26n.py OUT 逐字一致）----
-CLIENT_OUT = os.path.join(ROOT, 'build', 'assets', 'index-v2944-20261009.js')
+CLIENT_OUT = os.path.join(ROOT, 'build', 'assets', 'index-v2945-20261009.js')
 SRV_OUT = os.path.join(ROOT, 'srv', 'index_v28.ts')
 
 

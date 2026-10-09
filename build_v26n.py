@@ -338,7 +338,7 @@ from yl_r067_ext import apply as v28_r067_apply  # noqa: E402
 from yl_068_ext import apply as v28_r068_apply  # noqa: E402
 
 BASE = os.path.join(HERE, 'build', 'assets', 'index-v26m-20260927.js')
-OUT = os.path.join(HERE, 'build', 'assets', 'index-v2944-20261009.js')
+OUT = os.path.join(HERE, 'build', 'assets', 'index-v2945-20261009.js')
 
 # v28 模块调用顺序（锚点稳定性 + num-balance 必须最后）：
 #   saveretry → arb → version → mail → entry → sectgf → char → bond → ui
@@ -643,6 +643,9 @@ STANDALONE_CLIENT = [
     # ---- 2026-10-09 0.9.44 批（R-210 心法按钮/进度提示；纯客户端）----
     ('r214', os.path.join(HERE, 'localtest', 'yl_r214_ext.py')),  # R-210 功法阁·心法：按钮由「修炼」→「修炼 +X 经验」（X=costNext，=服务端每次 exp 增量）；进度条 h-1.5→h-2.5 并补百分比（与条宽同源）；说明行 11px/stone-500 → text-xs/stone-300 + 进度前置 + 补「还差 C 经验」（钳 0）（纯客户端；服务端零改动）
     ('r215', os.path.join(HERE, 'localtest', 'yl_r215_ext.py')),  # R-211 签到「补签卡」客户端半边：新增 makeupDay(day) 调 POST /activity/checkin/makeup；漏签日格 div→button（title 显价、点即补签、字符 ✗→补）；脚注**删掉已不成立的「漏签不补」**并新增补签卡说明行（现价/倍率/已补次数）（纯客户端；服务端半边 = SRV_CHAIN 第 89 环 srv_patch_r211.py）
+    # ---- 2026-10-09 0.9.45 批（R-213 全站文案 6 处 + R-215 升级经验 ÷2）----
+    ('r216', os.path.join(HERE, 'localtest', 'yl_r216_ext.py')),  # R-213 全站文案审计修正 6 处（纯客户端）：① 交易行弹窗「成交收取 10% 手续费」→「挂售成交全额入账、不收取手续费」（服务端全额入账，实为零手续费）；② 奇遇抽奖规则行「消耗当层修为 5%」→ 1%（R-212 只改了服务端常量、漏了文案）；③ 灵田 T5 说明④「照料：每日每田一次」→「每 2 小时一次（每次 +2%，单田当日封顶 +10%）」；④ 天地之髓投喂区间 1-2/3-5/6-10/15-25 → 1/3-4/6-9/16-23（映射表 floor(ge*(.8+X*.4))）；⑤ 师门任务脚注「最多可做 10 条」→ 5 条（棋盘恒 5 条，整体刷新为原地重掷）；⑥ 丹炉「仙品大丹要 9 层造诣」→「九转金丹需 8 层；不死仙丹·天灵根丹·天元丹需 9 层」
+    ('r217', os.path.join(HERE, 'localtest', 'yl_r217_ext.py')),  # R-215 整体升级经验 ÷2（客户端半边）：`Cs` 表 7 个境界 `maxExpBase` 全部减半（60000→30000 … 452500000→226250000）；只改该字段，baseAttack/baseMaxHp/K 倍率表一律未动（服务端半边 = SRV_CHAIN 第 90 环 srv_patch_r215.py）
 ]
 
 

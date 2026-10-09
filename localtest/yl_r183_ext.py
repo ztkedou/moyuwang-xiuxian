@@ -238,6 +238,19 @@ IDEMPOTENT_MARK = '[r183exp]'
 #     · d(9) 形态另立一条**终态专用**退役门禁（终态期望 0），由本环 apply 跳过、由终态复核负责。
 RETIRED_TAG = '【已退役·终态专用】'
 
+# ★ R-215（0.9.45）已合法把 Cs 七档基数减半 ⇒ 下列 7 条从「终态冻结」退役为「终态期望新值」。
+#   apply 态仍按 FREEZE 原值校验（本环位置的输入还是旧值，_precheck 不受影响）；
+#   终态新值由本表 + R217 自己的门禁双保险。先例：R183·历练冷却9s形态（R-199）、R139·冻结 setInterval 计数。
+R215_BASE_RETIRED = {
+    'maxExpBase:60000':    ('maxExpBase:30000',     '60000 -> 30000'),
+    'maxExpBase:390000':   ('maxExpBase:195000',    '390000 -> 195000'),
+    'maxExpBase:1521000':  ('maxExpBase:760500',    '1521000 -> 760500'),
+    'maxExpBase:6592000':  ('maxExpBase:3296000',   '6592000 -> 3296000'),
+    'maxExpBase:26775e3':  ('maxExpBase:13387500',  '26775000 -> 13387500（并改十进制写法）'),
+    'maxExpBase:104430e3': ('maxExpBase:52215000',  '104430000 -> 52215000（并改十进制写法）'),
+    'maxExpBase:45250e4':  ('maxExpBase:226250000', '452500000 -> 226250000（并改十进制写法）'),
+}
+
 # --------------------------------------------------------------------------- 替换项
 
 # E1：ad() 乘「按境界分级收敛倍率」
@@ -326,7 +339,12 @@ def gates():
         ('R183·打坐未动', 'function YlxwMedTick', 1, '==', '打坐冻结'),
     ]
     for needle, cnt in FREEZE:
-        g.append(('冻结 ' + needle[:26], needle, cnt, '==', '冻结既有形态'))
+        if needle in R215_BASE_RETIRED:
+            _nn, _why = R215_BASE_RETIRED[needle]
+            g.append(('冻结 ' + needle[:26] + RETIRED_TAG, _nn, cnt, '==',
+                      'R-215/0.9.45 已合法减半（' + _why + '）⇒ 终态期望新值；本环 apply 仍按原值冻结'))
+        else:
+            g.append(('冻结 ' + needle[:26], needle, cnt, '==', '冻结既有形态'))
     return g
 
 

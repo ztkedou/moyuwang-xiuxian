@@ -601,10 +601,21 @@ SRV_CHAIN = [
                              #   · **C 方案**（三条约束不可全兼得，优先「点一次加经验」）：阈值表 ×7.5、单价按档 = 现状档位 ×2.5
                              #     ⇒ 每档点击数恒为 3.000（十档全等）；满级 528,000 → 3,960,000（×7.5）
                              #   · 上限 GONGFA_MAX_LEVEL=100 / 六卷 key 集合 / 表结构 一律未动
+      # ---- 2026-10-09 0.9.44 批（R-211 签到补签卡 + R-212 奇遇消耗 1%）----
+      'srv_patch_r211.py',   # R-211 签到「补签卡」+ R-212 奇遇抽奖消耗 5%→1%（第 89 环 / 新末环）
+                             #   · R-211 用户原话：「活动中心的每日签到，增加一个补签卡的功能，一张补签卡售价2W，每买一次售价变高1.5倍」
+                             #     ⇒ 拍板「买卡即补签（一步）」；新增表 activity_makeup（PK 三元组 = 幂等键，行数 = 涨价指数 n）
+                             #     ⇒ 新端点 POST /api/activity/checkin/makeup {day}：扣 price → 计入 activity_checkin（与正常签到同表
+                             #       ⇒ 自动进 progress 与里程碑）+ 同锁发当日签到奖励；price = floor(20000 × 1.5^n)（**历史累计**）
+                             #     ⇒ GET /api/activity/checkin 新增下发 makeup:{count,price,nextPrice,base,mul}
+                             #     ⇒ claim / 里程碑 / 场次逻辑**一字未动**（原注释「漏签不补」的缺口由本环独立端点补上）
+                             #   · R-212 用户原话：「抽奖中的奇遇抽奖把消耗改为修为的1%」
+                             #     ⇒ 拍板 1% 的基数 = **当层修为槽上限 maxExp**（非玩家当前修为）⇒ 只改常量 ADVENTURE_COST_RATE 0.05→0.01
+                             #     ⇒ 消耗式 `Math.max(1, floor(nr0.maxExp * ADVENTURE_COST_RATE))` 一字未动
 ]
 
 # ---- 前端产物路径（0.9.31 换名：index-v2931-20261007.js，与 build_v26n.py OUT 逐字一致）----
-CLIENT_OUT = os.path.join(ROOT, 'build', 'assets', 'index-v2943-20261009.js')
+CLIENT_OUT = os.path.join(ROOT, 'build', 'assets', 'index-v2944-20261009.js')
 SRV_OUT = os.path.join(ROOT, 'srv', 'index_v28.ts')
 
 

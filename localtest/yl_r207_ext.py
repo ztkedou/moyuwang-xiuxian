@@ -143,7 +143,12 @@ def gates():
         ('R207-C old pct cleared', r'(YlxwNum(g.level) / maxLv) * 100', 0, '==', ''),
         ('R207-C click cost by tier', r'var _pc = YlxwNum(g.costNext) || YLXW_XINFA_CLICK_FALLBACK[Math.min(9, Math.floor(YlxwNum(g.level) / 10))];', 1, '==', ''),
         # ---- ④ 信息行 ----
-        ('R207-D click cost text', r'"\u70b9\u4e00\u6b21\u6d88\u8017 " + YlxwNum(_pc) + " \u7075\u77f3 \u00b7 \u672c\u7ea7\u8fdb\u5ea6 "', 1, '==', ''),
+        # ★ 0.9.44（R-210 / r214）：needle **收窄** —— r214 把「点一次消耗 X 灵石」移到说明行**行尾**，
+        #   原尾部「… · 本级进度 」已不存在 ⇒ 只取「点一次消耗」到「灵石」这段，**两头的引号都不带**：
+        #   r207 态是 `"点一次消耗 " + …`（前有引号、后接 ` · 本级进度`），
+        #   r214 态是 `· 点一次消耗 " + …`（**前无引号**、后接 `"`）⇒ 只有去引号才能两态都命中。
+        #   意图不变：证明「点一次消耗」文案与 `_pc` 取数仍接线。新形态由 r214 自己的门禁负责。
+        ('R207-D click cost text', r'\u70b9\u4e00\u6b21\u6d88\u8017 " + YlxwNum(_pc) + " \u7075\u77f3', 1, '==', 'needle 收窄（两态均命中）'),
         ('R207-D old info text cleared', r'"\u4e0b\u7ea7\u9700 " + YlxwNum(g.costNext)', 0, '==', ''),
         ('R207-D levelExp/levelNeed shown', r'YlxwNum(g.levelExp) + "/" + YlxwNum(g.levelNeed)', 1, '==', ''),
         # ---- ⑤ 脚注 ----

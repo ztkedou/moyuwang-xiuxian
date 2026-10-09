@@ -46,14 +46,14 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 CHANGELOG_LOCAL = os.path.join(HERE, 'CHANGELOG.md')
 
 # 兜底版本（= 当前线上/本地 CHANGELOG 最新版；_test_version.py 会断言两者一致）
-DEFAULT_VERSION = '0.9.43'
+DEFAULT_VERSION = '0.9.44'
 
 # ---------------------------------------------------------------------------
 # 注入 JS 块（纯 ASCII；构建侧统一 zh()）
 # ---------------------------------------------------------------------------
 INJECT_JS = r'''
 /* == YL_VERSION_DYNAMIC_V28 == */
-var YLVERSION_FALLBACK = "0.9.43";
+var YLVERSION_FALLBACK = "0.9.44";
 var YLVERSION_CACHE = null;
 var YLVERSION_LOADED = false;
 function YlxwVersionParse(text) {
@@ -232,6 +232,7 @@ def apply(p, ctx):
         #   不必再回来手改门禁名/锚点（原来每升一版都要在这里改一次，容易漏）。
         ('version·兜底常量=%s' % DEFAULT_VERSION,
          'var YLVERSION_FALLBACK = "%s"' % DEFAULT_VERSION,                                    1, '==', ''),
+        ('version·旧兜底 0.9.43 已清零', 'var YLVERSION_FALLBACK = "0.9.43"',                   0, '==', ''),
         ('version·旧兜底 0.9.42 已清零', 'var YLVERSION_FALLBACK = "0.9.42"',                   0, '==', ''),
         ('version·旧兜底 0.9.20 已清零', 'var YLVERSION_FALLBACK = "0.9.20"',                   0, '==', ''),
         ('version·旧兜底 0.9.19 已清零', 'var YLVERSION_FALLBACK = "0.9.19"',                   0, '==', ''),

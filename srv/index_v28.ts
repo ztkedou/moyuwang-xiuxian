@@ -1097,6 +1097,17 @@ if (!rows.some((r) => r.name === 'drawn_at')) safeAddColumn('adventures', 'drawn
     )
   `);
   db.run(`
+    CREATE TABLE IF NOT EXISTS activity_makeup (
+      player_id INTEGER NOT NULL,
+      event_id INTEGER NOT NULL,
+      day INTEGER NOT NULL,
+      price INTEGER NOT NULL,
+      created_at INTEGER NOT NULL,
+      PRIMARY KEY (player_id, event_id, day),
+      FOREIGN KEY (player_id) REFERENCES users (id)
+    )
+  `); // /*[r211mk]*/ R-211 补签记录（行数 = 历史累计补签次数，即涨价指数 n）
+  db.run(`
     CREATE TABLE IF NOT EXISTS activity_token (
       player_id INTEGER NOT NULL,
       token_key TEXT NOT NULL,
@@ -5403,7 +5414,7 @@ function achPickClaimable(view: { claimableIds: string[] }, requestedId?: unknow
 // ── Y3A 奇遇日记 → [r057] R-057 奇遇抽奖：每日 10 次 · 冷却 30 分钟 · 消耗修为 5% 槽 · 15% 暴击双倍 ──
 const ADVENTURE_DAILY_MAX = 10; // 每日抽取次数上限 [r057] 3→10
 const ADVENTURE_COOLDOWN_MS = 30 * 60 * 1000; // [r057] 抽取冷却：30 分钟
-const ADVENTURE_COST_RATE = 0.05; // [r057] 每次消耗 = 当层修为槽 × 5%（修为不足拒绝）
+const ADVENTURE_COST_RATE = 0.01; // /*[r211mk]*/ R-212：每次消耗 = 当层修为槽 × **1%**（原 5%；基数仍为 normalizeRealm(player).maxExp = 当层修为槽上限，用户拍板）
 const ADVENTURE_CRIT_RATE = 0.15; // [r057] 暴击几率（灵石与修为收益双倍）
 // 奇遇品阶：weight=权重（合计 100），stones=固定灵石，expRate=按当层修为槽百分比的修为收益（钳槽内不溢出）。
 // 数值为本次定档，常量集中可调
@@ -9756,6 +9767,10 @@ app.get('/api/activity/checkin', authenticateToken, rateLimit({ windowMs: 60 * 1
         claimed: claimedTiers.has(min),
       };
     });
+    // /*[r211mk]*/ R-211：补签价（按该玩家历史累计补签次数递增）
+    const mkRow = await dbGet('SELECT COUNT(*) AS c FROM activity_makeup WHERE player_id = ?', [userId]);
+    const makeupCnt = Math.max(0, Math.floor(Number(mkRow && mkRow.c) || 0));
+    const makeupPrice = Math.floor(ACT_MAKEUP_BASE * Math.pow(ACT_MAKEUP_MUL, makeupCnt));
     res.json({
       eventId: Number(ev.id),
       monthKey,
@@ -9767,6 +9782,7 @@ app.get('/api/activity/checkin', authenticateToken, rateLimit({ windowMs: 60 * 1
       expToday: Math.floor(hourly * ACT_SIGN_EXP_HOURS),
       canClaim: active && (await actEngineEnabled()) && today >= 1 && today <= dim && !claimed.has(today),
       fullAttendable: active && today >= 1 && !missedAny,
+      makeup: { count: makeupCnt, price: makeupPrice, nextPrice: Math.floor(makeupPrice * ACT_MAKEUP_MUL), base: ACT_MAKEUP_BASE, mul: ACT_MAKEUP_MUL },
       milestones,
     });
   } catch (e: any) {
@@ -9812,6 +9828,69 @@ app.post('/api/activity/checkin/claim', authenticateToken, rateLimit({ windowMs:
     res.json({ ok: true, day, stones, exp, reward: stones, progress: Math.max(0, Math.floor(Number(c && c.c) || 0)) });
   } catch (e: any) {
     console.error('act checkin claim error:', e?.message || e);
+    res.status(500).json({ error: '服务器繁忙' });
+  }
+});
+
+// ── B2 每日签到·补签卡（R-211 /*[r211mk]*/）：POST /api/activity/checkin/makeup {day} ──
+// 买卡即补签（一步）：扣灵石 → 该日计入 activity_checkin（与正常签到同表 ⇒ 自动进 progress 与里程碑）。
+// 售价 = floor(ACT_MAKEUP_BASE × ACT_MAKEUP_MUL^n)，n = 该玩家**历史累计**补签次数（跨月累计、不重置）。
+// 只允许补「本月已过去且未签」的日子（不含今天、不含未来）。
+app.post('/api/activity/checkin/makeup', authenticateToken, rateLimit({ windowMs: 60 * 1000, max: 10, keyFn: (req: any) => `act:ckm:${req.user?.id ?? req.ip}` }), async (req: any, res: any) => {
+  const userId = req.user.id;
+  try {
+    if (!(await actEngineEnabled())) return res.status(409).json({ error: '活动引擎暂未开启' });
+    const now = Date.now();
+    const ev = await actSignEnsureMonth(now);
+    if (!ev) return res.status(409).json({ error: '签到暂未开放' });
+    if (!actIsActive(ev, now)) return res.status(409).json({ error: '签到暂不可用（当月场次未激活）' });
+    const dim = actSignDaysInMonth(now);
+    const today = Number(bjDate(now).slice(8, 10));
+    const day = Math.floor(Number(req.body?.day) || 0);
+    if (!(day >= 1 && day <= dim)) return res.status(400).json({ error: '补签日期不合法' });
+    if (day >= today) return res.status(409).json({ error: '只能补签已经过去的日子' });
+    const evId = Number(ev.id);
+    const dup = await dbGet('SELECT 1 AS x FROM activity_checkin WHERE player_id = ? AND event_id = ? AND day = ?', [userId, evId, day]);
+    if (dup) return res.status(409).json({ error: '该日已签到，无需补签' });
+    // 售价：按历史累计补签次数递增
+    const mkRow = await dbGet('SELECT COUNT(*) AS c FROM activity_makeup WHERE player_id = ?', [userId]);
+    const n = Math.max(0, Math.floor(Number(mkRow && mkRow.c) || 0));
+    const price = Math.floor(ACT_MAKEUP_BASE * Math.pow(ACT_MAKEUP_MUL, n));
+    const hourly = await actHourlyOf(userId);
+    const stones = Math.floor(hourly * ACT_SIGN_STONE_HOURS);
+    const exp = Math.floor(hourly * ACT_SIGN_EXP_HOURS);
+    // 占位（幂等键）：同一 (玩家,场次,日) 只能补一次
+    const ins = await dbRun(
+      'INSERT OR IGNORE INTO activity_makeup (player_id, event_id, day, price, created_at) VALUES (?, ?, ?, ?, ?)',
+      [userId, evId, day, price, now]);
+    if (!ins.changes) return res.status(409).json({ error: '补签冲突，请刷新后重试' });
+    // 结算：**单次 updatePlayerSave 内**扣款 + 发当日签到奖励（全或无）
+    let short = false;
+    let credited = false;
+    const paid = await updatePlayerSave(userId, (sd: any) => {
+      if (!sd.player || typeof sd.player !== 'object') { short = true; return; }
+      const bal = Math.max(0, Math.floor(Number(sd.player.spiritStones) || 0));
+      if (bal < price) { short = true; return; }
+      sd.player.spiritStones = bal - price + stones;
+      sd.player.exp = Math.max(0, Math.floor(Number(sd.player.exp) || 0)) + exp;
+      credited = true;
+    });
+    if (!paid.ok || !credited) {
+      await dbRun('DELETE FROM activity_makeup WHERE player_id = ? AND event_id = ? AND day = ?', [userId, evId, day]).catch(() => { });
+      return res.status(409).json({ error: short ? `灵石不足：需 ${price}` : (paid.error === 'No save found' ? '请先进游戏创建角色' : '补签失败，请重试') });
+    }
+    // 计入已签（与正常签到同表 ⇒ 自动进 progress 与里程碑）
+    await dbRun('INSERT OR IGNORE INTO activity_checkin (player_id, event_id, day, claimed_at) VALUES (?, ?, ?, ?)', [userId, evId, day, now]);
+    const c = await dbGet('SELECT COUNT(*) AS c FROM activity_checkin WHERE player_id = ? AND event_id = ?', [userId, evId]);
+    res.json({
+      ok: true, day, price,
+      nextPrice: Math.floor(price * ACT_MAKEUP_MUL),
+      stones, exp,
+      progress: Math.max(0, Math.floor(Number(c && c.c) || 0)),
+      makeupCount: n + 1,
+    });
+  } catch (e: any) {
+    console.error('act checkin makeup error:', e?.message || e);
     res.status(500).json({ error: '服务器繁忙' });
   }
 });
@@ -10381,6 +10460,11 @@ db.run('CREATE TABLE IF NOT EXISTS activity_sign_miles (player_id INTEGER NOT NU
 db.run(`INSERT OR IGNORE INTO titles (name, attr_json, source) VALUES ('月满勤修', '{"expRate":0.01}', 'r054_month_sign')`);
 const ACT_SIGN_STONE_HOURS = 1.0; // 每日灵石 = 境界时薪 × 1.0（≈挂机 1 小时）
 const ACT_SIGN_EXP_HOURS = 0.5;   // 每日修为 = 境界时薪 × 0.5（等效）
+// /*[r211mk]*/ R-211 补签卡（买卡即补签）：首张价 ACT_MAKEUP_BASE，每补签一次售价 ×ACT_MAKEUP_MUL
+//   ★ 计数口径 = 该玩家**历史累计**补签次数（跨月累计、不重置）⇒ price(n) = floor(BASE × MUL^n)。
+//   ★ 若日后要改成「每月重置」：把计数 SQL 的 WHERE 加上 event_id 即可（一处）。
+const ACT_MAKEUP_BASE = 20000;
+const ACT_MAKEUP_MUL = 1.5;
 // 里程碑档（min=-1 哨兵 = 当月全勤）：tickets 抽奖券 / stoneHours·expHours 时薪折算 / scrolls 太虚悟道卷 / title 全勤称号
 const ACT_SIGN_MILESTONES: Array<{ min: number; tickets: number; stoneHours: number; expHours: number; scrolls: number; title: string }> = [
   { min: 3, tickets: 3, stoneHours: 0, expHours: 0, scrolls: 0, title: '' },

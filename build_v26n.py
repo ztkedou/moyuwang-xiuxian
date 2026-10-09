@@ -338,7 +338,7 @@ from yl_r067_ext import apply as v28_r067_apply  # noqa: E402
 from yl_068_ext import apply as v28_r068_apply  # noqa: E402
 
 BASE = os.path.join(HERE, 'build', 'assets', 'index-v26m-20260927.js')
-OUT = os.path.join(HERE, 'build', 'assets', 'index-v2943-20261009.js')
+OUT = os.path.join(HERE, 'build', 'assets', 'index-v2944-20261009.js')
 
 # v28 模块调用顺序（锚点稳定性 + num-balance 必须最后）：
 #   saveretry → arb → version → mail → entry → sectgf → char → bond → ui
@@ -640,6 +640,9 @@ STANDALONE_CLIENT = [
     ('r212', os.path.join(HERE, 'localtest', 'yl_r212_ext.py')),  # R-205 分档**频率**重标定（边界 200 不动）：① 战斗触发率 ×0.15（25.3%→9.8%，落进既有下限 0.1 ⇒ 触发率**恒 10%**、境界项被吸收）② 中档模板权重 0.7→0.32 ③ 长生 longevityRule 降权 ×0.05 ⇒ **7 境界全 85/14/1**（代价：均值灵石 炼气 −37.6% / 长生 −67.3%，用户已拍板）（纯客户端；落盘号 r212）
     # ---- 2026-10-09 0.9.43 批（R-209 在线人数改我方口径；纯客户端）----
     ('r213', os.path.join(HERE, 'localtest', 'yl_r213_ext.py')),  # R-209 在线人数：头部徽标原取**外部 partykit**（上游作者的服务器）的 onlineCount，与「在线人物」面板（我们服务器 /api/online/players）不同源 ⇒ 显示 3 但名单只有自己。改为轮询我方 /online/players 写入 party hook 的模块级 Dr，并掐掉 party 的两个写 Dr 分支 ⇒ 徽标 / 面板标题 / 名单人数三者恒等（纯客户端；服务端零改动）
+    # ---- 2026-10-09 0.9.44 批（R-210 心法按钮/进度提示；纯客户端）----
+    ('r214', os.path.join(HERE, 'localtest', 'yl_r214_ext.py')),  # R-210 功法阁·心法：按钮由「修炼」→「修炼 +X 经验」（X=costNext，=服务端每次 exp 增量）；进度条 h-1.5→h-2.5 并补百分比（与条宽同源）；说明行 11px/stone-500 → text-xs/stone-300 + 进度前置 + 补「还差 C 经验」（钳 0）（纯客户端；服务端零改动）
+    ('r215', os.path.join(HERE, 'localtest', 'yl_r215_ext.py')),  # R-211 签到「补签卡」客户端半边：新增 makeupDay(day) 调 POST /activity/checkin/makeup；漏签日格 div→button（title 显价、点即补签、字符 ✗→补）；脚注**删掉已不成立的「漏签不补」**并新增补签卡说明行（现价/倍率/已补次数）（纯客户端；服务端半边 = SRV_CHAIN 第 89 环 srv_patch_r211.py）
 ]
 
 

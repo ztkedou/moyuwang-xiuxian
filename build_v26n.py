@@ -338,7 +338,7 @@ from yl_r067_ext import apply as v28_r067_apply  # noqa: E402
 from yl_068_ext import apply as v28_r068_apply  # noqa: E402
 
 BASE = os.path.join(HERE, 'build', 'assets', 'index-v26m-20260927.js')
-OUT = os.path.join(HERE, 'build', 'assets', 'index-v2948-20261009.js')
+OUT = os.path.join(HERE, 'build', 'assets', 'index-v2949-20261009.js')
 
 # v28 模块调用顺序（锚点稳定性 + num-balance 必须最后）：
 #   saveretry → arb → version → mail → entry → sectgf → char → bond → ui
@@ -661,6 +661,10 @@ STANDALONE_CLIENT = [
     ('r221', os.path.join(HERE, 'localtest', 'yl_r221_ext.py')),  # R-218 自动历练掉抽奖券率：
     # ---- 2026-10-09 0.9.48 批（R-219 修炼弹窗 + R-220 效率面板显示；纯客户端）----
     ('r222', os.path.join(HERE, 'localtest', 'yl_r222_ext.py')),  # R-219 修炼弹窗：正文由服务端 bonusText（按等级算，Lv0 恒 0）
+    # ---- 2026-10-09 0.9.49 批（R-221 打坐悟道率 1%~4%；纯客户端）----
+    ('r223', os.path.join(HERE, 'localtest', 'yl_r223_ext.py')),  # R-221 打坐悟道触发率改为与历练逐字同式：
+    #   `0.01+Math.min(0.03,($a(a.titleId,a.unlockedTitles||[]).luck||0)*0.0003)`（1%~4%），旧 `(__r188t?0.05:0.01)` 清零；
+    #   顺带把天赋 talent-dao-mind 的 specialAbility.description 改成与基础 effects 一致（★ 该段实测为死数据、不渲染）
     #   ⇒ 改为「修炼成功，经验 +<g.cost>」（与按钮 _pc 同源、数值恒等），仅真升级(bonusPct>0)才追加「攻击 +N%」；
     #   R-220 修炼效率面板两处：显示值 × 难度倍率并注明难度贡献（只改显示口径，不动 total 计算）
     #   券分支 `case"lottery"` 内**原本已有** 10% 闸门 `if(!fs(t,.1,451))` ⇒ 实际每次历练 = (1/37)×0.1 = 0.2703%；

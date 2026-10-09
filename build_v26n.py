@@ -338,7 +338,7 @@ from yl_r067_ext import apply as v28_r067_apply  # noqa: E402
 from yl_068_ext import apply as v28_r068_apply  # noqa: E402
 
 BASE = os.path.join(HERE, 'build', 'assets', 'index-v26m-20260927.js')
-OUT = os.path.join(HERE, 'build', 'assets', 'index-v2946-20261009.js')
+OUT = os.path.join(HERE, 'build', 'assets', 'index-v2947-20261009.js')
 
 # v28 模块调用顺序（锚点稳定性 + num-balance 必须最后）：
 #   saveretry → arb → version → mail → entry → sectgf → char → bond → ui
@@ -657,6 +657,10 @@ STANDALONE_CLIENT = [
     #   普通/困难两档各 2 处（简单档两条逐字未动，冻结断言）；并**核查**「游戏中无法再更改难度」——
     #   结论：已成立、无后门（写入点仅开局前/开局瞬间；设置面板纯只读 div；**存档导入不带 difficulty**）
     ('r219', os.path.join(HERE, 'localtest', 'yl_r219_ext.py')),  # R-217 困难模式死亡：清档 → 三重惩罚
+    # ---- 2026-10-09 0.9.47 批（R-218 历练掉券率下调；纯客户端）----
+    ('r221', os.path.join(HERE, 'localtest', 'yl_r221_ext.py')),  # R-218 自动历练掉抽奖券率：
+    #   券分支 `case"lottery"` 内**原本已有** 10% 闸门 `if(!fs(t,.1,451))` ⇒ 实际每次历练 = (1/37)×0.1 = 0.2703%；
+    #   叠加本环 37/600 闸门 ⇒ 总 = 0.1/600 = 0.016667%/次 ⇒ 约 600 次历练 1 张（≈60 分钟）
     #   (1) 装备全掉（equippedItems 清空，背包不动）(2) 掉 40%~50% 属性（attack/defense/spirit/physique/
     #   speed/maxHp，×[0.50,0.60)，下限 1）(3) 掉一个大境界（复用 fe + ad()；**炼气期跳过**并在日志说明）
     #   + hard 弹窗新增「继续游戏」+ onContinue 在 hard 下也传入 ⇒ **不再清档**（纯客户端）

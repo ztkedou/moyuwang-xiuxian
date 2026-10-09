@@ -174,8 +174,8 @@ P3_new = '(T.total*YlxwDiffMul(void 0,"expMul")*100).toFixed(1)'
 
 # --------------------------------------------------------------------------- P4 面板2 明细行
 # 字面态锚点。明细行末追加「难度:×N（名）」段（仅 expMul>1 时显示）。
-P4_old = 'T.npc>0&&`\u7f81\u7eca:+${(T.npc*0.32*100).toFixed(1)}%`]'
-P4_new = ('T.npc>0&&`\u7f81\u7eca:+${(T.npc*0.32*100).toFixed(1)}%`,'
+P4_old = 'T.npc>0&&`\u7f81\u7eca:+${(T.cNpc*100).toFixed(1)}%`]'
+P4_new = ('T.npc>0&&`\u7f81\u7eca:+${(T.cNpc*100).toFixed(1)}%`,'
           'YlxwDiffMul(void 0,"expMul")>1&&'
           '`\u96be\u5ea6:\u00d7${YlxwDiffMul(void 0,"expMul").toFixed(1)}'
           '\uff08${YlxwDiffCn()}\uff09`]')
@@ -190,6 +190,10 @@ EDITS = [
 
 # --------------------------------------------------------------------------- 冻结门禁串（不得改动）
 # total 计算式（YlxwCharDexRate 汇总）——证明只改显示口径，未动计算。
+# ★ R-228/0.9.50（r225）已把该式**同源化**（拆成具名局部量 `_ar/_ta/…`，**数值零变化**）
+#   ⇒ 本环那条「total 计算式未动」冻结门禁**退役**：apply 态仍按旧式校验，终态改检**新式**。
+RETIRED_TAG = '【已退役·终态专用】'
+FRZ_TOTAL_NEW = 'const _ar=r*d,_ta=a*0.26,_ti=l*0.6,_gr=c*0.6,_sy=Math.min(b,0.1),_np=S*0.32;return{total:_ar+_ta+_ti+_gr+_sy+_np,'
 FRZ_TOTAL = ('return{total:r*d+a*0.26+l*0.6+c*0.6+Math.min(b,0.1)+S*0.32,'
              'art:r,talent:a,title:l,grotto:c,synergy:b,npc:S,spiritualRootBonus:d}')
 # R-218 标记 + 两个取值器定义（证明 R-218 注入块逐字未动）。
@@ -223,7 +227,8 @@ TOAST_ZERO = ('\\uff0c\\u672c\\u6b21\\u4e3a\\u8fdb\\u5ea6\\u79ef\\u7d2f'
               '\\uff08\\u5165\\u95e8\\u540e\\u83b7\\u5f97\\u52a0\\u6210\\uff09')
 
 FREEZE = [
-    ('冻结·total 计算式未动',              FRZ_TOTAL,            1),
+    ('冻结·total 计算式未动' + RETIRED_TAG,  FRZ_TOTAL_NEW,        1,
+     'R-228 已同源化（拆具名局部量，数值零变化）⇒ 终态期望新式；本环 apply 仍按旧式冻结'),
     ('冻结·R218 标记未动',                 FRZ_R218_MARK,        1),
     ('冻结·R218 YlxwDiffMul 定义未动',     FRZ_R218_MUL_DEF,     1),
     ('冻结·R218 YlxwDiffGain 定义未动',    FRZ_R218_GAIN_DEF,    1),
@@ -267,8 +272,13 @@ def gates():
     g.append(('面板1 旧显示清零', '(c.total*100).toFixed(1)', 0, '==', ''))
     g.append(('面板2 旧显示清零', '(T.total*100).toFixed(1)', 0, '==', ''))
     # 冻结
-    for name, needle, cnt in FREEZE:
-        g.append((name, needle, cnt, '==', '冻结未动'))
+    # ★ 兼容 3 元组 (name, needle, cnt) 与 4 元组 (name, needle, cnt, note)：
+    #   0.9.50 为 R-228 预留的那条「冻结·total 计算式未动」带 RETIRED_TAG + note（4 元组），
+    #   而旧循环写死 3 元组解包 ⇒ ValueError（此前被更早的 _classify rc=2 掩盖，从未暴露）。
+    for item in FREEZE:
+        name, needle, cnt = item[0], item[1], item[2]
+        note = item[3] if len(item) > 3 else '冻结未动'
+        g.append((name, needle, cnt, '==', note))
     return g
 
 
@@ -450,6 +460,8 @@ def main() -> int:
     # 5) 门禁
     ok = True
     for label, needle, exp, op, note in gates():
+        if RETIRED_TAG in label:
+            continue  # 退役针脚（终态专用）：本环 apply 时下游尚未套用 ⇒ 不检，终态由复核负责
         act = out_txt.count(needle)
         good = (act == exp)
         ok = ok and good

@@ -621,10 +621,27 @@ SRV_CHAIN = [
                              #   · ★ ARENA_TRIAL_REALMS（srv:11931）另有同值 maxExpBase，属**演武场试炼首通奖励**的基数
                              #     （arenaTrialClearExp = floor(5% × 该槽)），非「升级所需经验」⇒ **按裁决不动**（7 条冻结门禁锁死）
                              #   · 客户端半边 = STANDALONE_CLIENT r217（Cs 表 7 个 maxExpBase）
+      # ---- 2026-10-09 0.9.50 批（R-225 服务端离线收益吃难度倍率）----
+      'srv_patch_r225.py',   # R-225 服务端离线收益吃难度倍率（第 91 环 / 新末环）
+                             #   · 台账原文：「服务端离线收益未吃难度倍率（loadGame 直接 t({player})
+                             #     绕过客户端入账点）⇒ 需开服务端第 91 环。」
+                             #   · ★ 台账靶点被**实测纠正**：`calcOfflineGainV2`(@1994) **不是发放点**，
+                             #     它只是 `settleSaveEconV2` 里的一个配额项。真正的发放点是
+                             #     `offlineRewards()`(@5749) —— 走 GET /api/offline/report（预览）
+                             #     与 POST /api/offline/claim（入档，updatePlayerSave，**不经钳制**）。
+                             #   · 改法：新增 `R225_DIFF_MUL`（easy 1/1｜normal 1.5/1.5｜hard 2/2，
+                             #     与客户端 `Qr.difficulty` 逐字同源）+ `ylR225DiffMul()`/`ylR225OfflineMults()`；
+                             #     `calcOfflineGainV2` 与 `offlineRewards` 各加两个倍率形参（默认 1），
+                             #     改 1+3=4 个调用点传倍率。难度来自 `save_data.settings.difficulty`
+                             #     （客户端 pushSave 整包落库；此前服务端从未读过 settings）。
+                             #   · 缺省/非法 ⇒ normal 档（与客户端 `YlxwDiffMul` 兜底一致）。
+                             #   · §18.2 频率放大：离线项随真实时间线性、且 `sec>30` 才结算
+                             #     ⇒ 10s/30s 档恒 0，60s 档 = 恰好 1 小时离线收益 ⇒ **放大 1.00x**。
+                             #   · mE=1 时两函数与基线**逐位相同**（不误伤普通档玩家）。
 ]
 
 # ---- 前端产物路径（0.9.31 换名：index-v2931-20261007.js，与 build_v26n.py OUT 逐字一致）----
-CLIENT_OUT = os.path.join(ROOT, 'build', 'assets', 'index-v2949-20261009.js')
+CLIENT_OUT = os.path.join(ROOT, 'build', 'assets', 'index-v2950-20261009.js')
 SRV_OUT = os.path.join(ROOT, 'srv', 'index_v28.ts')
 
 

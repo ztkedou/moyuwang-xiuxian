@@ -338,7 +338,7 @@ from yl_r067_ext import apply as v28_r067_apply  # noqa: E402
 from yl_068_ext import apply as v28_r068_apply  # noqa: E402
 
 BASE = os.path.join(HERE, 'build', 'assets', 'index-v26m-20260927.js')
-OUT = os.path.join(HERE, 'build', 'assets', 'index-v2949-20261009.js')
+OUT = os.path.join(HERE, 'build', 'assets', 'index-v2950-20261009.js')
 
 # v28 模块调用顺序（锚点稳定性 + num-balance 必须最后）：
 #   saveretry → arb → version → mail → entry → sectgf → char → bond → ui
@@ -372,6 +372,20 @@ OUT = os.path.join(HERE, 'build', 'assets', 'index-v2949-20261009.js')
 #       注入锚是 YlxwHub 定义行（紧跟 var YLXW_COMP 之后），与 t7sect/t8mentor 的
 #       YLXW_COMP.sect / YLXW_COMP.mentor 覆盖互不同键、互不重叠
 #     · numbal 恒最后：它要看到别人注入的块
+# ---- 2026-10-09 0.9.50 批接线（R-227 / R-228 / R-230；三个 apply 模块，恒在 numbal 之前）----
+#   ★ 这三个模块文件位于 yl-deploy/ 根（HERE 已在 sys.path[1]），非 patches/client/ ——
+#     裸名 import 同样成立（patches/client/ 优先，其中无同名文件 ⇒ 落到根）。
+#   · r227（死数据清理 specialAbility）：只加 3 处注释标注 + 断言字段一字未删。
+#     必须排在 talent097 / r132 / r087 之后 —— 它锚定天赋表 `Un=[{"id":"nt-31"` 的最终形态。
+#   · r228（修炼效率明细行改与 bd() 同源）：必须排在 talent097 之后 —— talent097 改的是
+#     `bd()` 的 expRate 口径，r228 读的正是 bd() 的返回结构。
+#   · r230（天地之髓掉落门槛同构化）：必须排在 r135 / r140b 之后 —— 两者都改过掉落路径
+#     （r140b 收紧 hw/xw/gw/bw 掉率），r230 锚定的是同一批掉落函数的最终形态。
+#   · 三者彼此锚区零交集（r227=天赋表；r228=bd()/人物志明细行；r230=进阶物品掉落三处）。
+from yl_r227_ext import apply as v28_r227_apply  # noqa: E402
+from yl_r228_ext import apply as v28_r228_apply  # noqa: E402
+from yl_r230_ext import apply as v28_r230_apply  # noqa: E402
+
 V28_MODULES = [
     ('saveretry', v28_saveretry_apply),
     ('arb', v28_arb_apply),
@@ -538,6 +552,10 @@ V28_MODULES = [
     ('r115', v28_r115_apply),              # R-115 洞府灵田：价格/等阶可见/扩地按钮/田位扩容/灵草悬停（★ 服务端配套 = SRV_CHAIN 'srv_patch_115.py'；必须排 farm089/farm2/r048/v2810c 之后）
     # ---- 2026-10-02 0.9.13 第 1 批接线（R-124 apply 模块；R-116/R-118 standalone 见 STANDALONE_CLIENT）----
     ('r124', v28_r124_apply),              # R-124 灵田服用预览：FT_ATTR 补 spirit:神识（★ 必须排 farm089/speedname097 之后；服务端配套 = SRV_CHAIN 'srv_patch_r124.py'）
+    # ---- 2026-10-09 0.9.50 批（R-227 / R-228 / R-230；序 = 编号序，三者锚区零交集）----
+    ('r227', v28_r227_apply),              # R-227 specialAbility 死数据：保留字段 + 3 处显式标注（唯一活消费点 = R38 建号向导卡 ⭐）
+    ('r228', v28_r228_apply),              # R-228 修炼效率明细行权重 0.26/0.6/0.6/0.1/0.32 → 改读 bd() 返回值（同源，杜绝双写）
+    ('r230', v28_r230_apply),              # R-230 天地之髓掉落门槛 [化神,∞) → [元婴,化神]（与天地精华同构；历练/额外/黑市 + minRealm 共 4 处）
     ('numbal', v28_numbal_apply),
 ]
 

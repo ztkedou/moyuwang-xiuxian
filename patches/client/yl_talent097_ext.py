@@ -340,8 +340,8 @@ def apply(p, ctx):
         ('T097·旧累加形态已清零',    '(a+=$.effects.expRate)',                  0, '==', '★ 旧形态必须消失'),
         # ---- 冻结：econ2 / r040 的 K 口径与明细字面量一字未动 ----
         ('冻结·econ2 K 表未动',      'var YLXW_ECON2_K = { art: 1.00, talent: 0.26, title: 0.60, grotto: 0.60, synergy: 1.00, bond: 0.32 };', 1, '==', '★ econ2 门禁契约'),
-        ('冻结·econ2 total 公式未动', 'return{total:r*d+a*0.26+l*0.6+c*0.6+Math.min(b,0.1)+S*0.32,', 1, '==', '★ 未改 total（改为在 a 累加处预乘）'),
-        ('冻结·r040 明细未动',       'T.talent*0.26*100).toFixed(1)',           1, '==', '★ r040 门禁契约（明细与 total 仍同源）'),
+        ('冻结·econ2 total 公式未动', 'return{total:_ar+_ta+_ti+_gr+_sy+_np,', 1, '==', '★ 未改 total（改为在 a 累加处预乘）'),
+        ('冻结·r040 明细未动',       'T.cTalent*100).toFixed(1)',           1, '==', '★ r040 门禁契约（明细与 total 仍同源）'),
         ('冻结·bd 定义唯一',         'function bd(t){',                        1, '==', ''),
         # ================= R-087 配色（按点数分档 + 金红对调） =================
         ('T097·分档函数已注入',      'function YlxwT097Tier(',                  1, '==', ''),

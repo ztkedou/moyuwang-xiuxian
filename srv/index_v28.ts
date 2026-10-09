@@ -1991,7 +1991,7 @@ const E2_TOWER_EXP_LUMP = 12_000_000;  // 一次性：1..100 层全通累计 7,8
 const E2_EXPED_EXP_LUMP = 2_000_000;   // 一次性：远征存量结算余量
 
 // 离线收益重算（客户端 Nw 同源纯函数）：p=旧档玩家，fromMs=上次落库时间；首存(null)=0（宽限走配额层）
-function calcOfflineGainV2(p: any, fromMs: number | null): { exp: number; stones: number } {
+function calcOfflineGainV2(p: any, fromMs: number | null, diffExp: number = 1, diffStone: number = 1): { exp: number; stones: number } { // [r225diff]
   const out = { exp: 0, stones: 0 };
   try {
     if (!p || fromMs == null) return out;
@@ -1999,10 +1999,48 @@ function calcOfflineGainV2(p: any, fromMs: number | null): { exp: number; stones
     if (!(sec > 30)) return out; // 客户端 f>3e4 才结算离线，同口径
     const hours = Math.min(sec / 3600, 24);
     const idx = Math.max(0, ECON_REALM_ORDER.indexOf(String(p.realm || '')));
-    out.exp = Math.floor((Number(p.maxExp) || 100) * 0.004 * 0.02 * hours * 60);
-    out.stones = Math.floor(Math.floor((idx <= 0 ? 4 / 3 : 2 * idx + 1) * 125) * hours); // YL_REALM_REWARD_SCALE_V26L
+    const ylR225ME = Number.isFinite(diffExp) && diffExp > 0 ? diffExp : 1; // [r225diff]
+    const ylR225MS = Number.isFinite(diffStone) && diffStone > 0 ? diffStone : 1; // [r225diff]
+    out.exp = Math.floor(Math.floor((Number(p.maxExp) || 100) * 0.004 * 0.02 * hours * 60) * ylR225ME); // [r225diff] 离线×难度
+    out.stones = Math.floor(Math.floor(Math.floor((idx <= 0 ? 4 / 3 : 2 * idx + 1) * 125) * hours) * ylR225MS); // [r225diff] 离线×难度 / YL_REALM_REWARD_SCALE_V26L
   } catch { /* 自吞异常，绝不影响存档主路径 */ }
   return out;
+}
+
+// ── R-225（服务端第 91 环）离线收益吃难度倍率 [r225diff] ──
+// 台账 R-225：客户端 R-218 把难度倍率乘在**在线入账点**（YlxwDiffGain），离线收益没吃 ⇒ 补上。
+// 服务端离线收益两条路径同接一张倍率表：
+//   ① 真发放 = offlineRewards()（/api/offline/report 预览 + /api/offline/claim 入档）；
+//   ② 配额项 = calcOfflineGainV2()（settleSaveEconV2 的 off.exp / off.stones 项）。
+// 难度来源：客户端每次推档都带 settings（pushSave body 含 settings: S.settings），服务端整包
+//   落库 ⇒ save_data.settings.difficulty ∈ {easy,normal,hard}。缺失/非法回落 normal —— 与客户端
+//   YlxwDiffMul 的默认档（Qr.difficulty[d] || Qr.difficulty.normal）逐字一致。
+// ★ 倍率表与客户端 Qr.difficulty 同源（bundle 实测：easy 1/1、normal 1.5/1.5、hard 2/2）。
+// ★ Object.create(null) + hasOwnProperty 守卫：difficulty 由客户端提交，防 "toString" 之类
+//   命中 Object.prototype（§18.12 原型链泄漏）。
+const R225_DIFF_MUL: Record<string, { exp: number; stone: number }> = Object.create(null); // [r225diff]
+R225_DIFF_MUL.easy = { exp: 1, stone: 1 };
+R225_DIFF_MUL.normal = { exp: 1.5, stone: 1.5 };
+R225_DIFF_MUL.hard = { exp: 2, stone: 2 };
+// 难度倍率取值（纯）：saveData = 整包存档对象。key ∈ {'exp','stone'}。缺失/非法 ⇒ normal 档。
+function ylR225DiffMul(saveData: any, key: 'exp' | 'stone'): number {
+  try {
+    const d = saveData && saveData.settings ? saveData.settings.difficulty : null;
+    const row = (typeof d === 'string' && Object.prototype.hasOwnProperty.call(R225_DIFF_MUL, d))
+      ? R225_DIFF_MUL[d] : R225_DIFF_MUL.normal;
+    const v = Number(row ? row[key] : 1);
+    return Number.isFinite(v) && v > 0 ? v : 1;
+  } catch { return 1; }
+}
+// 难度倍率（接受「整包存档对象」或「原始 JSON 字符串」）：解析失败/缺失 ⇒ normal 档。
+function ylR225OfflineMults(saveData: any): { exp: number; stone: number } {
+  try {
+    let root: any = saveData;
+    if (typeof root === 'string') root = JSON.parse(root);
+    return { exp: ylR225DiffMul(root, 'exp'), stone: ylR225DiffMul(root, 'stone') };
+  } catch {
+    return { exp: ylR225DiffMul(null, 'exp'), stone: ylR225DiffMul(null, 'stone') };
+  }
 }
 
 // 计数器差值：只认正增量（回档/多端旧档不倒扣，同 Y15/DG 口径）
@@ -2151,7 +2189,7 @@ function settleSaveEconV2(oldSd: any, newSd: any, prevSavedAtMs: number | null, 
     const dExpedExp = e2Delta(Number(og.expeditionExpGained) || 0, Number(ng.expeditionExpGained) || 0);
 
     // 2) 离线收益重算（服务端权威时间轴）
-    const off = calcOfflineGainV2(op, prevSavedAtMs);
+    const off = calcOfflineGainV2(op, prevSavedAtMs, ylR225DiffMul(oldSd, 'exp'), ylR225DiffMul(oldSd, 'stone')); // [r225diff] 离线收益吃难度（配额项与发放同档）
 
     // 3) 逐类配额（公式自客户端锚点提取，上限均含富余）
     const rl = Math.min(9, Math.max(1, Math.floor(Number(np.realmLevel) || 1)));
@@ -5748,7 +5786,8 @@ function offlineWindow(
 // 离线不足 OFFLINE_MIN_MS 收益归零（预览与可领判定一致，claimable=false 时明细必为 0）
 function offlineRewards(
   maxExp: number, currentExp: number, windowMs: number, capHours: number,
-  ratePerHour: number = OFFLINE_RATE_BASE_PER_HOUR
+  ratePerHour: number = OFFLINE_RATE_BASE_PER_HOUR,
+  diffExpMul: number = 1, diffStoneMul: number = 1 // [r225diff]
 ): { hours: number; expGain: number; stonesGain: number; capped: boolean; claimable: boolean; effectiveMs: number } {
   const slot = Math.max(0, Math.floor(Number(maxExp) || 0));
   const cur = Math.max(0, Math.floor(Number(currentExp) || 0));
@@ -5757,8 +5796,12 @@ function offlineRewards(
   const rawHours = Math.max(0, (Number(windowMs) || 0) / 3600000);
   const effHours = Math.min(rawHours, cap);
   const enough = (Number(windowMs) || 0) >= OFFLINE_MIN_MS;
-  const expGain = enough ? Math.max(0, Math.min(Math.floor(slot * rate * effHours), slot - cur)) : 0;
-  const stonesGain = Math.floor(expGain * OFFLINE_STONE_RATIO);
+  const baseExp = enough ? Math.max(0, Math.min(Math.floor(slot * rate * effHours), slot - cur)) : 0;
+  // [r225diff] 离线收益 × 难度倍率（默认 1 ⇒ 与改前逐位一致）
+  const ylR225ME = Number.isFinite(diffExpMul) && diffExpMul > 0 ? diffExpMul : 1;
+  const ylR225MS = Number.isFinite(diffStoneMul) && diffStoneMul > 0 ? diffStoneMul : 1;
+  const expGain = Math.max(0, Math.min(Math.floor(baseExp * ylR225ME), slot - cur));
+  const stonesGain = Math.max(0, Math.floor(Math.floor(baseExp * OFFLINE_STONE_RATIO) * ylR225MS));
   return {
     hours: Math.round(effHours * 100) / 100,
     expGain,
@@ -13238,7 +13281,8 @@ app.get('/api/offline/report', authenticateToken, rateLimit({ windowMs: 60 * 100
     // ★ R-173（[r173offline]）：最高优先级传入服务端权威 last_active_at（NULL 时 offlineAnchor 自动回落原口径）。
     const ylAnc = offlineAnchor(parseDbTimeMs(row.updated_at), row.last_seen_at, row.last_resume_at, row.offline_claimed_until, nowMs, row.last_active_at);
     const win = offlineWindow(ylAnc.anchorMs, row.offline_claimed_until != null ? Number(row.offline_claimed_until) : null, ylAnc.endMs);
-    const rw = win ? offlineRewards(nr.maxExp, nr.exp, win.windowMs, capHours, ratePerHour) : null;
+    const ylR225M = ylR225OfflineMults(row.save_data); // [r225diff]
+    const rw = win ? offlineRewards(nr.maxExp, nr.exp, win.windowMs, capHours, ratePerHour, ylR225M.exp, ylR225M.stone) : null;
     // Y21：活动倍率预览（与 claim 同一 resolveEventMults 口径；修为叠乘后仍钳槽内防溢出；引擎读取失败按 ×1 保底）
     let evMult = { events: [] as any[], expMult: 1, stonesMult: 1 };
     try { evMult = await resolveEventMults(nowMs); } catch { /* 保底 ×1 */ }
@@ -13295,7 +13339,8 @@ app.post('/api/offline/claim', authenticateToken, rateLimit({ windowMs: 60 * 100
     const ylAnc = offlineAnchor(parseDbTimeMs(row.updated_at), row.last_seen_at, row.last_resume_at, row.offline_claimed_until, nowMs, row.last_active_at);
     const win = offlineWindow(ylAnc.anchorMs, row.offline_claimed_until != null ? Number(row.offline_claimed_until) : null, ylAnc.endMs);
     if (!win) return res.status(409).json({ error: '暂无可领的离线收益' });
-    const rw = offlineRewards(nr.maxExp, nr.exp, win.windowMs, capHours, ratePerHour);
+    const ylR225M = ylR225OfflineMults(row.save_data); // [r225diff]
+    const rw = offlineRewards(nr.maxExp, nr.exp, win.windowMs, capHours, ratePerHour, ylR225M.exp, ylR225M.stone);
     if (!rw.claimable) return res.status(409).json({ error: '离线时长不足或收益为零（至少离线 5 分钟）' });
     // Y21：活动倍率（结算自动应用；引擎读取失败按 ×1 保底，不阻塞领取）
     const evMult = await resolveEventMults(nowMs).catch(() => ({ events: [] as any[], expMult: 1, stonesMult: 1 }));
@@ -13313,7 +13358,8 @@ app.post('/api/offline/claim', authenticateToken, rateLimit({ windowMs: 60 * 100
     const paid = await updatePlayerSave(userId, (sd: any) => {
       if (!sd.player || typeof sd.player !== 'object') return;
       const nrNow = normalizeRealm(sd.player);
-      const r = offlineRewards(nrNow.maxExp, nrNow.exp, win.windowMs, capHours, ratePerHour);
+      const ylR225M = ylR225OfflineMults(sd); // [r225diff]
+      const r = offlineRewards(nrNow.maxExp, nrNow.exp, win.windowMs, capHours, ratePerHour, ylR225M.exp, ylR225M.stone);
       const gExp = Math.min(actApplyGain(r.expGain, evMult.expMult * mnG.expMult), Math.max(0, nrNow.maxExp - nrNow.exp));
       const gStones = actApplyGain(r.stonesGain, evMult.stonesMult * mnG.stonesMult);
       sd.player.exp = Math.max(0, Math.floor(Number(sd.player.exp) || 0)) + gExp;

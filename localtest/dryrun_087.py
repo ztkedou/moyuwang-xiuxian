@@ -117,6 +117,8 @@ EXPECTED_ORDER = [
     #   （须晚于 flow083 —— 要改它留下的 d(6)/d(4)/d(.4)/d(1)）
     #   ★ 注意：cooldown 已并入上一行（它在真实 V28_MODULES 里位于 r018 与 r018b 之间），
     #     此处**不得重复列出**（重复会让顺序校验解析出错）。
+    # 2026-10-09 0.9.50 批（R-227 / R-228 / R-230；序 = 编号序）
+    'r227', 'r228', 'r230',
     'numbal',
 ]
 NEW_MODULES = ['grotto087', 'farm087', 'xinfa087', 't6chardex',
@@ -141,10 +143,11 @@ NEW_MODULES = ['grotto087', 'farm087', 'xinfa087', 't6chardex',
                'cooldown',  # 2026-09-30 0.8.13 ★ 冷却机制修复 + 历练冷却还原上游原版
                'r106', 'r107', 'r108', 'r109',
                'r111', 'r113', 'r114', 'r115',  # 2026-10-02 0.9.12 R-111 签到 / R-113 万妖五boss / R-114 历练收获 / R-115 洞府灵田
-               'r124']  # 2026-10-02 0.9.13 R-124 灵田服用预览 spirit→神识（r116/r118 standalone 不在此表）
+               'r124',
+               'r227', 'r228', 'r230']  # 2026-10-09 0.9.50 R-227 死数据标注 / R-228 明细同源 / R-230 天地之髓门槛
 
-VERSION = '0.9.49'
-BUNDLE_BASENAME = 'index-v2949-20261009.js'   # 与 build_v26n.OUT / chain_build.CLIENT_OUT / build/index.html 逐字一致
+VERSION = '0.9.50'
+BUNDLE_BASENAME = 'index-v2950-20261009.js'   # 与 build_v26n.OUT / chain_build.CLIENT_OUT / build/index.html 逐字一致
 # ★ 升版四件套之外的第 5 处：本文件的 VERSION 必须同步（下方 wiring_checks 用它交叉校验
 #   yl_version_ext.DEFAULT_VERSION 与 CHANGELOG 最新条目，两者都对上才算过）。
 

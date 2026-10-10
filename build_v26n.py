@@ -338,7 +338,7 @@ from yl_r067_ext import apply as v28_r067_apply  # noqa: E402
 from yl_068_ext import apply as v28_r068_apply  # noqa: E402
 
 BASE = os.path.join(HERE, 'build', 'assets', 'index-v26m-20260927.js')
-OUT = os.path.join(HERE, 'build', 'assets', 'index-v2952-20261009.js')
+OUT = os.path.join(HERE, 'build', 'assets', 'index-v2953-20261010.js')
 
 # v28 模块调用顺序（锚点稳定性 + num-balance 必须最后）：
 #   saveretry → arb → version → mail → entry → sectgf → char → bond → ui
@@ -703,6 +703,21 @@ STANDALONE_CLIENT = [
     #     ③ 在读档接口 fetchSave 的 `const r=await t.json();` 后挂一次 YlxwSrvDiffCapture(r)。
     #   ★ 服务端下发字段名 = `ylDifficulty`（顶层，非存档内 settings.difficulty），由 SRV_CHAIN 第 93 环 srv_patch_r233.py 注入。
     #   ★ 取不到时自动回落旧优先级 ⇒ 与未打本环行为一致（不劣化）；纯客户端，服务端半边 = 第 93 环。
+    # ---- 2026-10-10 0.9.53 批（R-238 悟道「禅道·修炼」加成实装；纯客户端）----
+    # ★★ 顺序铁律：**r238 必须排在 r228 之后**（D 锚点 = 属性面板明细行的「羁绊」项，
+    #    是 r228「明细行改读 bd() 返回值」之后的形态）；与 r232 锚区零交集
+    #    （r232 挂读档响应解析处 `const r=await t.json();`，r238 挂 YlxwApi 公共落点
+    #     `YLApplyBalance(l, r);`，两处不同）。
+    ('r238', os.path.join(HERE, 'localtest', 'yl_r238_ext.py')),  # R-238 悟道「禅道·修炼」加成接入 bd()
+    #   排查结论（报告_修炼加成实装排查_20261010.md）：服务端 WUDAO_DAOS.array 的
+    #   stat='cultivate'（显示名「修炼」）只在悟道面板展示 bonusText，客户端 bd() 的六源
+    #   （心法/天赋/称号/洞府/协同/羁绊）从不读取 ⇒ 面板承诺「修炼 +X%」实际不生效。
+    #   本环把它接进 bd()：① 在 YlxwApi 公共落点挂捕获器，从 /wudao 响应的 daos[] 取
+    #   cultivate/array 的 bonusPct（百分比数值 → 小数，与面板显示**逐字同源**）；
+    #   ② bd() 的 total 相加（权重 K=1.00，与心法同级）；③ 属性面板明细行新增「悟道:+X%」；
+    #   ④ bd() 内首屏兜底拉一次 /wudao（次数上限 20，失败自动复位以便登录后重试）。
+    #   ★ 不碰离线收益（用户明确「离线收益不用管」）；不改服务端（数值服务端早已下发）；
+    #     不碰心法/天赋/称号/洞府/协同/羁绊六源算式与权重（冻结 10 项门禁）。
 ]
 
 

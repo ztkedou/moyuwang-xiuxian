@@ -338,7 +338,7 @@ from yl_r067_ext import apply as v28_r067_apply  # noqa: E402
 from yl_068_ext import apply as v28_r068_apply  # noqa: E402
 
 BASE = os.path.join(HERE, 'build', 'assets', 'index-v26m-20260927.js')
-OUT = os.path.join(HERE, 'build', 'assets', 'index-v2953-20261010.js')
+OUT = os.path.join(HERE, 'build', 'assets', 'index-v2954-20261010.js')
 
 # v28 模块调用顺序（锚点稳定性 + num-balance 必须最后）：
 #   saveretry → arb → version → mail → entry → sectgf → char → bond → ui
@@ -718,6 +718,15 @@ STANDALONE_CLIENT = [
     #   ④ bd() 内首屏兜底拉一次 /wudao（次数上限 20，失败自动复位以便登录后重试）。
     #   ★ 不碰离线收益（用户明确「离线收益不用管」）；不改服务端（数值服务端早已下发）；
     #     不碰心法/天赋/称号/洞府/协同/羁绊六源算式与权重（冻结 10 项门禁）。
+    # ---- 2026-10-10 0.9.53 批（R-239 历练寿元消耗「手动/自动统一」；纯客户端）----
+    #   用户反馈「普通点击的历练寿命减的有点多」：手动历练单次 = 0.4 x 1 = 0.40，
+    #   而挂机 = 0.4 x 0.0125 = 0.005（R-199 只调了挂机倍率，手动一字未动）。
+    #   本环把 YlxwLifeMul() 改为**恒返回 YLXW_LIFE_AUTO_MUL** ⇒ 手动 == 挂机 = 0.005。
+    #   ★ 风险档相对比例保留：普通 0.4->0.005 / 低 0.3->0.00375 / 中 0.6->0.0075 /
+    #     高 1.0->0.0125 / 极度危险 1.5->0.01875 / 秘境 1.0->0.0125。
+    #   ★ 与 r206 锚区零交集（r206 改常量声明 `YLXW_LIFE_AUTO_MUL`，r239 改函数体），
+    #     但顺序上必须排在 r206 之后（r239 的冻结针脚含 r206 的幂等标记 `/*[r206life]*/`）。
+    ('r239', os.path.join(HERE, 'localtest', 'yl_r239_ext.py')),  # R-239 历练寿元 手动/自动统一 0.005
 ]
 
 

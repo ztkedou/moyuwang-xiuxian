@@ -159,7 +159,9 @@ def gates():
         ('R139·冻结 setInterval( 计数' + RETIRED_TAG, FR_SI.decode('ascii'), 16, '==', '17-3 原生 +1 = R-196 走秒 tick +1 = R-209 在线人数 20s 轮询'),
         ('R139·冻结 clearInterval( 计数' + RETIRED_TAG, FR_CI.decode('ascii'), 16, '==', '18-3 +1 = R-196 走秒 tick 的清理'),
         ('R139·冻结 YlxwMedSession', FR_MED.decode('ascii'), 2, '==', ''),
-        ('R139·冻结 __ylLifeAuto', FR_LIFE.decode('ascii'), 2, '==', ''),
+        # ★ 2026-10-10 R-239 后：YlxwLifeMul() 函数体不再引用 __ylLifeAuto ⇒ 该串由 2 降为 1，
+        #   故本针收窄为「历练主循环赋值」这一 R-139 真正关心的落点（跨补丁演进）。
+        ('R139·冻结 历练主循环赋值', 'window.__ylLifeAuto=Q()', 1, '==', ''),
         ('R139·冻结 N.current()', FR_NCUR.decode('ascii'), 1, '==', ''),
         ('R139·冻结 k.current()', FR_KCUR.decode('ascii'), 1, '==', ''),
     ]

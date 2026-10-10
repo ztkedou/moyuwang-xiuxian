@@ -105,7 +105,11 @@ def gates():
         ('R206-A mark attached', NEW_DECL, 1, '==', 'mark glued to decl'),
         ('R206-A old 0.05 cleared', 'var YLXW_LIFE_AUTO_MUL = 0.05', 0, '==', ''),
         # ---- 冻结（函数体 / 风险表 / 结算行 / 既有标记）----
-        ('R206-YlxwLifeMul body kept', 'window.__ylLifeAuto ? YLXW_LIFE_AUTO_MUL : 1', 1, '==', ''),
+        # ★ 2026-10-10 R-239 后：函数体被改写为「恒返回 YLXW_LIFE_AUTO_MUL」；
+        #   用 tuple 合计两种形态（build 时=旧形态，dryrun 全链后=新形态），两种场景均 == 1。
+        ('R206-YlxwLifeMul body kept',
+         ('window.__ylLifeAuto ? YLXW_LIFE_AUTO_MUL : 1',
+          'try { return YLXW_LIFE_AUTO_MUL; } catch (e) { return 1; }'), 1, '==', ''),
         ('R206-YlxwLifeMul kept', 'function YlxwLifeMul() {', 1, '==', ''),
         ('R206-MED_LIFE kept', 'var YLXW_MED_LIFE = 0.001;', 1, '==', ''),
         ('R206-call site kept', '*YlxwLifeMul();', 1, '==', ''),

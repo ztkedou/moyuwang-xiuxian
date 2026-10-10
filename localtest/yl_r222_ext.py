@@ -194,6 +194,11 @@ EDITS = [
 #   ⇒ 本环那条「total 计算式未动」冻结门禁**退役**：apply 态仍按旧式校验，终态改检**新式**。
 RETIRED_TAG = '【已退役·终态专用】'
 FRZ_TOTAL_NEW = 'const _ar=r*d,_ta=a*0.26,_ti=l*0.6,_gr=c*0.6,_sy=Math.min(b,0.1),_np=S*0.32;return{total:_ar+_ta+_ti+_gr+_sy+_np,'
+# ★ R-246（2026-10-11）：**R-238（0.9.53）**在 bd() 的 total 前插了「禅道取值」并给 total 追加 `+__wud`
+#   ⇒ 上面 R-228 那条形态在**终态**归零（实测 0 次）。
+#   按「跨补丁门禁演进」铁律改 **tuple 合计两形态**：apply 态（R-238 未生效）= 旧式 / 终态 = R-238 式。
+FRZ_TOTAL_R238 = ('_np=S*0.32;YlxwWudaoCultEnsure();var __wud=YlxwWudaoCultPct();'
+                  'return{total:_ar+_ta+_ti+_gr+_sy+_np+__wud,')
 FRZ_TOTAL = ('return{total:r*d+a*0.26+l*0.6+c*0.6+Math.min(b,0.1)+S*0.32,'
              'art:r,talent:a,title:l,grotto:c,synergy:b,npc:S,spiritualRootBonus:d}')
 # R-218 标记 + 两个取值器定义（证明 R-218 注入块逐字未动）。
@@ -227,8 +232,9 @@ TOAST_ZERO = ('\\uff0c\\u672c\\u6b21\\u4e3a\\u8fdb\\u5ea6\\u79ef\\u7d2f'
               '\\uff08\\u5165\\u95e8\\u540e\\u83b7\\u5f97\\u52a0\\u6210\\uff09')
 
 FREEZE = [
-    ('冻结·total 计算式未动' + RETIRED_TAG,  FRZ_TOTAL_NEW,        1,
-     'R-228 已同源化（拆具名局部量，数值零变化）⇒ 终态期望新式；本环 apply 仍按旧式冻结'),
+    ('冻结·total 计算式未动' + RETIRED_TAG,  (FRZ_TOTAL_NEW, FRZ_TOTAL_R238), 1,
+     'R-228 已同源化（拆具名局部量，数值零变化）⇒ 终态期望新式；R-238 又插禅道项并给 total 追加 +__wud '
+     '⇒ 再改 tuple 合计两形态（R-246 修正）'),
     ('冻结·R218 标记未动',                 FRZ_R218_MARK,        1),
     ('冻结·R218 YlxwDiffMul 定义未动',     FRZ_R218_MUL_DEF,     1),
     ('冻结·R218 YlxwDiffGain 定义未动',    FRZ_R218_GAIN_DEF,    1),
@@ -241,12 +247,34 @@ FREEZE = [
     ('冻结·难度表 hard 倍率未动',          FRZ_DIFF_HARD,        1),
 ]
 
+# --------------------------------------------------------------------------- 门禁漂移修复（R-246）
+# ★ 本环两条「新串在位」针的下游被**合法改写**（补丁按序套用 ⇒ 本环 apply 时刻下游尚未生效，
+#   该针当时必然通过；唯有在最终形态重跑才暴露）：
+#   · P0：r232（D）给 `YlxwDiffCn` 的 `var d;` 之后前置服务端权威分支
+#         `try{d=YlxwServerDiff()}catch(e){}`（显示与实际同源）。
+#   · P4：r238（D）在「羁绊」明细行后追加「悟道:+X%」段 ⇒ 把本环的「难度:×N（名）」段挤到其后。
+# ⇒ 两条针各改 tuple 合计「新旧两形态」（旧形态 = 本环套用时刻的 new；新形态 = 最终产物逐字抽出），
+#   计数相加，两种场景均 == 1（**绝不放宽断言**：期望仍为 1、op 仍为 '=='）。
+P0_NEW_ALT = 'md=(t="normal")=>Qr.difficulty[t]||Qr.difficulty.normal,/*YLXW_R222_V2947*/YlxwDiffCn=()=>{try{var d;try{d=YlxwServerDiff()}catch(e){}try{d=(Be.getState().settings||{}).difficulty}catch(e){}if(!d){try{var s=localStorage.getItem("xiuxian-game-settings");if(s){var o=JSON.parse(s);if(o&&o.difficulty)d=o.difficulty}}catch(e){}}return d==="easy"?"\\u7b80\\u5355":d==="hard"?"\\u56f0\\u96be":"\\u666e\\u901a"}catch(e){return"\\u666e\\u901a"}},/*YLXW_R218_V2945*/'
+P4_NEW_ALT = 'T.npc>0&&`\u7f81\u7eca:+${(T.cNpc*100).toFixed(1)}%`,T.wudao>0&&`\u609f\u9053:+${(T.cWudao*100).toFixed(1)}%`,YlxwDiffMul(void 0,"expMul")>1&&`\u96be\u5ea6:\xd7${YlxwDiffMul(void 0,"expMul").toFixed(1)}\uff08${YlxwDiffCn()}\uff09`]'
+# 「新串在位」针的多形态合计表（键 = EDITS label 前 3 字符，含空格，精确匹配避免误伤）。
+ALT_NEEDLES = {'P0 ': P0_NEW_ALT, 'P4 ': P4_NEW_ALT}
+
+
+def _count(text, needle):
+    """门禁计数：tuple/list = 多形态合计计数（R-246 漂移修复）；str = 直接计数。"""
+    if isinstance(needle, (tuple, list)):
+        return sum(text.count(x) for x in needle)
+    return text.count(needle)
+
 
 def gates():
     """补丁后形态的门禁五元组 (name, needle, count, op, note)。"""
     g = []
     for label, old, new, n in EDITS:
-        g.append(('%s · 新串在位' % label, new, n, '==', ''))
+        # ★ R-246：P0/P4 的「新串在位」针下游被合法改写（r232/r238）⇒ tuple 合计新旧两形态。
+        needle = (new, ALT_NEEDLES[label[:3]]) if label[:3] in ALT_NEEDLES else new
+        g.append(('%s · 新串在位' % label, needle, n, '==', ''))
         g.append(('%s · 旧串清零' % label, old, 0, '==', ''))
     # 幂等标记唯一 + 取值器在位
     g.append(('幂等标记唯一', MARK, 1, '==', '/*YLXW_R222_V2947*/'))
@@ -462,7 +490,7 @@ def main() -> int:
     for label, needle, exp, op, note in gates():
         if RETIRED_TAG in label:
             continue  # 退役针脚（终态专用）：本环 apply 时下游尚未套用 ⇒ 不检，终态由复核负责
-        act = out_txt.count(needle)
+        act = _count(out_txt, needle)
         good = (act == exp)
         ok = ok and good
         if not good:

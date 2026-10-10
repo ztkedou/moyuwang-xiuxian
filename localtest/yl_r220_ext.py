@@ -157,6 +157,11 @@ FRZ_FOOT1 = '难度模式在游戏开始后可在设置中查看，但建议在�
 FRZ_FOOT2 = '难度模式在游戏开始时选择，无法更改'                 # ② 底部说明
 FRZ_HEAD1 = '不同难度决定了死亡惩罚的严重程度'                  # ① 顶部小标题
 FRZ_REBIRTH = '困难模式下死亡将清除存档，点击后将重置所有数据，返回开始页面'  # ③ r219 范围
+# ★ 门禁漂移修复（R-246）：FRZ_REBIRTH 是 r220 **套用时刻**的形态——r220 在 STANDALONE_CLIENT
+#   的 index 77，先于 r219（index 78）。r219 的下游 E4 把该涅槃重生弹窗文案**整体改写**为下面
+#   的「三重惩罚口径」（逐字取自终态产物 @2039265）。故 ③ 门禁改用 tuple 合计新旧两形态。
+FRZ_REBIRTH_NEW = ('困难模式下死亡：装备全部掉落、基础属性下降 40%~50%、'
+                   '境界跌落一个大境界（炼气期除外），但不清除存档；可继续游戏或重新开始')
 FRZ_RADIO_EASY = 'value:"easy",checked:m==="easy"'           # ① 单选框结构
 FRZ_RADIO_HARD = 'value:"hard",checked:m==="hard"'
 
@@ -181,7 +186,15 @@ def gates():
         # ---- 强化：旧口径彻底消失 ----
         ('强化·「死亡清除存档」全清', '死亡清除存档', 0, '==', '① + ② 两处旧困难口径均消失'),
         ('强化·新困难口径在位', '死亡不掉档', 2, '==', '① + ② 各 1'),
-        ('强化·40%~50% 在位', '40%~50%', 2, '==', '① + ② 各 1'),
+        # ★ 门禁漂移修复（R-246）：裸串 '40%~50%' 在终态出现 **3** 次——第 3 处来自 r219 的
+        #   下游 E4（涅槃重生弹窗 N4b「…基础属性下降 40%~50%…」；r219@index78 晚于 r220@index77）。
+        #   取证：r220 自身 ① N2 / ② N4 两处一字未动，r219 只是**新增**了一处同文案（非改写 r220 的）。
+        #   因 r220 套用时刻（r219 尚未生效）裸串 count=2，故**不能**把期望改成 3（会令本补丁在
+        #   apply 时刻 rc=1、build 失败）；改**收窄** needle 为「掉落 40%~50% 属性」——它只命中
+        #   r220 的 ① ②（两处均为「掉落 40%~50% 属性」），r219 处为「下降 40%~50%、」不匹配。
+        #   实测：旧形态场景 count=2、终态 count=2，两场景均 == 2（断言未被放宽，反而更精确）。
+        ('强化·40%~50% 在位', '掉落 40%~50% 属性', 2, '==',
+         '① + ② 各 1（收窄 needle，排除 r219 下游新增的同文案「下降 40%~50%」）'),
         ('强化·普通收益倍率在位', '修炼速度 +50%，灵石获取 +50%', 2, '==', '① + ② 各 1'),
         ('强化·困难收益倍率在位', '修炼速度 +100%，灵石获取 +100%', 2, '==', '① + ② 各 1'),
         # ---- 冻结：简单档两条描述（用户明确「简单模式不变」）----
@@ -194,8 +207,20 @@ def gates():
         ('冻结·①easy单选框未动', FRZ_RADIO_EASY, 1, '==', ''),
         ('冻结·①hard单选框未动', FRZ_RADIO_HARD, 1, '==', ''),
         # ---- 冻结：③ 涅槃重生弹窗（r219 范围，本环不碰）----
-        ('冻结·③涅槃重生弹窗未动', FRZ_REBIRTH, 1, '==', 'r219 范围'),
+        # ★ 门禁漂移修复（R-246）：r219 的下游 E4 把该弹窗文案整体改写为 FRZ_REBIRTH_NEW
+        #   （见文件头常量注）。故改 tuple 合计新旧两形态：旧形态场景（r220 apply 时刻，r219
+        #   未生效）命中 FRZ_REBIRTH=1；终态命中 FRZ_REBIRTH_NEW=1。两场景均 == 1。
+        ('冻结·③涅槃重生弹窗未动', (FRZ_REBIRTH, FRZ_REBIRTH_NEW), 1, '==',
+         'r219 E4 下游改写该弹窗→三重惩罚口径；tuple 合计新旧形态（各场景 == 1）'),
     ]
+
+
+def _count(text, needle):
+    """门禁计数：needle 为 tuple/list 时按「多形态合计」计数（与 dryrun_087 / diag_gate_drift 同语义）。
+    ★ R-246：③ 涅槃重生弹窗门禁改用 tuple 合计新旧形态后，本环门禁循环须支持 tuple。"""
+    if isinstance(needle, (tuple, list)):
+        return sum(text.count(x) for x in needle)
+    return text.count(needle)
 
 
 def _precheck():
@@ -344,7 +369,7 @@ def main() -> int:
     # 5) 门禁
     ok = True
     for label, needle, exp, op, note in gates():
-        act = out_txt.count(needle)
+        act = _count(out_txt, needle)
         good = (act == exp)
         ok = ok and good
         print('  [%s] %-28s actual=%d expect %s %d' % ('OK' if good else 'FAIL', label, act, op, exp))

@@ -291,13 +291,35 @@ FREEZE = [
     ('冻结·hard 惩罚系数',   'enemyPower:1.15,battleChance:1.15,reward:1.1,skippedBattleReward:.5', 1),
 ]
 
+# --------------------------------------------------------------------------- 门禁漂移修复（R-246）
+# ★ E1「新串在位」针的下游被**合法改写**（补丁按序套用 ⇒ 本环 apply 时刻下游尚未生效，该针
+#   当时必然通过；唯有在最终形态重跑才暴露）：
+#   · r222（P0）在 `md(...)` 与 `/*YLXW_R218_V2945*/` 之间插入难度中文名取值器 `YlxwDiffCn`；
+#   · r232（B）在 `YlxwDiffMul` 的 `var d=t;` 之后插入服务端权威分支
+#     `if(!d||!Qr.difficulty[d]){try{d=YlxwServerDiff()}catch(e){}}`；
+#   · r232（A）在 `YlxwDiffGain` 的 `}}` 与 `,Lm=` 之间插入
+#     `/*YLXW_R232_V2951*/YlxwServerDiff=…,YlxwSrvDiffCapture=…,`。
+# ⇒ 该针改 tuple 合计「新旧两形态」（旧形态 = 本环套用时刻的 E1_new；新形态 = 最终产物逐字抽出），
+#   计数相加，两种场景均 == 1（**绝不放宽断言**：期望仍为 1、op 仍为 '=='）。
+E1_NEW_ALT = 'md=(t="normal")=>Qr.difficulty[t]||Qr.difficulty.normal,/*YLXW_R222_V2947*/YlxwDiffCn=()=>{try{var d;try{d=YlxwServerDiff()}catch(e){}try{d=(Be.getState().settings||{}).difficulty}catch(e){}if(!d){try{var s=localStorage.getItem("xiuxian-game-settings");if(s){var o=JSON.parse(s);if(o&&o.difficulty)d=o.difficulty}}catch(e){}}return d==="easy"?"\\u7b80\\u5355":d==="hard"?"\\u56f0\\u96be":"\\u666e\\u901a"}catch(e){return"\\u666e\\u901a"}},/*YLXW_R218_V2945*/YlxwDiffMul=(t,r)=>{try{var d=t;if(!d||!Qr.difficulty[d]){try{d=YlxwServerDiff()}catch(e){}}if(!d||!Qr.difficulty[d]){try{d=(Be.getState().settings||{}).difficulty}catch(e){}}if(!d){try{var s=localStorage.getItem("xiuxian-game-settings");if(s){var o=JSON.parse(s);if(o&&o.difficulty)d=o.difficulty}}catch(e){}}var q=Qr.difficulty[d]||Qr.difficulty.normal,v=Number(q&&q[r]);return isFinite(v)&&v>0?v:1}catch(e){return 1}},YlxwDiffGain=(x,f)=>{try{if(!(x>0))return x;var m=YlxwDiffMul(void 0,f);return isFinite(m)&&m>0?Math.floor(x*m):x}catch(e){return x}},/*YLXW_R232_V2951*/YlxwServerDiff=()=>{try{var d=window.__ylSrvDiff;return (d==="easy"||d==="normal"||d==="hard")?d:null}catch(e){return null}},YlxwSrvDiffCapture=(j)=>{try{if(!j||typeof j!=="object")return;var d=j.ylDifficulty;if(d==="easy"||d==="normal"||d==="hard")window.__ylSrvDiff=d}catch(e){}},Lm='
+
+
+def _count(text, needle):
+    """门禁计数：tuple/list = 多形态合计计数（R-246 漂移修复）；str = 直接计数。"""
+    if isinstance(needle, (tuple, list)):
+        return sum(text.count(x) for x in needle)
+    return text.count(needle)
+
 
 def gates():
     """补丁后形态的门禁五元组 (name, needle, count, op, note)。"""
     g = []
     # 每个入账点：新串在位（count=n）+ 旧串清零（count=0）
     for label, old, new, n in EDITS:
-        g.append(('%s · 新串在位' % label, new, n, '==', ''))
+        # ★ R-246：E1 的「新串在位」针下游被合法改写（r222/r232）⇒ tuple 合计新旧两形态。
+        #   注意用 [:3]=='E1 '（带空格）精确匹配，避免误伤 E10~E16。
+        needle = (new, E1_NEW_ALT) if label[:3] == 'E1 ' else new
+        g.append(('%s · 新串在位' % label, needle, n, '==', ''))
         g.append(('%s · 旧串清零' % label, old, 0, '==', ''))
     # 幂等标记唯一
     g.append(('幂等标记唯一', MARK, 1, '==', '/*YLXW_R218_V2945*/'))
@@ -465,7 +487,7 @@ def main() -> int:
     # 5) 门禁
     ok = True
     for label, needle, exp, op, note in gates():
-        act = out_txt.count(needle)
+        act = _count(out_txt, needle)
         good = (act == exp)
         ok = ok and good
         if not good:

@@ -129,7 +129,11 @@ EDITS = [
 
 # --------------------------------------------------------------------------- 冻结门禁（既有六源一字未动）
 FREEZE = [
-    ('冻结·心法贡献算式',   'r=Math.min(1.25,u.effects.expRate*$)', 1),
+    # ★ 门禁漂移修复（R-246）：本环在 STANDALONE_CLIENT 的 index 83，其下游 r242（index 87）
+    #   的 B 把 `bd()` 心法贡献算式改为 `r=u.effects.expRate;`（取消品级乘数与 1.25 上限）。
+    #   终态形态逐字取自终态产物 @621369。故改 tuple 合计新旧两形态：
+    #   旧形态场景（r238 apply 时刻，r242 未生效）命中旧式=1；终态命中新式=1。两场景均 == 1。
+    ('冻结·心法贡献算式',   ('r=Math.min(1.25,u.effects.expRate*$)', 'r=u.effects.expRate;'), 1),
     ('冻结·心法品级覆盖表', r'var YlxwArtExpRate = { "\u9ec4": 0.10', 1),
     ('冻结·灵根共鸣系数',   'go=(t,r)=>t.spiritualRoot?1+(r[t.spiritualRoot]||0)*.005:1', 1),
     ('冻结·天赋权重 K',     'YLXW_T097_TALENT_K', 2),
@@ -162,6 +166,14 @@ def gates():
     for name, needle, cnt in FREEZE:
         g.append((name, needle, cnt, '==', '冻结未动'))
     return g
+
+
+def _count(text, needle):
+    """门禁计数：needle 为 tuple/list 时按「多形态合计」计数（与 dryrun_087 / diag_gate_drift 同语义）。
+    ★ R-246：`冻结·心法贡献算式` 改用 tuple 合计新旧形态后，本环门禁循环须支持 tuple。"""
+    if isinstance(needle, (tuple, list)):
+        return sum(text.count(x) for x in needle)
+    return text.count(needle)
 
 
 def _precheck():
@@ -311,7 +323,7 @@ def main() -> int:
     # 5) 门禁
     ok = True
     for label, needle, exp, op, note in gates():
-        act = out_txt.count(needle)
+        act = _count(out_txt, needle)
         good = (act == exp)
         ok = ok and good
         if not good:

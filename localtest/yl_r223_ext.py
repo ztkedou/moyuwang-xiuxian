@@ -191,6 +191,12 @@ N_NEW = ('b=Math.random()<(0.01+Math.min(0.03,'
 
 # 核心新公式（门禁在位判定用；与历练侧 handleAdventure 的 V 完全一致，仅变量名不同）
 N_CORE = '0.01+Math.min(0.03,($a(a.titleId,a.unlockedTitles||[]).luck||0)*0.0003)'
+# ★ 门禁漂移修复（R-246）：本环在 STANDALONE_CLIENT 的 index 81，其后有两个下游补丁**合法改写**
+#   了本概率式：r241（index 85）加法百分点 → 乘性 0.1667% 基础；r243（index 88）再乘心法顿悟率。
+#   终态形态逐字取自终态产物 @752531。故「新概率式在位」门禁改用 tuple 合计新旧两形态：
+#   旧形态场景（r223 apply 时刻，改写未发生）命中 N_CORE=1；终态命中 N_R241R243=1。
+N_R241R243 = ('0.001667*(1+Math.min(1,($a(a.titleId,a.unlockedTitles||[]).luck||0)*0.005))'
+              '*(1+YlxwArtMech(a,"wudaoRate"))')
 # 旧三元（必须清零）
 OLD_TERNARY = '(__r188t?0.05:0.01)'
 # 幂等标记
@@ -237,7 +243,11 @@ FRZ_OTHER_DUNWU_3 = '{"id":"nt-comp-6","name":"一念顿悟"'
 def gates():
     """补丁后形态的门禁五元组 (name, needle, count, op, note)。"""
     return [
-        ('R223·新概率式在位', N_CORE, 1, '==', '1%~4% 公式（与历练同源）'),
+        # ★ 门禁漂移修复（R-246）：tuple 合计「r223 原始 1%~4% 式」与「r241+r243 改写后的乘性式」
+        #   （r241：加法→乘性 0.1667%；r243：再乘心法顿悟率 YlxwArtMech(a,"wudaoRate")）。
+        #   旧形态场景 / 终态场景各命中 1，合计恒 == 1。
+        ('R223·新概率式在位', (N_CORE, N_R241R243), 1, '==',
+         '1%~4% 公式（与历练同源）；r241/r243 下游改写→乘性式，tuple 合计两形态'),
         ('R223·旧三元清零', OLD_TERNARY, 0, '==', '旧 (__r188t?0.05:0.01) 必须为 0'),
         ('R223·幂等标记唯一', MARK, 1, '==', '/*YLXW_R223_V2948*/'),
         ('冻结·天赋检测行未动', FRZ_TALENT_DETECT, 1, '==', 'a.talentIds…includes("instant-dao")'),
@@ -259,6 +269,14 @@ def gates():
         ('冻结·他天赋「顿悟大道」名未动', FRZ_OTHER_DUNWU_2, 1, '==', 'nt-46（非本环）'),
         ('冻结·他天赋「一念顿悟」名未动', FRZ_OTHER_DUNWU_3, 1, '==', 'nt-comp-6（非本环）'),
     ]
+
+
+def _count(text, needle):
+    """门禁计数：needle 为 tuple/list 时按「多形态合计」计数（与 dryrun_087 / diag_gate_drift 同语义）。
+    ★ R-246：概率式门禁改用 tuple 合计新旧形态后，本环门禁循环须支持 tuple。"""
+    if isinstance(needle, (tuple, list)):
+        return sum(text.count(x) for x in needle)
+    return text.count(needle)
 
 
 def _precheck():
@@ -426,7 +444,7 @@ def main() -> int:
     # 5) 门禁
     ok = True
     for label, needle, exp, op, note in gates():
-        act = out_txt.count(needle)
+        act = _count(out_txt, needle)
         good = (act == exp)
         ok = ok and good
         print('  [%s] %-28s actual=%d expect %s %d' % ('OK' if good else 'FAIL', label, act, op, exp))

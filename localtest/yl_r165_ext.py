@@ -132,6 +132,10 @@ def esc(w):
 # E1：打坐顿悟分支末尾（纯 ASCII 段，唯一）
 E1_OLD = 'YlxwToast(x,"special","md-exp",4000),c(x,"special")'
 E1_NEW = E1_OLD + ',YlxwWudaoEnlighten(c)'
+# ★ 2026-10-10 R-241：顿悟分支尾部又被合法改写为「1/3 概率产心得」
+#   ⇒ 终态（全链跑完）此段为 E1_NEW_END，而本环 apply 时（R-241 之前）仍是 E1_NEW。
+#   故门禁改「tuple 合计两形态」，两种场景均 == 1（照 R-206 的跨补丁针脚演进做法）。
+E1_NEW_END = E1_OLD + ',Math.random()<.3333&&YlxwWudaoEnlighten(c)'
 # 旧尾（打后必须清零）：证明「顿悟分支的收尾」确实被改写
 E1_OLD_TAIL = E1_OLD + '}'
 
@@ -175,7 +179,8 @@ FREEZE = [
 def gates():
     return [
         # ===== E1 顿悟分支挂点 =====
-        ('R165·顿悟分支已挂入账', E1_NEW, 1, '==', '顿悟分支末尾调用恰好 1 处'),
+        ('R165·顿悟分支已挂入账', (E1_NEW, E1_NEW_END), 1, '==',
+         '顿悟分支末尾调用恰好 1 处（tuple 合计：R-241 前 E1_NEW / R-241 后 E1_NEW_END）'),
         ('R165·旧顿悟分支尾清零', E1_OLD_TAIL, 0, '==', '旧收尾（无挂点）必须消失'),
         # ===== E2 助手声明 =====
         ('R165·入账助手已声明', DECL_BLOCK, 1, '==', '助手声明块恰好 1 处'),
@@ -275,7 +280,9 @@ def main():
 
     # 门禁
     for name, needle, cnt, op, note in gates():
-        c = out.count(needle)
+        # ★ needle 支持 tuple/list（多形态合计计数）——R-241 后 E1 针脚用「E1_NEW + E1_NEW_END」合计。
+        c = (sum(out.count(x) for x in needle) if isinstance(needle, (tuple, list))
+             else out.count(needle))
         if op == '==' and cnt is not None and c != cnt:
             print('[r165] GATE FAIL %s: count=%d expect %d' % (name, c, cnt))
             return 1

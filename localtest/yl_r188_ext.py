@@ -218,18 +218,28 @@ def gates():
         ('R188v2·v1 标记逐字保留', MARK_V1, 1, '==', '[r188med] 保留（审计链，要求②）'),
         # ★ R-221/0.9.49（r223）已把概率式合法换成与历练同口径的 1%~4%（原 `__r188t?0.05:0.01`）
         #   ⇒ 本环 3 条「数值形态」门禁**退役**：apply 态仍按旧式校验（_precheck 未动），终态改检**新式**。
-        ('R188v2·v2 判定行已注入' + RETIRED_TAG, 'b=Math.random()<(0.01+Math.min(0.03,($a(a.titleId,a.unlockedTitles||[]).luck||0)*0.0003))', 1, '==',
-         'R-221 已换成 1%~4%（与历练逐字同式）⇒ 终态期望新式'),
+        ('R188v2·v2 判定行已注入' + RETIRED_TAG,
+         ('b=Math.random()<(0.01+Math.min(0.03,($a(a.titleId,a.unlockedTitles||[]).luck||0)*0.0003))',
+          'b=Math.random()<(0.001667*(1+Math.min(1,($a(a.titleId,a.unlockedTitles||[]).luck||0)*0.005)))'),
+         1, '==',
+         'R-221 已换成 1%~4%（与历练逐字同式）；R-241 又改为乘性 0.1667% 基础（气运折算 +0~100%）'
+         '⇒ 终态期望 R-241 新式（tuple 合计「R-221 形态 + R-241 形态」，两态均 == 1）'),
         ('R188v2·v1 判定行已升级消失', A_V1, 0, '==', 'v1 形态已被替换'),
         ('R188v2·原件判定行已消失', A_ORIG, 0, '==', '原件形态已不存在'),
         ('R188v2·旧 0.004 判定行已清零', 'Math.random()<.004;', 0, '==', '旧写法已不存在'),
         ('R188v2·v1 阈值形态已清零', '(__r188t?0.15:0.004)', 0, '==', 'v1 数值已不存在'),
         # ★ 用户拍板：有天赋分支 = 0.05（5%）
-        ('R188v2·★有天赋分支=0.05（用户拍板）' + RETIRED_TAG, 'b=Math.random()<(0.01+Math.min(0.03,($a(a.titleId,a.unlockedTitles||[]).luck||0)*0.0003))', 1, '==',
-         '原「用户拍板 5%」已被 R-221 的用户新拍板取代（1%~4%）⇒ 终态期望新式'),
+        ('R188v2·★有天赋分支=0.05（用户拍板）' + RETIRED_TAG,
+         ('b=Math.random()<(0.01+Math.min(0.03,($a(a.titleId,a.unlockedTitles||[]).luck||0)*0.0003))',
+          'b=Math.random()<(0.001667*(1+Math.min(1,($a(a.titleId,a.unlockedTitles||[]).luck||0)*0.005)))'),
+         1, '==',
+         '原「用户拍板 5%」→ R-221（1%~4%）→ R-241（乘性 0.1667% 基础）⇒ 终态期望 R-241 新式'),
         # ★ 用户拍板：无天赋分支 = 0.01（普通玩家 1%）
-        ('R188v2·★无天赋分支=0.01（用户拍板）' + RETIRED_TAG, '(0.01+Math.min(0.03,($a(a.titleId,a.unlockedTitles||[]).luck||0)*0.0003))', 1, '==',
-         '原「用户拍板 1%」已被 R-221 的用户新拍板取代（1%~4%）⇒ 终态期望新式'),
+        ('R188v2·★无天赋分支=0.01（用户拍板）' + RETIRED_TAG,
+         ('(0.01+Math.min(0.03,($a(a.titleId,a.unlockedTitles||[]).luck||0)*0.0003))',
+          '(0.001667*(1+Math.min(1,($a(a.titleId,a.unlockedTitles||[]).luck||0)*0.005)))'),
+         1, '==',
+         '原「用户拍板 1%」→ R-221（1%~4%）→ R-241（乘性 0.1667% 基础）⇒ 终态期望 R-241 新式'),
         # ★ 守卫：仍是单次抽样（不得回退成 `||` 两次抽样）
         ('R188v2·★单次抽样（未回退 ||）', 'Math.random()<(__r188t?0.05:0.01)||', 0, '==',
          '仍只调 1 次 Math.random()'),
@@ -313,7 +323,9 @@ def _run_gates(out):
             # 退役针脚（终态专用）：本环 apply 时 R-199 尚未套用，自产 d(9) 形态仍在 ⇒ 不检；
             # 终态由复核（期望 0）负责，新形态由 R-199 自己的门禁负责。
             continue
-        c = out.count(needle)
+        # ★ needle 支持 tuple/list（多形态合计计数）——R-241 后 3 条退役针脚改用「R-221 形态 + R-241 形态」合计。
+        c = (sum(out.count(x) for x in needle) if isinstance(needle, (tuple, list))
+             else out.count(needle))
         if op == '==' and c != expect:
             return 'GATE FAIL %s: count=%d expect %d' % (label, c, expect)
         if op == '>=' and c < expect:

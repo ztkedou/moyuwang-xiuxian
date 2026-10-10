@@ -338,7 +338,7 @@ from yl_r067_ext import apply as v28_r067_apply  # noqa: E402
 from yl_068_ext import apply as v28_r068_apply  # noqa: E402
 
 BASE = os.path.join(HERE, 'build', 'assets', 'index-v26m-20260927.js')
-OUT = os.path.join(HERE, 'build', 'assets', 'index-v2954-20261010.js')
+OUT = os.path.join(HERE, 'build', 'assets', 'index-v2955-20261010.js')
 
 # v28 模块调用顺序（锚点稳定性 + num-balance 必须最后）：
 #   saveretry → arb → version → mail → entry → sectgf → char → bond → ui
@@ -727,6 +727,23 @@ STANDALONE_CLIENT = [
     #   ★ 与 r206 锚区零交集（r206 改常量声明 `YLXW_LIFE_AUTO_MUL`，r239 改函数体），
     #     但顺序上必须排在 r206 之后（r239 的冻结针脚含 r206 的幂等标记 `/*[r206life]*/`）。
     ('r239', os.path.join(HERE, 'localtest', 'yl_r239_ext.py')),  # R-239 历练寿元 手动/自动统一 0.005
+    # ---- 2026-10-10 批（R-241 顿悟频率下调 + 悟道心得解绑；纯客户端）----
+    #   用户反馈「顿悟和跳悟道频率比历练高太多」⇒ 目标：顿悟 10 分钟 / 悟道心得 30 分钟。
+    #   口径：打坐 tick = 每秒 1 次（R-139 的 YlxwBgInterval 在 Worker 可用时**忽略 ms**，
+    #     由 1s 心跳驱动）⇒ 顿悟 p = 1/600 = 0.1667%（基础）；心得 = 顿悟的 1/3 = 1/1800。
+    #   改动：① 顿悟概率 加法百分点 → 乘性倍率 `0.001667*(1+min(1,luck*0.005))`
+    #         （气运 luck=100 → +50%，≥200 封顶 +100% ⇒ 5~10 分钟）
+    #         ② 悟道心得 由「每次顿悟必产」改为「1/3 概率产」⇒ 30 分钟。
+    #   ★ 不动历练侧 R-184（YlxwWudaoMaybe）；不碰 r188med/r188med2/R223 三个既有标记。
+    ('r241', os.path.join(HERE, 'localtest', 'yl_r241_ext.py')),  # R-241 顿悟 0.1667% + 心得 1/3
+    # ---- 2026-10-10 批（批 1：心法 48 部 expRate 差异化；纯客户端）----
+    #   r240 改 is[] 心法段数据（每部独立 expRate / 描述 / 机制字段占位）；
+    #   r242 移除两道「抹平」：① YlxwArtRebalance 的品级覆盖段、
+    #     ② bd() 的 `Math.min(1.25, expRate×品级乘数)` ⇒ 改为直接取 u.effects.expRate。
+    #   ★★ 顺序铁律：**r242 必须排在 r240 之后**（二者是一对：r240 改数据、r242 让数据生效，
+    #      必须同批上线；锚点互不重叠 —— r240 落 is[] 段，r242 落 YlxwArtRebalance / bd()）。
+    ('r240', os.path.join(HERE, 'localtest', 'yl_r240_ext.py')),  # 批1 心法48部数据层（不写属性）
+    ('r242', os.path.join(HERE, 'localtest', 'yl_r242_ext.py')),  # R-242 取消品级覆盖 + 1.25 上限
 ]
 
 

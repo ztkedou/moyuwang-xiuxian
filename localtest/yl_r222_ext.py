@@ -199,6 +199,12 @@ FRZ_TOTAL_NEW = 'const _ar=r*d,_ta=a*0.26,_ti=l*0.6,_gr=c*0.6,_sy=Math.min(b,0.1
 #   按「跨补丁门禁演进」铁律改 **tuple 合计两形态**：apply 态（R-238 未生效）= 旧式 / 终态 = R-238 式。
 FRZ_TOTAL_R238 = ('_np=S*0.32;YlxwWudaoCultEnsure();var __wud=YlxwWudaoCultPct();'
                   'return{total:_ar+_ta+_ti+_gr+_sy+_np+__wud,')
+# ★ R-247（2026-10-11）：r248 又插了 `var __nixiu=YlxwR247Mech(t).nixiuExp;` 并追加 `+__nixiu`
+#   ⇒ 上面两形态在终态均归零（第三形态才成立）。再扩 tuple（三形态合计 == 1）。
+#   ★ 这是同类事故第 4 次，且是 dryrun 自动派生名单 + `diag_gate_drift.py` **当场抓到**的（R-246 生效）。
+FRZ_TOTAL_R248 = ('_np=S*0.32;YlxwWudaoCultEnsure();var __wud=YlxwWudaoCultPct();'
+                  'var __nixiu=YlxwR247Mech(t).nixiuExp;'
+                  'return{total:_ar+_ta+_ti+_gr+_sy+_np+__wud+__nixiu,')
 FRZ_TOTAL = ('return{total:r*d+a*0.26+l*0.6+c*0.6+Math.min(b,0.1)+S*0.32,'
              'art:r,talent:a,title:l,grotto:c,synergy:b,npc:S,spiritualRootBonus:d}')
 # R-218 标记 + 两个取值器定义（证明 R-218 注入块逐字未动）。
@@ -232,9 +238,9 @@ TOAST_ZERO = ('\\uff0c\\u672c\\u6b21\\u4e3a\\u8fdb\\u5ea6\\u79ef\\u7d2f'
               '\\uff08\\u5165\\u95e8\\u540e\\u83b7\\u5f97\\u52a0\\u6210\\uff09')
 
 FREEZE = [
-    ('冻结·total 计算式未动' + RETIRED_TAG,  (FRZ_TOTAL_NEW, FRZ_TOTAL_R238), 1,
-     'R-228 已同源化（拆具名局部量，数值零变化）⇒ 终态期望新式；R-238 又插禅道项并给 total 追加 +__wud '
-     '⇒ 再改 tuple 合计两形态（R-246 修正）'),
+    ('冻结·total 计算式未动' + RETIRED_TAG,  (FRZ_TOTAL_NEW, FRZ_TOTAL_R238, FRZ_TOTAL_R248), 1,
+     'R-228 同源化（拆具名局部量）⇒ 终态新式；R-238 插禅道项 +__wud；R-247 的 r248 插逆修项 +__nixiu '
+     '⇒ 三形态 tuple 合计（R-246/R-247 修正）'),
     ('冻结·R218 标记未动',                 FRZ_R218_MARK,        1),
     ('冻结·R218 YlxwDiffMul 定义未动',     FRZ_R218_MUL_DEF,     1),
     ('冻结·R218 YlxwDiffGain 定义未动',    FRZ_R218_GAIN_DEF,    1),

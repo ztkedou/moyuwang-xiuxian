@@ -149,16 +149,20 @@ FREEZE = [
 def gates():
     """补丁后形态的门禁五元组 (name, needle, count, op, note)。"""
     g = []
-    # ★ 本环 EDITS 全为「追加/前置插入」⇒ new 是 old 的超集（old 仍在新串内），
-    #   故**不设「旧串清零」门禁**（恒不成立）；幂等改由唯一标记 MARK 判定。
+    # ★ R-247（2026-10-11）：r248 给 bd() 的 total 追加了 `+__nixiu`（逆修·修炼加成）
+    #   ⇒ 本环 B 的「新串」在**终态**归零（`..._np+__wud,` 被改成 `..._np+__wud+__nixiu,`）。
+    #   按「跨补丁门禁演进」铁律改 **tuple 合计两形态**：apply 态（r248 未生效）= 旧式 / 终态 = r248 式。
+    #   ★ 这次是 `localtest/diag_gate_drift.py` + dryrun 自动派生名单**当场抓到**的（R-246 生效）。
     for label, old, new, n in EDITS:
-        g.append(('%s · 新串在位' % label, new, n, '==', ''))
+        needle = (new, GATE_ALT[label]) if label in GATE_ALT else new
+        g.append(('%s · 新串在位' % label, needle, n, '==', ''))
     g.append(('幂等标记唯一', MARK, 1, '==', ''))
     g.append(('缓存读值器在位', 'function YlxwWudaoCultPct(){', 1, '==', ''))
     g.append(('捕获器在位', 'function YlxwWudaoCultCapture(u,j){', 1, '==', ''))
     g.append(('首屏拉取在位', 'function YlxwWudaoCultEnsure(){', 1, '==', ''))
     g.append(('禅道并入 total（相邻强证明）',
-              '_sy+_np+__wud,wudao:__wud,cWudao:__wud,art:r,', 1, '==', ''))
+              ('_sy+_np+__wud,wudao:__wud,cWudao:__wud,art:r,',
+               '_sy+_np+__wud+__nixiu,wudao:__wud,cWudao:__wud,art:r,'), 1, '==', ''))
     g.append(('捕获钩子紧随公共落点',
               'YLApplyBalance(l, r);YlxwWudaoCultCapture(r, l);', 1, '==', ''))
     g.append(('明细行悟道项就位',
@@ -174,6 +178,16 @@ def _count(text, needle):
     if isinstance(needle, (tuple, list)):
         return sum(text.count(x) for x in needle)
     return text.count(needle)
+
+
+# ★ R-247（2026-10-11）：r248 在 bd() 的 total 前插 `var __nixiu=YlxwR247Mech(t).nixiuExp;`
+#   并把 `..._np+__wud,` 改成 `..._np+__wud+__nixiu,` ⇒ 本环 B 的新串在终态归零。
+#   这里给出「终态形态」，与 B 的原串组成 tuple（两形态合计 == 1）。
+GATE_ALT = {
+    'B bd() 的 return 追加禅道项（total + wudao/cWudao 字段）':
+        ('YlxwWudaoCultEnsure();var __wud=YlxwWudaoCultPct();var __nixiu=YlxwR247Mech(t).nixiuExp;'
+         'return{total:_ar+_ta+_ti+_gr+_sy+_np+__wud+__nixiu,wudao:__wud,cWudao:__wud,art:r,'),
+}
 
 
 def _precheck():

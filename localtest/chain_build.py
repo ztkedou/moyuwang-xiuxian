@@ -674,7 +674,7 @@ SRV_CHAIN = [
 ]
 
 # ---- 前端产物路径（0.9.31 换名：index-v2931-20261007.js，与 build_v26n.py OUT 逐字一致）----
-CLIENT_OUT = os.path.join(ROOT, 'build', 'assets', 'index-v2956-20261010.js')
+CLIENT_OUT = os.path.join(ROOT, 'build', 'assets', 'index-v2957-20261011.js')
 SRV_OUT = os.path.join(ROOT, 'srv', 'index_v28.ts')
 
 

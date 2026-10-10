@@ -338,7 +338,7 @@ from yl_r067_ext import apply as v28_r067_apply  # noqa: E402
 from yl_068_ext import apply as v28_r068_apply  # noqa: E402
 
 BASE = os.path.join(HERE, 'build', 'assets', 'index-v26m-20260927.js')
-OUT = os.path.join(HERE, 'build', 'assets', 'index-v2956-20261010.js')
+OUT = os.path.join(HERE, 'build', 'assets', 'index-v2957-20261011.js')
 
 # v28 模块调用顺序（锚点稳定性 + num-balance 必须最后）：
 #   saveretry → arb → version → mail → entry → sectgf → char → bond → ui
@@ -762,6 +762,16 @@ STANDALONE_CLIENT = [
     #   ★ 反震复用 bundle **既有**的 `reflectDamage` 通道（km 既有链 / zy 既有块，bundle 里已有 19 处）；
     #     r245 只负责把功法 effects 汇总推成 buff（E2）+ 补历练 fast 路径（YlxwBattleBonus 原本无此字段）。
     ('r245', os.path.join(HERE, 'localtest', 'yl_r245_ext.py')),  # R-245 战斗侧 4 机制钩子
+    # ---- 2026-10-11 批（R-247：先手 / 淬体 / 逆修 三机制；纯客户端）----
+    #   r247 = **数据层**：给 9 部功法加 `firstStrike` / `cuiti*` / `nixiuExp`+`nixiuDef`，
+    #     并按 §7.2 折价重算属性（黄/玄/地/天 四档总当量各降 ~2.1%~2.5%，≤3%）。
+    #   ★★ 顺序铁律：**r247 必须排在 r244 之后**（r244 写体术 89 部基础数据，r247 在其上追加机制字段）；
+    #      且 r247 会**打穿 r244 的 89 部签名门禁**（预期的跨补丁门禁演进 ⇒ r244 那条已改 tuple）。
+    ('r247', os.path.join(HERE, 'localtest', 'yl_r247_ext.py')),  # R-247 三机制数据层
+    #   r248 = **钩子层**：`YlxwR247Mech`（聚合器 + 模块级缓存）+ 先手（km/zy/历练首击）/
+    #     逆修（bd().total 加成 + xt() 防御扣减）/ 淬体（xt() 按 breakthroughCount 加成）。
+    #   ★★ 顺序铁律：**r248 必须排在 r247 之后**（消费方依赖数据方的字段）。
+    ('r248', os.path.join(HERE, 'localtest', 'yl_r248_ext.py')),  # R-247 三机制消费钩子
 ]
 
 

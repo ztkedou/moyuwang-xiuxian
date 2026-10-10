@@ -338,7 +338,7 @@ from yl_r067_ext import apply as v28_r067_apply  # noqa: E402
 from yl_068_ext import apply as v28_r068_apply  # noqa: E402
 
 BASE = os.path.join(HERE, 'build', 'assets', 'index-v26m-20260927.js')
-OUT = os.path.join(HERE, 'build', 'assets', 'index-v2951-20261009.js')
+OUT = os.path.join(HERE, 'build', 'assets', 'index-v2952-20261009.js')
 
 # v28 模块调用顺序（锚点稳定性 + num-balance 必须最后）：
 #   saveretry → arb → version → mail → entry → sectgf → char → bond → ui
@@ -690,6 +690,19 @@ STANDALONE_CLIENT = [
     #   (1) 装备全掉（equippedItems 清空，背包不动）(2) 掉 40%~50% 属性（attack/defense/spirit/physique/
     #   speed/maxHp，×[0.50,0.60)，下限 1）(3) 掉一个大境界（复用 fe + ad()；**炼气期跳过**并在日志说明）
     #   + hard 弹窗新增「继续游戏」+ onContinue 在 hard 下也传入 ⇒ **不再清档**（纯客户端）
+    # ---- 2026-10-10 0.9.52 批（R-232 在线收益难度「服务端权威值优先」；纯客户端）----
+    # ★★ 顺序铁律：**r232 必须排在 r218 之后**——r232 的锚点全部落在 r218 的产物上
+    #    （① 追加到 r218 的 YlxwDiffGain 声明组尾，② 改写 r218 的 YlxwDiffMul 取值器，
+    #     ③ 挂到读档响应解析处；若 r218 未先跑，三处锚点计数=0 ⇒ rc=2 直接失败）。
+    ('r232', os.path.join(HERE, 'localtest', 'yl_r232_ext.py')),  # R-232 在线收益难度改用**服务端下发值**为权威
+    #   r218 的取值器优先级「入参 → 游戏内 store → localStorage」中，后两者都是**客户端可控**数据
+    #   （store 即 localStorage 镜像）⇒ 玩家改一行本地存储即可白拿 ×2 在线收益。
+    #   本环在 r218 产物之上**追加**（不改 r218 本体）：
+    #     ① 注入 YlxwServerDiff()（读模块级缓存 window.__ylSrvDiff）+ YlxwSrvDiffCapture(j)（从响应顶层提取 ylDifficulty）；
+    #     ② 取值器优先级改为「入参 → **服务端下发值** → 游戏内 store → localStorage（降为末位兜底）」；
+    #     ③ 在读档接口 fetchSave 的 `const r=await t.json();` 后挂一次 YlxwSrvDiffCapture(r)。
+    #   ★ 服务端下发字段名 = `ylDifficulty`（顶层，非存档内 settings.difficulty），由 SRV_CHAIN 第 93 环 srv_patch_r233.py 注入。
+    #   ★ 取不到时自动回落旧优先级 ⇒ 与未打本环行为一致（不劣化）；纯客户端，服务端半边 = 第 93 环。
 ]
 
 

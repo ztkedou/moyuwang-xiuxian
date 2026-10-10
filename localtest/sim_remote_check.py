@@ -34,8 +34,17 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # remote_check 里的 shell 变量 → 本地交付产物（相对仓库根）
 FILE_MAP = {
-    '$B': 'build/assets/index-v2949-20261009.js',
+    # ★★ 2026-10-10 修复：$B 不再硬编码。
+    #   旧写法把它钉死在 'index-v2949-20261009.js'（0.9.49 版产物），
+    #   但 remote_check 里的 $B 指向**本批最新 bundle**（0.9.51 批 = index-v2951-…js）。
+    #   结果：不传 --bundle 时，模拟器拿**过期 bundle** 去比对**新一批断言** ⇒ 爆 41 条**假 FAIL**，
+    #   上批的人被它骗去查了半天假故障。现在 $B 默认由 resolve_bundle() 从最新 remote_check
+    #   脚本里解析（见下），保证断言与 bundle 同批同源；--bundle 仍可覆盖（最高优先级）。
+    '$B': None,   # 占位：main() 里用 resolve_bundle() 动态解析后填入
     '$S': 'srv/index_v28.ts',
+    # ★★ R-231（2026-10-10）：玩家向日志现在也有 chk 断言了 ⇒ 映射到本地交付产物，
+    #   让模拟器**真的**跑这几条（此前它只在远端 check，本地漏测）。
+    '$PL': 'CHANGELOG_PLAYER.md',
 }
 # 远端专有（本地无对应物）：一律 SKIP
 SKIP_KEYS = {'$IH', '$CL'}
@@ -104,6 +113,88 @@ def pick_latest_script():
     return max(hits, key=ver)
 
 
+def resolve_bundle(script):
+    """从最新 remote_check 脚本里解析 $B 实际指向的 bundle 文件名，映射到本地交付产物。
+
+    为什么从脚本里取：断言和 bundle **必须同批**，从同一份脚本里取才是真正同源。
+    脚本里的写法（remote_check_v2851.sh:23-25）：
+        BUNDLE_DATE="${YL_BUNDLE_DATE:-20261009}"
+        B="index-v2951-${BUNDLE_DATE}.js"          # 裸包名（含 ${VAR} 拼接）
+        B="${1:-/opt/yl/www/assets/$B}"            # 再拼远端前缀（取默认分支）
+    做法：逐行扫描赋值行，把 ${VAR:-default} / $VAR 展开成已知值（只认本脚本内
+    **先定义**的变量），取**最后**一条非空的 B 赋值（= 最终生效值），抽出其中的
+    index-v*.js 文件名，拼成 'build/assets/<name>'。
+
+    降级链：
+      ① 脚本里解析出的 build/assets/<name> 本地确实存在 ⇒ 用它；
+      ② 解析失败 / 本地不存在 ⇒ 在 build/assets/ 下按**版本号数值**取最新 index-v295*.js
+         （不能用字符串排序：'v2951' < 'v2959' 会在字符串上错，参考 pick_latest_script）；
+      ③ 仍失败 ⇒ 报错退出（不静默用可能是错的文件）。
+    返回 (relpath, source)；source ∈ {'script', 'fallback'}。
+    """
+    src = io.open(script, encoding='utf-8').read().splitlines()
+
+    def expand(val, vars_):
+        """展开 ${VAR:-default} / $VAR / ${VAR}；未知变量保留原样。"""
+        def repl_braced(m):
+            name, default = m.group(1), m.group(2)
+            if name in vars_:
+                return vars_[name]
+            return default if default is not None else m.group(0)
+
+        def repl_plain(m):
+            name = m.group(1)
+            return vars_.get(name, m.group(0))
+
+        val = re.sub(r'\$\{(\w+)(?::-([^}]*))?\}', repl_braced, val)
+        val = re.sub(r'\$(\w+)', repl_plain, val)
+        return val
+
+    # 逐行收集赋值：var = 值（去引号），并把 ${VAR:-default} 展开
+    assigned = {}
+    b_assigns = []   # 按出现顺序记录 B 的每次非空赋值
+    for line in src:
+        st = line.strip()
+        if st.startswith('#'):
+            continue
+        m = re.match(r'^([A-Za-z_]\w*)=(.*)$', st)
+        if not m:
+            continue
+        name, raw = m.group(1), m.group(2)
+        raw = raw.split('#')[0].strip()          # 去行尾注释
+        if len(raw) >= 2 and raw[0] in '"\'' and raw[-1] == raw[0]:
+            raw = raw[1:-1]                       # 去外层引号
+        val = expand(raw, assigned)
+        assigned[name] = val
+        if name == 'B' and val:
+            b_assigns.append(val)
+
+    # 取最后一次 B 赋值，抽出 index-v*.js 文件名（优先 build/assets 全路径）
+    if b_assigns:
+        last = b_assigns[-1]
+        m = re.search(r'(?:^|/)(index-v[\w.-]+\.js)$', last)
+        if m:
+            rel = 'build/assets/%s' % m.group(1)
+            if os.path.isfile(os.path.join(ROOT, rel)):
+                return rel, 'script'
+
+    # 降级：按版本号数值取最新 bundle
+    hits = glob.glob(os.path.join(ROOT, 'build', 'assets', 'index-v295*.js'))
+    hits = [h for h in hits if os.path.isfile(h)]
+
+    def ver(p):
+        m = re.search(r'index-v(\d+)-', os.path.basename(p))
+        return int(m.group(1)) if m else -1
+
+    if hits:
+        return os.path.relpath(max(hits, key=ver), ROOT).replace('\\', '/'), 'fallback'
+
+    # 彻底失败：不静默用可能是错的文件
+    print('无法解析 $B：脚本 %s 里找不到 B= 赋值行，且 build/assets/ 下无 index-v295*.js'
+          % os.path.relpath(script, ROOT).replace('\\', '/'))
+    sys.exit(2)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--script', default=None, help='remote_check_v*.sh 路径（默认取版本号最大的一份）')
@@ -120,8 +211,14 @@ def main():
         sys.exit(2)
 
     file_map = dict(FILE_MAP)
+    # $B 默认值：从最新 remote_check 脚本解析（与断言同批同源）；--bundle 优先级最高
+    b_source = '命令行覆盖'
     if args.bundle:
         file_map['$B'] = args.bundle
+    else:
+        rel, b_source_key = resolve_bundle(script)
+        file_map['$B'] = rel
+        b_source = '自动解析(脚本)' if b_source_key == 'script' else '自动解析(降级:build/assets 最新)'
     if args.srv:
         file_map['$S'] = args.srv
 
@@ -133,7 +230,10 @@ def main():
 
     print('核对脚本 : %s' % os.path.relpath(script, ROOT).replace('\\', '/'))
     for k, v in sorted(file_map.items()):
-        print('  %s -> %s' % (k, v))
+        tag = ''
+        if k == '$B':
+            tag = '   [%s]' % b_source
+        print('  %s -> %s%s' % (k, v, tag))
     print('')
 
     cache = {}

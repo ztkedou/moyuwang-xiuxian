@@ -656,10 +656,25 @@ SRV_CHAIN = [
                              #   · ★ 本环**只堵离线侧**。**在线收益侧（r218，读 localStorage）未堵**，
                              #     属 0.9.46 起的旧面、且量级更大 ⇒ 若要做，需客户端改读服务端下发的难度
                              #     （客户端 + 服务端都动），另立一批。
+      # ---- 2026-10-10 0.9.52 批（R-232/R-233 在线收益难度「服务端权威值优先」= R-225b 的在线侧补完）----
+      'srv_patch_r233.py',  # R-233 服务端**下发冻结难度**到客户端（第 93 环 / 新末环）
+                             #   · 起因（承接 R-225b）：0.9.51 把**离线**难度的权威副本冻结进
+                             #     `saves.difficulty`，但**在线**收益侧（客户端 r218 的 YlxwDiffMul）仍读
+                             #     `localStorage["xiuxian-game-settings"].difficulty` —— 那是玩家自己设备上的，
+                             #     改一行即可白拿 ×2 在线收益。用户**已拍板：整批做掉**。
+                             #   · 机制：`GET /api/save` 主载荷（非 revision）顶层追加字段 `ylDifficulty`
+                             #     （∈ easy/normal/hard）：优先取 `saves.difficulty` 冻结值（权威，忽略客户端改动）；
+                             #     NULL/非法（老档未冻结）⇒ 复用 R-225b 的 `ylR225bClientDiff(saveData)` 同源归一。
+                             #   · 仅 `!isRevision` 分支注入、仅当 saveData 为普通对象时 Object.assign 追加
+                             #     （数组/异常原样透传，绝不破坏响应 shape）；不写库、不改业务逻辑/错误分支，纯只读回显。
+                             #   · ★ 配套客户端半边 = STANDALONE_CLIENT 'r232'（localtest/yl_r232_ext.py）：
+                             #     读档响应解析处挂 `YlxwSrvDiffCapture(r)` 缓存顶层 ylDifficulty，
+                             #     并把 YlxwDiffMul / YlxwDiffCn 的优先级改为「入参 → **服务端下发值** → store → localStorage 兜底」。
+                             #   · 幂等标记 `[r233]`；链序**必须排在 r225b 之后**（复用 ylR225bClientDiff / difficulty 列）。
 ]
 
 # ---- 前端产物路径（0.9.31 换名：index-v2931-20261007.js，与 build_v26n.py OUT 逐字一致）----
-CLIENT_OUT = os.path.join(ROOT, 'build', 'assets', 'index-v2951-20261009.js')
+CLIENT_OUT = os.path.join(ROOT, 'build', 'assets', 'index-v2952-20261009.js')
 SRV_OUT = os.path.join(ROOT, 'srv', 'index_v28.ts')
 
 

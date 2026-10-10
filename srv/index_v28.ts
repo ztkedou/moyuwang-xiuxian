@@ -1931,7 +1931,7 @@ app.post('/api/auth/password', authenticateToken, async (req: any, res: any) => 
 // GET /api/save 拉取存档；?revision=1 时返回 gm_revision 轻量元数据（供前端轮询 GM 变更）
 app.get('/api/save', authenticateToken, (req: any, res: any) => {
   const isRevision = String(req.query.revision) === '1';
-  db.get('SELECT save_data, gm_revision, updated_at FROM saves WHERE user_id = ?', [req.user.id], (err: any, row: any) => {
+  db.get('SELECT save_data, gm_revision, updated_at, difficulty FROM saves WHERE user_id = ?', [req.user.id], (err: any, row: any) => { // [r233] 取服务端冻结难度供下发
     if (err) return res.status(500).json({ error: 'Database error' });
     if (!row) {
       if (isRevision) return res.json({ gm_revision: 0, has_save: false, updated_at: null });
@@ -1946,7 +1946,14 @@ app.get('/api/save', authenticateToken, (req: any, res: any) => {
     try {
       const saveData = JSON.parse(row.save_data);
       res.set('X-YL-Gm-Revision', String(Number(row.gm_revision) || 0)); // S3 v26c：响应头带修订号（不污染存档 schema）
-      res.json(saveData);
+      // ★ R-233（[r233]）：下发服务端**冻结难度**为顶层字段 ylDifficulty（避开存档内 settings.difficulty）。
+      //   权威值取 saves.difficulty 列（R-225b 已冻结，忽略客户端改动）；NULL/非法（老档未冻结）⇒ 按客户端值归一（与冻结器同源）。
+      //   仅当 saveData 为普通对象时 Object.assign 追加；数组/异常一律原样透传，绝不改响应 shape。
+      const ylR233Diff = (row && (row.difficulty === 'easy' || row.difficulty === 'normal' || row.difficulty === 'hard'))
+        ? row.difficulty : ylR225bClientDiff(saveData); // [r233]
+      const ylR233Payload = (saveData && typeof saveData === 'object' && !Array.isArray(saveData))
+        ? Object.assign({}, saveData, { ylDifficulty: ylR233Diff }) : saveData; // [r233]
+      res.json(ylR233Payload);
     } catch (e) {
       res.status(500).json({ error: 'Error parsing save data' });
     }

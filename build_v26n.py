@@ -338,7 +338,7 @@ from yl_r067_ext import apply as v28_r067_apply  # noqa: E402
 from yl_068_ext import apply as v28_r068_apply  # noqa: E402
 
 BASE = os.path.join(HERE, 'build', 'assets', 'index-v26m-20260927.js')
-OUT = os.path.join(HERE, 'build', 'assets', 'index-v2955-20261010.js')
+OUT = os.path.join(HERE, 'build', 'assets', 'index-v2956-20261010.js')
 
 # v28 模块调用顺序（锚点稳定性 + num-balance 必须最后）：
 #   saveretry → arb → version → mail → entry → sectgf → char → bond → ui
@@ -744,6 +744,24 @@ STANDALONE_CLIENT = [
     #      必须同批上线；锚点互不重叠 —— r240 落 is[] 段，r242 落 YlxwArtRebalance / bd()）。
     ('r240', os.path.join(HERE, 'localtest', 'yl_r240_ext.py')),  # 批1 心法48部数据层（不写属性）
     ('r242', os.path.join(HERE, 'localtest', 'yl_r242_ext.py')),  # R-242 取消品级覆盖 + 1.25 上限
+    # ---- 2026-10-10 批（批 1b：打坐侧 3 机制消费钩子；纯客户端）----
+    #   r243 读心法 effects 的 `wudaoRate` / `breathHeal` / `spiritGain`（= r240 写入的数据）
+    #   ⇒ 让心法面板承诺的机制真正生效：顿悟率↑（乘性 ×(1+wudaoRate)）/ 吐纳回血 / 聚灵。
+    #   ★★ 顺序铁律：**r243 必须排在 r241 之后**（顿悟率加成叠加在 R-241 的新概率式
+    #      `(0.001667*(1+Math.min(1,luck*0.005)))/*[r241enl]*/` 之上）。
+    ('r243', os.path.join(HERE, 'localtest', 'yl_r243_ext.py')),  # R-243 打坐侧 3 机制钩子
+    # ---- 2026-10-10 批（批 2：体术 89 部数据层 + 叠加软上限；纯客户端）----
+    #   r244 改 is[] body 段 89 部的属性/机制/描述（保留 id 与 spiritualRoot 一字不改）；
+    #   并在体术属性汇总处加「分属性软上限 + 超额 30% 计入」（方案 A）。
+    #   ★★ 顺序铁律：**r244 必须排在 r242 之后**（r242 已把 bd() 心法取值改为 u.effects.expRate，
+    #      r244 的 bd() 锚点即该新形态）。
+    ('r244', os.path.join(HERE, 'localtest', 'yl_r244_ext.py')),  # R-244 体术89部 + 软上限
+    # ---- 2026-10-10 批（批 2：战斗侧 4 机制消费钩子；纯客户端）----
+    #   r245 读 r244 写入体术 effects 的 `reflectDamage` / `comboRate` / `executeRate` / `armorPenRate`。
+    #   ★★ 顺序铁律：**r245 必须排在 r244 之后**（消费方依赖数据方）。
+    #   ★ 反震复用 bundle **既有**的 `reflectDamage` 通道（km 既有链 / zy 既有块，bundle 里已有 19 处）；
+    #     r245 只负责把功法 effects 汇总推成 buff（E2）+ 补历练 fast 路径（YlxwBattleBonus 原本无此字段）。
+    ('r245', os.path.join(HERE, 'localtest', 'yl_r245_ext.py')),  # R-245 战斗侧 4 机制钩子
 ]
 
 

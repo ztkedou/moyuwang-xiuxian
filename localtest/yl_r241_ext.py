@@ -104,7 +104,10 @@ def gates():
         ('R241-mark', IDEMPOTENT_MARK, 1, '==', ''),
         ('R241-A new prob', '(0.001667*(1+Math.min(1,', 1, '==', ''),
         ('R241-A old prob cleared', '(0.01+Math.min(0.03,', 0, '==', ''),
-        ('R241-A luck rate', _LUCK + '*0.005)))', 1, '==', ''),
+        ('R241-A luck rate',
+         (_LUCK + '*0.005)))', _LUCK + '*0.005))*(1+YlxwArtMech(a,"wudaoRate")))'), 1, '==',
+         'R-243（0.9.56 批）把本式再包一层「×心法顿悟率」⇒ 改 tuple 合计两形态'
+         '（R-243 前 = 原式 / R-243 后 = 被包裹式），两种场景均 == 1'),
         ('R241-B new gate', 'Math.random()<.3333&&YlxwWudaoEnlighten(c)}', 1, '==', ''),
         ('R241-B old gate cleared', ',c(x,"special"),YlxwWudaoEnlighten(c)}', 0, '==', ''),
         ('R241-frz r188med', '/*[r188med]*/', 1, '==', ''),

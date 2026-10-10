@@ -146,8 +146,8 @@ NEW_MODULES = ['grotto087', 'farm087', 'xinfa087', 't6chardex',
                'r124',
                'r227', 'r228', 'r230']  # 2026-10-09 0.9.50 R-227 死数据标注 / R-228 明细同源 / R-230 天地之髓门槛
 
-VERSION = '0.9.55'
-BUNDLE_BASENAME = 'index-v2955-20261010.js'   # 与 build_v26n.OUT / chain_build.CLIENT_OUT / build/index.html 逐字一致
+VERSION = '0.9.56'
+BUNDLE_BASENAME = 'index-v2956-20261010.js'   # 与 build_v26n.OUT / chain_build.CLIENT_OUT / build/index.html 逐字一致
 # ★ 升版四件套之外的第 5 处：本文件的 VERSION 必须同步（下方 wiring_checks 用它交叉校验
 #   yl_version_ext.DEFAULT_VERSION 与 CHANGELOG 最新条目，两者都对上才算过）。
 
@@ -424,6 +424,18 @@ def main():
     import yl_r211_ext as _sa_r211
     # ---- 2026-10-08 0.9.42 批接线（R-205 分档频率重标定 85/14/1）----
     import yl_r212_ext as _sa_r212
+    # ---- 2026-10-10 补登记（0.9.53~0.9.55 三批 + 本批，此前漏登记进本名单）----
+    #      ★ 名单严格以 build_v26n.STANDALONE_CLIENT 为准，**但只收 0 参 `gates()` 契约**的脚本。
+    #      ★ 漏登记的后果：新补丁**合法改写上游冻结项**时，上游 gates 在「套用时刻」仍通过
+    #        （补丁按序套用，轮到它时下游还没生效）⇒ 只有在本名单里**对最终形态重跑**才查得出。
+    #        0.9.55 批的 R165/R188v2 门禁失效正是靠本机制抓到的（当时 r165/r188 在名单内）。
+    #      ★ **不收** r240 / r244 / r245：它们的 `gates()` 签名带参（r240 三参 / r244 五参 / r245 一参），
+    #        属「段落前后比对」型**自检**（需要传入打前/打后片段），对最终形态重跑无意义；
+    #        这三者的门禁由各自 `--check` 与 build_v26n 套用期 `_run_gates` 覆盖。
+    import yl_r239_ext as _sa_r239
+    import yl_r241_ext as _sa_r241
+    import yl_r242_ext as _sa_r242
+    import yl_r243_ext as _sa_r243
     n_sa_gates = 0
     with open(stage_path, 'rb') as f:
         final_bytes = f.read()
@@ -463,7 +475,10 @@ def main():
                    # ---- 2026-10-08 0.9.41 批 ----
                    ('r211', _sa_r211),
                    # ---- 2026-10-08 0.9.42 批 ----
-                   ('r212', _sa_r212)]
+                   ('r212', _sa_r212),
+                   # ---- 2026-10-10 补登记（0.9.53~0.9.55 + 本批；只收 0 参 gates() 者）----
+                   ('r239', _sa_r239), ('r241', _sa_r241), ('r242', _sa_r242),
+                   ('r243', _sa_r243)]
     for _tag, _mod in _sa_scripts:
         for _t in _mod.gates():
             name, s, expect, cmp, note = _t[:5]

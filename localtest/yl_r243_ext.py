@@ -142,8 +142,11 @@ def gates():
         ('R243-mark 唯一', MARK, 1, '==', '幂等标记唯一'),
         ('R243-helper 在位', 'function YlxwArtMech(p, k) {', 1, '==', '机制取值器唯一'),
         ('R243-helper 静默', 'catch (e) {}\n  return 0;\n}', 1, '==', '取值器异常吞掉'),
-        ('R243-H1 顿悟率消费', '*(1+YlxwArtMech(a,"wudaoRate")))/*[r241enl]*/', 1, '==',
-         'p_base*(1+wudaoRate)，r241enl 原样保留'),
+        ('R243-H1 顿悟率消费',
+         ('*(1+YlxwArtMech(a,"wudaoRate")))/*[r241enl]*/',
+          '*(1+YlxwArtMech(a,"wudaoRate"))*(1+YlxwXianwuBonus().luckRate))/*[r241enl]*/'), 1, '==',
+         'p_base*(1+wudaoRate)，r241enl 原样保留；★ R-251（0.9.60）在其后再乘「称号气运」'
+         '⇒ tuple 合计两形态（R-243 后 / R-243+r254 后）'),
         ('R243-H1 旧式清零', H1_OLD, 0, '==', '旧顿悟判定式必须消失'),
         ('R243-H2 吐纳回血消费', 'N=Math.floor(E*R)+YlxwArtMech($,"breathHeal")', 1, '==',
          'N += breathHeal'),

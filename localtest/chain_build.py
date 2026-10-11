@@ -704,10 +704,27 @@ SRV_CHAIN = [
                              #   · ★ 配套客户端半边 = STANDALONE_CLIENT 'r252'（`localtest/yl_r252_ext.py`）：
                              #     `defRate` 新键 + 文案对齐（灵石获取 / 修炼速度）+ 排行榜 4 新 tab + 两条硬编码链扩 7。
                              #   · 幂等标记 `[r251]`；链序**必须排在 r249 之后**（新末环）。
+      'srv_patch_r253.py',  # R-251 称号加成「重规划」：14 条 UPDATE titles SET attr_json（第 96 环 / 新末环）
+                             #   · 起因（用户反馈）：「各个称号的加成太简单有点无趣且重复较多」。
+                             #   · ★ 病根：称号是**佩戴制**（一次只戴一个），却全是「单属性 +10~15%」
+                             #     ⇒ 玩家只有**比较**、没有**选择**，不构成流派。
+                             #   · 7 个排行称号改**复合加成**（跨 属性/战斗/修炼/经济 四层），招牌维度互不重复：
+                             #     登峰造极(修炼+气运) / 武林盟主(暴击+暴伤+攻击) / 富甲一方(灵石+气运) /
+                             #     万人敌(吸血+暴伤+攻击) / 功成名就(神识+修炼) / 苦修不辍(防御+气血+减伤) /
+                             #     德高望重(气运+灵石)。
+                             #   · 7 个活动称号人格化小幅增强（福缘深厚 / 七日筑基 / 良师益友 / 灵玉仙客 /
+                             #     月满勤修 / 义结金兰 / 太虚魁首）。
+                             #   · ★ 必须用 `UPDATE`（既有 seed 是 `INSERT OR IGNORE`，改不动已存在行）；
+                             #     常量集中于 R-249 三句之后（「单点可调」既有约定）。
+                             #   · ★ 配套客户端半边 = STANDALONE_CLIENT 'r254'（`localtest/yl_r254_ext.py`）：
+                             #     7 新键（`luckRate`/`critRate`/`critDamage`/`lifeLeech`/`spiritRate`/`hpRate`/
+                             #     `damageReduction`）三处齐备 + 3 落点（`xt()` 的 hp/spirit、`YlxwBattleBonus`
+                             #     的 4 键加法、顿悟式的 luckRate 乘子）。
+                             #   · 幂等标记 `[r253]`；链序**必须排在 r251 之后**（新末环）。
 ]
 
 # ---- 前端产物路径（0.9.31 换名：index-v2931-20261007.js，与 build_v26n.py OUT 逐字一致）----
-CLIENT_OUT = os.path.join(ROOT, 'build', 'assets', 'index-v2959-20261011.js')
+CLIENT_OUT = os.path.join(ROOT, 'build', 'assets', 'index-v2960-20261011.js')
 SRV_OUT = os.path.join(ROOT, 'srv', 'index_v28.ts')
 
 

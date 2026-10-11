@@ -210,7 +210,11 @@ def gates():
         ('R252-mark 唯一', MARK, 1, '==', '幂等标记唯一'),
         ('E1 DM 新 4 项', DM_SEG, 1, '==', '击杀/成就/在线/声望'),
         ('E1 DM 旧尾清零', DM_OLD, 0, '==', '旧 3 项尾必须消失'),
-        ('E2 Zero defRate', 'charmRate: 0, defRate: 0 }', 1, '==', ''),
+        ('E2 Zero defRate',
+         ('charmRate: 0, defRate: 0 }',
+          'charmRate: 0, defRate: 0, luckRate: 0, critRate: 0, critDamage: 0, lifeLeech: 0, '
+          'spiritRate: 0, hpRate: 0, damageReduction: 0 }'), 1, '==',
+         '★ R-251（0.9.60）给 Zero 再扩 7 键 ⇒ tuple 合计两形态（r252 后 / r254 后）'),
         ('E2 Zero 旧形态清零', ZERO_OLD, 0, '==', ''),
         ('E3 Store defRate', 'r.defRate = Number(at.defRate) || 0;', 1, '==', ''),
         ('E4 AttrText 新块', ATTR_NEW, 1, '==', '三行文案 + defRate 行'),

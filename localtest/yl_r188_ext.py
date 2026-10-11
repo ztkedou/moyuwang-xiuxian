@@ -222,10 +222,13 @@ def gates():
          ('b=Math.random()<(0.01+Math.min(0.03,($a(a.titleId,a.unlockedTitles||[]).luck||0)*0.0003))',
           'b=Math.random()<(0.001667*(1+Math.min(1,($a(a.titleId,a.unlockedTitles||[]).luck||0)*0.005)))',
           'b=Math.random()<(0.001667*(1+Math.min(1,($a(a.titleId,a.unlockedTitles||[]).luck||0)*0.005))'
-          '*(1+YlxwArtMech(a,"wudaoRate")))'),
+          '*(1+YlxwArtMech(a,"wudaoRate")))',
+          'b=Math.random()<(0.001667*(1+Math.min(1,($a(a.titleId,a.unlockedTitles||[]).luck||0)*0.005))'
+          '*(1+YlxwArtMech(a,"wudaoRate"))*(1+YlxwXianwuBonus().luckRate))'),
          1, '==',
          'R-221（1%~4%）→ R-241（乘性 0.1667% 基础）→ R-243（再乘心法顿悟率 ×(1+wudaoRate)）'
-         '⇒ 终态期望三形态之一（tuple 合计「R-221 / R-241 / R-241+r243」）'),
+         '→ R-251（再乘称号气运 ×(1+luckRate)）⇒ 终态期望四形态之一'
+         '（tuple 合计「R-221 / R-241 / R-241+r243 / R-241+r243+r254」）'),
         ('R188v2·v1 判定行已升级消失', A_V1, 0, '==', 'v1 形态已被替换'),
         ('R188v2·原件判定行已消失', A_ORIG, 0, '==', '原件形态已不存在'),
         ('R188v2·旧 0.004 判定行已清零', 'Math.random()<.004;', 0, '==', '旧写法已不存在'),
@@ -235,17 +238,23 @@ def gates():
          ('b=Math.random()<(0.01+Math.min(0.03,($a(a.titleId,a.unlockedTitles||[]).luck||0)*0.0003))',
           'b=Math.random()<(0.001667*(1+Math.min(1,($a(a.titleId,a.unlockedTitles||[]).luck||0)*0.005)))',
           'b=Math.random()<(0.001667*(1+Math.min(1,($a(a.titleId,a.unlockedTitles||[]).luck||0)*0.005))'
-          '*(1+YlxwArtMech(a,"wudaoRate")))'),
+          '*(1+YlxwArtMech(a,"wudaoRate")))',
+          'b=Math.random()<(0.001667*(1+Math.min(1,($a(a.titleId,a.unlockedTitles||[]).luck||0)*0.005))'
+          '*(1+YlxwArtMech(a,"wudaoRate"))*(1+YlxwXianwuBonus().luckRate))'),
          1, '==',
-         '原「用户拍板 5%」→ R-221（1%~4%）→ R-241（乘性）→ R-243（×心法顿悟率）⇒ 终态期望三形态之一'),
+         '原「用户拍板 5%」→ R-221（1%~4%）→ R-241（乘性）→ R-243（×心法顿悟率）'
+         '→ R-251（×称号气运）⇒ 终态期望四形态之一'),
         # ★ 用户拍板：无天赋分支 = 0.01（普通玩家 1%）
         ('R188v2·★无天赋分支=0.01（用户拍板）' + RETIRED_TAG,
          ('(0.01+Math.min(0.03,($a(a.titleId,a.unlockedTitles||[]).luck||0)*0.0003))',
           '(0.001667*(1+Math.min(1,($a(a.titleId,a.unlockedTitles||[]).luck||0)*0.005)))',
           '(0.001667*(1+Math.min(1,($a(a.titleId,a.unlockedTitles||[]).luck||0)*0.005))'
-          '*(1+YlxwArtMech(a,"wudaoRate")))'),
+          '*(1+YlxwArtMech(a,"wudaoRate")))',
+          '(0.001667*(1+Math.min(1,($a(a.titleId,a.unlockedTitles||[]).luck||0)*0.005))'
+          '*(1+YlxwArtMech(a,"wudaoRate"))*(1+YlxwXianwuBonus().luckRate))'),
          1, '==',
-         '原「用户拍板 1%」→ R-221（1%~4%）→ R-241（乘性）→ R-243（×心法顿悟率）⇒ 终态期望三形态之一'),
+         '原「用户拍板 1%」→ R-221（1%~4%）→ R-241（乘性）→ R-243（×心法顿悟率）'
+         '→ R-251（×称号气运）⇒ 终态期望四形态之一'),
         # ★ 守卫：仍是单次抽样（不得回退成 `||` 两次抽样）
         ('R188v2·★单次抽样（未回退 ||）', 'Math.random()<(__r188t?0.05:0.01)||', 0, '==',
          '仍只调 1 次 Math.random()'),

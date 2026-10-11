@@ -338,7 +338,7 @@ from yl_r067_ext import apply as v28_r067_apply  # noqa: E402
 from yl_068_ext import apply as v28_r068_apply  # noqa: E402
 
 BASE = os.path.join(HERE, 'build', 'assets', 'index-v26m-20260927.js')
-OUT = os.path.join(HERE, 'build', 'assets', 'index-v2959-20261011.js')
+OUT = os.path.join(HERE, 'build', 'assets', 'index-v2960-20261011.js')
 
 # v28 模块调用顺序（锚点稳定性 + num-balance 必须最后）：
 #   saveretry → arb → version → mail → entry → sectgf → char → bond → ui
@@ -774,6 +774,7 @@ STANDALONE_CLIENT = [
     ('r248', os.path.join(HERE, 'localtest', 'yl_r248_ext.py')),  # R-247 三机制消费钩子
     ('r250', os.path.join(HERE, 'localtest', 'yl_r250_ext.py')),  # R-249 仙务称号 attr 加成 + 称号页增强
     ('r252', os.path.join(HERE, 'localtest', 'yl_r252_ext.py')),  # R-250 defRate 新键 + 文案对齐 + 排行榜 4 新 tab
+    ('r254', os.path.join(HERE, 'localtest', 'yl_r254_ext.py')),  # R-251 称号加成重规划：7 新维度 + 3 落点
 ]
 
 

@@ -378,6 +378,23 @@ db.serialize(() => {
   db.run('UPDATE titles SET attr_json = ? WHERE source = ?', ['{"atkRate":0.15}', 'rank_combat']);   // [r249] 武林盟主 · 战力第一 ⇒ 攻击 +15%
   db.run('UPDATE titles SET attr_json = ? WHERE source = ?', ['{"stoneRate":0.15}', 'rank_stones']); // [r249] 富甲一方 · 灵石第一 ⇒ 灵石收益 +15%
   db.run('UPDATE titles SET attr_json = ? WHERE source = ?', ['{"expRate":0.15}', 'rank_realm']);    // [r249] 登峰造极 · 境界第一 ⇒ 修为 +15%
+  // [r253] 称号加成「重规划」（R-251）：14 条 UPDATE 幂等迁移 —— 7 排行称号（§3.1）+ 7 活动称号（§3.2）。
+  //   既有 seed 均为 INSERT OR IGNORE（改不动已存在行）⇒ 必须 UPDATE；按 source 定位，与 seed 散布位置无关。
+  //   常量集中于此，单点可调（沿用 [r249] 约定）。
+  db.run('UPDATE titles SET attr_json = ? WHERE source = ?', ['{"expRate":0.15,"luckRate":0.10}', 'rank_realm']);  // [r253] 登峰造极 · 修炼宗师 ⇒ 修为 +15% / 气运 +10%
+  db.run('UPDATE titles SET attr_json = ? WHERE source = ?', ['{"critRate":0.04,"critDamage":0.15,"atkRate":0.10}', 'rank_combat']);  // [r253] 武林盟主 · 武力巅峰 ⇒ 暴击 +4% / 暴伤 +15% / 攻击 +10%
+  db.run('UPDATE titles SET attr_json = ? WHERE source = ?', ['{"stoneRate":0.15,"luckRate":0.06}', 'rank_stones']);  // [r253] 富甲一方 · 豪商 ⇒ 灵石 +15% / 气运 +6%
+  db.run('UPDATE titles SET attr_json = ? WHERE source = ?', ['{"lifeLeech":0.04,"critDamage":0.10,"atkRate":0.10}', 'rank_kills']);  // [r253] 万人敌 · 杀神 ⇒ 吸血 +4% / 暴伤 +10% / 攻击 +10%
+  db.run('UPDATE titles SET attr_json = ? WHERE source = ?', ['{"spiritRate":0.12,"expRate":0.08}', 'rank_achieve']);  // [r253] 功成名就 · 博学 ⇒ 神识 +12% / 修为 +8%
+  db.run('UPDATE titles SET attr_json = ? WHERE source = ?', ['{"defRate":0.12,"hpRate":0.12,"damageReduction":0.03}', 'rank_playtime']);  // [r253] 苦修不辍 · 苦修者 ⇒ 防御 +12% / 气血 +12% / 减伤 +3%
+  db.run('UPDATE titles SET attr_json = ? WHERE source = ?', ['{"luckRate":0.12,"stoneRate":0.08}', 'rank_fame']);  // [r253] 德高望重 · 人望 ⇒ 气运 +12% / 灵石 +8%
+  db.run('UPDATE titles SET attr_json = ? WHERE source = ?', ['{"stoneRate":0.03,"luckRate":0.05}', 'adventure_gold']);  // [r253] 福缘深厚 ⇒ 灵石 +3% / 气运 +5%
+  db.run('UPDATE titles SET attr_json = ? WHERE source = ?', ['{"expRate":0.03,"hpRate":0.03}', 'week7']);  // [r253] 七日筑基 ⇒ 修为 +3% / 气血 +3%
+  db.run('UPDATE titles SET attr_json = ? WHERE source = ?', ['{"expRate":0.03,"spiritRate":0.05}', 'mentor_grad']);  // [r253] 良师益友 ⇒ 修为 +3% / 神识 +5%
+  db.run('UPDATE titles SET attr_json = ? WHERE source = ?', ['{"stoneRate":0.02,"luckRate":0.03}', 'act087_jade']);  // [r253] 灵玉仙客 ⇒ 灵石 +2% / 气运 +3%
+  db.run('UPDATE titles SET attr_json = ? WHERE source = ?', ['{"expRate":0.02,"defRate":0.03}', 'r054_month_sign']);  // [r253] 月满勤修 ⇒ 修为 +2% / 防御 +3%
+  db.run('UPDATE titles SET attr_json = ? WHERE source = ?', ['{"charmRate":0.02,"luckRate":0.03}', 'sworn']);  // [r253] 义结金兰 ⇒ 魅力 +2% / 气运 +3%
+  db.run('UPDATE titles SET attr_json = ? WHERE source = ?', ['{"stoneRate":0.05,"atkRate":0.05}', 'arena_week1']);  // [r253] 太虚魁首 ⇒ 灵石 +5% / 攻击 +5%
   // [r251] 四新榜称号 seed（INSERT OR IGNORE 幂等，照既有 3 条 seed 写法）：各 10%（比旧 3 榜 15% 低 —— 这 4 项更易登顶）。
   db.run(`INSERT OR IGNORE INTO titles (name, attr_json, source) VALUES
     ('万人敌', '{"atkRate":0.10}', 'rank_kills'),

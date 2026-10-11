@@ -373,6 +373,11 @@ db.serialize(() => {
     ('富甲一方', '{"stoneRate":0.03}', 'rank_stones'),
     ('回归仙人', '{"expRate":0.02}', 'return'),
     ('初入江湖', '{"expRate":0.01}', 'achievement')`);
+  // [r249] 排行称号加成上调（15% 档）：既有 seed 是 INSERT OR IGNORE（改不动已存在行）⇒ 必须 UPDATE 幂等迁移。
+  //   source 定位与 RANK_TITLE_SOURCES 逐字同源；常量集中于此，单点可调。
+  db.run('UPDATE titles SET attr_json = ? WHERE source = ?', ['{"atkRate":0.15}', 'rank_combat']);   // [r249] 武林盟主 · 战力第一 ⇒ 攻击 +15%
+  db.run('UPDATE titles SET attr_json = ? WHERE source = ?', ['{"stoneRate":0.15}', 'rank_stones']); // [r249] 富甲一方 · 灵石第一 ⇒ 灵石收益 +15%
+  db.run('UPDATE titles SET attr_json = ? WHERE source = ?', ['{"expRate":0.15}', 'rank_realm']);    // [r249] 登峰造极 · 境界第一 ⇒ 修为 +15%
   // Y2：daily_quests——每日任务进度 + 宝箱领取标记（quest_key='chest_25' 等，done=1 即已领）；
   // UNIQUE(user_id,date,quest_key) 是并发领取/重复计数的唯一防线；date=北京时区 YYYY-MM-DD
   db.run(`
@@ -7378,19 +7383,90 @@ const RANK_TITLE_SOURCES: Array<{ source: string; sort: string }> = [
   { source: 'rank_combat', sort: 'combat' },
   { source: 'rank_stones', sort: 'stones' },
 ];
+// ─────────────────────────────────────────────────────────
+// [r249] R-249 排行称号轮换（服务端第 94 环 / 新末环）
+//   · 三榜（战力/灵石/境界）#1 动态持有对应称号；被超越即收回（DELETE），非榜首一律不持有。
+//   · 触发：① setInterval 每 RANK_TITLE_TICK_MS 全榜重算；② 存档惰性汇聚点 maybeGrantAutoTitles 复用本函数。
+//   · 榜上 < minBoardSize(=2) 人 ⇒ 视为无主 ⇒ 该称号全表收回（沿用 shouldGrantRankTitle 语义）。
+//   · 被收回者若正佩戴（saves.title_id 指向该称号）⇒ 同步置空，杜绝「未持有却佩戴中」。
+// ─────────────────────────────────────────────────────────
+const RANK_TITLE_TICK_MS = 10 * 60 * 1000; // [r249] 排行称号重算周期 = 10 分钟
+let rankTitleEngineOn = true;   // [r249] 引擎开关（关 ⇒ tick 首行早退，零 DB 操作）
+let rankTitleSettling = false;  // [r249] 重入锁（上一轮未结束则跳过本轮）
+async function reconcileRankTitles(): Promise<void> {
+  // [r249] 全榜重算：对 RANK_TITLE_SOURCES 每条做「取 #1 → 收回非 #1 → 授予 #1」。整函数自吞异常，绝不阻塞存档链路。
+  try {
+    for (const { source, sort } of RANK_TITLE_SOURCES) {
+      const cfg = LEADERBOARD_SORTS[sort];
+      const [top, cnt, t] = await Promise.all([
+        dbGet(`SELECT user_id FROM rankings ORDER BY ${cfg.orderBy} LIMIT 1`),
+        dbGet('SELECT COUNT(*) AS c FROM rankings'),
+        dbGet('SELECT id FROM titles WHERE source = ?', [source]),
+      ]);
+      if (!t) continue;
+      const titleId = Number(t.id);
+      const boardSize = Number(cnt && cnt.c) || 0;
+      const topId = top ? Number(top.user_id) : null;
+      // 合法榜首：存在且榜上 ≥ minBoardSize（复用 shouldGrantRankTitle，与授予判定同源）
+      const validTop = topId != null && shouldGrantRankTitle(topId, boardSize, topId);
+      if (!validTop) {
+        // 无主（榜空 / 人数不足）⇒ 该称号全表收回 + 佩戴清理
+        await dbRun('DELETE FROM player_titles WHERE title_id = ?', [titleId]);
+        await dbRun('UPDATE saves SET title_id = NULL WHERE title_id = ?', [titleId]);
+      } else {
+        // 收回 #1 以外全部 + 清理被收回者的佩戴
+        await dbRun('DELETE FROM player_titles WHERE title_id = ? AND user_id != ?', [titleId, topId]);
+        await dbRun('UPDATE saves SET title_id = NULL WHERE title_id = ? AND user_id != ?', [titleId, topId]);
+        // 授予 #1（INSERT OR IGNORE，复用既有授予通道）
+        await grantTitleBySource(topId as number, source);
+      }
+    }
+  } catch (e: any) {
+    console.error('rank title reconcile error:', e?.message || e);
+  }
+}
+// [r249] rankHolders 快照：三榜 #1 的 {name(rankings.name), title(称号名)}；无主 ⇒ null。内部自吞异常恒返回对象。
+async function rankHoldersSnapshot(): Promise<Record<string, { name: string; title: string } | null>> {
+  const out: Record<string, { name: string; title: string } | null> = { combat: null, stones: null, realm: null };
+  try {
+    for (const { source, sort } of RANK_TITLE_SOURCES) {
+      const cfg = LEADERBOARD_SORTS[sort];
+      const [top, cnt, t] = await Promise.all([
+        dbGet(`SELECT user_id, name FROM rankings ORDER BY ${cfg.orderBy} LIMIT 1`),
+        dbGet('SELECT COUNT(*) AS c FROM rankings'),
+        dbGet('SELECT name FROM titles WHERE source = ?', [source]),
+      ]);
+      const boardSize = Number(cnt && cnt.c) || 0;
+      const topId = top ? Number(top.user_id) : null;
+      if (top && t && topId != null && shouldGrantRankTitle(topId, boardSize, topId)) {
+        out[sort] = { name: String(top.name || ''), title: String(t.name || '') };
+      }
+    }
+  } catch (e: any) {
+    console.error('rank holders snapshot error:', e?.message || e);
+  }
+  return out;
+}
+setInterval(() => {
+  // [ranktitle] 排行称号轮换 tick：与活动引擎无关，只看 rankTitleEngineOn（首行早退 ⇒ 引擎关闭零 DB 操作）
+  if (!rankTitleEngineOn) return;
+  if (rankTitleSettling) return; // 重入锁：上一轮未结束则跳过本轮
+  rankTitleSettling = true;
+  try {
+    reconcileRankTitles()
+      .catch((e: any) => console.error('rank title tick error:', e?.message || e))
+      .finally(() => { rankTitleSettling = false; });
+  } catch (e: any) {
+    rankTitleSettling = false;
+    console.error('rank title tick error:', e?.message || e);
+  }
+}, RANK_TITLE_TICK_MS).unref();
 async function maybeGrantAutoTitles(userId: number, achCount: number): Promise<void> {
   try {
     if (shouldGrantAchievementTitle(achCount)) await grantTitleBySource(userId, 'achievement');
-    for (const { source, sort } of RANK_TITLE_SOURCES) {
-      const cfg = LEADERBOARD_SORTS[sort];
-      const [top, cnt] = await Promise.all([
-        dbGet(`SELECT user_id FROM rankings ORDER BY ${cfg.orderBy} LIMIT 1`),
-        dbGet('SELECT COUNT(*) AS c FROM rankings'),
-      ]);
-      if (top && cnt && shouldGrantRankTitle(Number(top.user_id), Number(cnt.c), userId)) {
-        await grantTitleBySource(userId, source);
-      }
-    }
+    // ★ R-249（[r249]）：排行称号的「授」改为**全榜重算**（收回+授予），不再只对本玩家惰性授予。
+    //   存档汇聚点不变（POST /api/save 与 updatePlayerSave 仍调本函数）；内部自吞异常不阻塞存档链路。
+    await reconcileRankTitles(); // [r249]
   } catch (e: any) {
     console.error('auto title grant error:', e?.message || e);
   }
@@ -7897,7 +7973,7 @@ app.get('/api/quest/summary', authenticateToken, rateLimit({ windowMs: 60 * 1000
                   unlocked: weekActivity >= m.tier,
                   claimed: claimedTiers.has(m.tier),
                 }));
-                res.json({
+                const r249payload = {
                   date,
                   quests: questList,
                   groups: QUEST_GROUPS,
@@ -7911,6 +7987,10 @@ app.get('/api/quest/summary', authenticateToken, rateLimit({ windowMs: 60 * 1000
                   titleEquipped: meta?.title_id != null ? Number(meta.title_id) : null,
                   ownedTitles: (owned || []).map((t) => ({ id: Number(t.id), name: t.name, attr: attr(t.attr_json), source: t.source })),
                   allTitles: (catalog || []).map((t) => ({ id: Number(t.id), name: t.name, attr: attr(t.attr_json), source: t.source })),
+                };
+                // [r249] 追加三榜当前持有者（rankHolders；既有键一字不改）；快照内部自吞异常 ⇒ 恒返回对象。
+                rankHoldersSnapshot().then((rankHolders) => {
+                  res.json(Object.assign(r249payload, { rankHolders }));
                 });
               });
             }).catch(() => res.status(500).json({ error: 'Database error' }));

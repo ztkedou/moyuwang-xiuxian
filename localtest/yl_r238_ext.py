@@ -154,7 +154,14 @@ def gates():
     #   按「跨补丁门禁演进」铁律改 **tuple 合计两形态**：apply 态（r248 未生效）= 旧式 / 终态 = r248 式。
     #   ★ 这次是 `localtest/diag_gate_drift.py` + dryrun 自动派生名单**当场抓到**的（R-246 生效）。
     for label, old, new, n in EDITS:
-        needle = (new, GATE_ALT[label]) if label in GATE_ALT else new
+        # ★ R-249：GATE_ALT 的值可为 str（单形态）或 tuple（多形态）⇒ 统一拍平成「(new,) + 形态」。
+        _alt = GATE_ALT.get(label)
+        if _alt is None:
+            needle = new
+        elif isinstance(_alt, (tuple, list)):
+            needle = (new,) + tuple(_alt)
+        else:
+            needle = (new, _alt)
         g.append(('%s · 新串在位' % label, needle, n, '==', ''))
     g.append(('幂等标记唯一', MARK, 1, '==', ''))
     g.append(('缓存读值器在位', 'function YlxwWudaoCultPct(){', 1, '==', ''))
@@ -162,7 +169,8 @@ def gates():
     g.append(('首屏拉取在位', 'function YlxwWudaoCultEnsure(){', 1, '==', ''))
     g.append(('禅道并入 total（相邻强证明）',
               ('_sy+_np+__wud,wudao:__wud,cWudao:__wud,art:r,',
-               '_sy+_np+__wud+__nixiu,wudao:__wud,cWudao:__wud,art:r,'), 1, '==', ''))
+               '_sy+_np+__wud+__nixiu,wudao:__wud,cWudao:__wud,art:r,',
+               '_sy+_np+__wud+__nixiu+__xw,wudao:__wud,cWudao:__wud,art:r,'), 1, '==', ''))
     g.append(('捕获钩子紧随公共落点',
               'YLApplyBalance(l, r);YlxwWudaoCultCapture(r, l);', 1, '==', ''))
     g.append(('明细行悟道项就位',
@@ -186,7 +194,12 @@ def _count(text, needle):
 GATE_ALT = {
     'B bd() 的 return 追加禅道项（total + wudao/cWudao 字段）':
         ('YlxwWudaoCultEnsure();var __wud=YlxwWudaoCultPct();var __nixiu=YlxwR247Mech(t).nixiuExp;'
-         'return{total:_ar+_ta+_ti+_gr+_sy+_np+__wud+__nixiu,wudao:__wud,cWudao:__wud,art:r,'),
+         'return{total:_ar+_ta+_ti+_gr+_sy+_np+__wud+__nixiu,wudao:__wud,cWudao:__wud,art:r,',
+         # ★ R-249（2026-10-11）：r250 又插 `var __xw=YlxwXianwuBonus().expRate;` 并追加 `+__xw`
+         #   ⇒ 前两形态在终态归零。再扩第三形态（同类事故第 5 次，dryrun 自动派生名单当场抓到）。
+         'YlxwWudaoCultEnsure();var __wud=YlxwWudaoCultPct();var __nixiu=YlxwR247Mech(t).nixiuExp;'
+         'var __xw=YlxwXianwuBonus().expRate;'
+         'return{total:_ar+_ta+_ti+_gr+_sy+_np+__wud+__nixiu+__xw,wudao:__wud,cWudao:__wud,art:r,'),
 }
 
 

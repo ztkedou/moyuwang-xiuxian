@@ -671,10 +671,25 @@ SRV_CHAIN = [
                              #     读档响应解析处挂 `YlxwSrvDiffCapture(r)` 缓存顶层 ylDifficulty，
                              #     并把 YlxwDiffMul / YlxwDiffCn 的优先级改为「入参 → **服务端下发值** → store → localStorage 兜底」。
                              #   · 幂等标记 `[r233]`；链序**必须排在 r225b 之后**（复用 ylR225bClientDiff / difficulty 列）。
+      # ---- 2026-10-11 0.9.58 批（R-249 仙务称号体系重做 · 服务端半边）----
+      'srv_patch_r249.py',  # R-249 排行称号「定时轮换 + 被超越即收回 + 加成上调」（第 94 环 / 新末环）
+                             #   · 起因：服务端**只授不收回**（全文件无 `DELETE FROM player_titles`）、
+                             #     只在存档时惰性跑；客户端**从不应用** `attr_json` ⇒ 仙务称号实际零加成。
+                             #   · 机制：`reconcileRankTitles()` 对 `RANK_TITLE_SOURCES` 每条做
+                             #     「取 #1（走 `LEADERBOARD_SORTS.orderBy`，与 `/api/leaderboard` **逐字同源**）
+                             #      → `DELETE` 非 #1（榜 <2 人 ⇒ 全表收回）→ 佩戴清理 → `grantTitleBySource(#1)`」；
+                             #     `setInterval` 每 10 分钟一次（首行早退 + 重入锁 + 自吞，照 `[arenaweek]` 写法）
+                             #     + 存档时惰性（`maybeGrantAutoTitles` 改为调用它）。
+                             #   · 加成上调（★ **UPDATE** 幂等迁移 —— 既有 seed 是 `INSERT OR IGNORE`，改不动已存在行）：
+                             #     武林盟主 `atkRate` .15 / 富甲一方 `stoneRate` .15 / 登峰造极 `expRate` .15。
+                             #   · `GET /api/quest/summary` 追加 `rankHolders`（三榜持有者；既有键**一字未改**）。
+                             #   · ★ 配套客户端半边 = STANDALONE_CLIENT 'r250'（`localtest/yl_r250_ext.py`）：
+                             #     `YlxwXianwuBonus()` + 四处加成落点 + 增强 `YlxwTTitles`（attr 明细 + 持有者）。
+                             #   · 幂等标记 `[r249]`；链序**必须排在 r233 之后**（新末环）。
 ]
 
 # ---- 前端产物路径（0.9.31 换名：index-v2931-20261007.js，与 build_v26n.py OUT 逐字一致）----
-CLIENT_OUT = os.path.join(ROOT, 'build', 'assets', 'index-v2957-20261011.js')
+CLIENT_OUT = os.path.join(ROOT, 'build', 'assets', 'index-v2958-20261011.js')
 SRV_OUT = os.path.join(ROOT, 'srv', 'index_v28.ts')
 
 

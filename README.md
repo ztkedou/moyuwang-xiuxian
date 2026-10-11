@@ -6,8 +6,8 @@
 
 ### 👉 **https://moyuwang.online/myxxz/**
 
-打开即玩，无需安装、无需注册即可体验（云端存档需登录）。本仓库版本为 **<!--VER-->0.9.57<!--/VER-->**；
-线上试玩环境与仓库同步（截至本仓库更新时，线上即为 **<!--VER-->0.9.57<!--/VER-->**）。
+打开即玩，无需安装、无需注册即可体验（云端存档需登录）。本仓库版本为 **<!--VER-->0.9.58<!--/VER-->**；
+线上试玩环境与仓库同步（截至本仓库更新时，线上即为 **<!--VER-->0.9.58<!--/VER-->**）。
 
 ---
 
@@ -131,6 +131,14 @@ python scripts/sync-from-prod.py           # 不一致就以生产为准覆盖
 > 本段由 `scripts/gen-readme-changelog.py` 依据 [CHANGELOG.md](./CHANGELOG.md) **自动生成**，请勿手改；
 > 要改内容请改 `CHANGELOG.md`（唯一权威源），再运行 `python scripts/gen-readme-changelog.py`。
 
+### 0.9.58（2026-10-11 11:25）
+**仙务称号体系重做：排行称号「定时轮换 + 被超越即收回 + 加成生效」**
+- 排行称号动态化
+- 加成真正生效
+- 称号页增强
+- 成就/里程碑称号不受影响
+- 本批含服务端改动
+
 ### 0.9.57（2026-10-11 01:20）
 **功法机制库补完：先手 / 淬体 / 逆修**
 - （攻伐 / 身法）：战斗首回合伤害 +4%~18%（按品级）；历练快速结算按「首击」判定（该路径无回合概念）
@@ -235,16 +243,8 @@ python scripts/sync-from-prod.py           # 不一致就以生产为准覆盖
 - baseAttack / baseDefense / baseMaxHp / baseMaxLifespan、K 倍率表
 - ARENA_TRIAL_REALMS（srv:11931）另有同值 maxExpBase，但其用途是 演武场试炼首通奖励…
 
-### 0.9.44（2026-10-09 12:18）
-**心法按钮显示经验 / 签到补签卡 / 奇遇消耗改 1%**
-- 服务端 POST /api/gongfa/levelup 已是经验制
-- 但客户端 YlxwTXinfa087 的渲染仍是旧壳
-- 新表 `activity_makeup
-- 新端点 POST /api/activity/checkin/makeup { day }
-- GET /api/activity/checkin 新增下发 `makeup: { count, price, ne
-- claim / 里程碑 / 场次逻辑一字未动
-
-### 更早的版本（0.3.8 ~ 0.9.43，共 76 版）
+### 更早的版本（0.3.8 ~ 0.9.44，共 77 版）
+- **0.9.44**（2026-10-09）：服务端 POST /api/gongfa/levelup 已是经验制
 - **0.9.43**（2026-10-09）：头部徽标「在线 N」取的是 外部 partykit 服务器 `xiuxian-g…
 - **0.9.42**（2026-10-08）：0.9.41
 - **0.9.41**（2026-10-08）：200 是天然分界
@@ -344,7 +344,7 @@ moyuwang-xiuxian/
 │   ├── index.html                # 页面外壳（引用最终 bundle）
 │   └── assets/
 │       ├── index-v26m-20260927.js    # ★ 前端冻结基座（不可变，装配输入）
-│       ├── index-v2957-20261011.js  # ★ 装配产出（= 最新定版 0.9.57，可 md5 校验）
+│       ├── index-v2958-20261011.js  # ★ 装配产出（= 最新定版 0.9.58，可 md5 校验）
 │       ├── index-v2913-20261002.js  # 旧定版 0.9.13 快照（历史留档）
 │       ├── index-ZuV-l8Gt.css
 │       └── logo-BInDl5Di.png
@@ -378,7 +378,7 @@ moyuwang-xiuxian/
 ### 复现线上产物
 
 ```bash
-# 1) 重建前端 bundle（冻结基座 → index-v2957-20261011.js）
+# 1) 重建前端 bundle（冻结基座 → index-v2958-20261011.js）
 python build_v26n.py
 
 # 2) 重建服务端（冻结基座 → 串行应用 69 环补丁 → srv/index_v28.ts）
@@ -396,27 +396,27 @@ python localtest/chain_build.py --check
 
 | 产物 | 文件 | md5 |
 |---|---|---|
-| 前端（0.9.57 定版） | `build/assets/index-v2957-20261011.js` | `cacfe8f21bd283d46bb2b4c5f4c5012c` |
-| 服务端（0.9.57 定版） | `srv/index_v28.ts` | `328170ededb61fe3289845cb91d3419d` |
+| 前端（0.9.58 定版） | `build/assets/index-v2958-20261011.js` | `96f1b5e729156079506afa9bf1b00de3` |
+| 服务端（0.9.58 定版） | `srv/index_v28.ts` | `6fe5bf9c33ae5bd3008cbb8f36443860` |
 | 前端冻结基座（装配**输入**） | `build/assets/index-v26m-20260927.js` | `b315eb1a04e967a66c128861b3a3dadd` |
 | 服务端冻结基座（装配**输入**） | `_v281_base/index_v28.base.ts` | `f6ecc82e72d8425d5064f765d7de0684` |
 | 游戏数据字典（全链不变） | `srv/game-dicts.json` | `1b635513f553875060869272b790f910` |
 
-> **定版产物随版本推进**：上表登记的是**当前最新定版 0.9.57**（前端 `index-v2957-20261011.js` / 服务端 `srv/index_v28.ts`）。
+> **定版产物随版本推进**：上表登记的是**当前最新定版 0.9.58**（前端 `index-v2958-20261011.js` / 服务端 `srv/index_v28.ts`）。
 > 更早的定版（0.9.21 / 0.9.20 / … / 0.8.11）产物在仓库里仍可查，其 md5 不在此逐一登记，
 > 对应的更新日志见 [CHANGELOG.md](./CHANGELOG.md)。
 > 注意：每次发版都会**整包更换产物文件名**（版本段随版本走），所以「同一份产物在不同目录里叫不同的名字」是正常的。
 
 > ## ⚠️ 「同名文件 md5 不同」是正常的 —— 别把它当校验失败
 >
-> **`cacfe8f2…` 是本仓库内这份 0.9.57 定版快照的 md5，也是本仓库当前的校验基准。**
+> **`96f1b5e7…` 是本仓库内这份 0.9.58 定版快照的 md5，也是本仓库当前的校验基准。**
 >
-> 但你可能在其他地方（例如某个部署工作区 / 本地构建目录）看到**同样叫 `index-v2957-20261011.js`
+> 但你可能在其他地方（例如某个部署工作区 / 本地构建目录）看到**同样叫 `index-v2958-20261011.js`
 > 却 md5 不同的文件**。这**不是**仓库里的产物出错，而是：
 >
 > | 文件位置 | 是什么 |
 > |---|---|
-> | **本仓库** `build/assets/index-v2957-20261011.js` | **0.9.57 定版快照**（md5 `cacfe8f2…`）—— 只读参考物，「可复现」承诺的比对基准 |
+> | **本仓库** `build/assets/index-v2958-20261011.js` | **0.9.58 定版快照**（md5 `96f1b5e7…`）—— 只读参考物，「可复现」承诺的比对基准 |
 > | 某个部署工作区 / 构建目录下的同名文件 | 该文件**已被后续构建就地覆写**，内容是迭代中的中间态，**不是定版产物** |
 >
 > **判断标准只有一条：以本仓库内的文件为准。** 仓库内这份是冻结的、不会再变；
@@ -424,8 +424,8 @@ python localtest/chain_build.py --check
 > （原因见下面「构建会覆盖产物」）。
 >
 > 同理，`index-v26m-20260927.js`（`b315eb1a…`）与 `_v281_base/index_v28.base.ts`（`f6ecc82e…`）
-> 是**装配输入**（冻结基座），而 `index-v2957-20261011.js`（`cacfe8f2…`）与 `srv/index_v28.ts`
-> （`328170ed…`）是**装配产出** —— 两者角色不同，不要混为一谈。
+> 是**装配输入**（冻结基座），而 `index-v2958-20261011.js`（`96f1b5e7…`）与 `srv/index_v28.ts`
+> （`6fe5bf9c…`）是**装配产出** —— 两者角色不同，不要混为一谈。
 
 ---
 
@@ -460,18 +460,18 @@ node --experimental-strip-types srv/index_v28.ts
 >
 > | 脚本 | 会覆写 | 后果 |
 > |---|---|---|
-> | `python build_v26n.py` | `build/assets/index-v2957-20261011.js`（**0.9.57 定版产物**）与 `build/index.html` | 覆盖后该文件的 md5 不再等于定版产物指纹，`docs/PUBLISH-MANIFEST.md` 里的参考 md5 立即失效 |
+> | `python build_v26n.py` | `build/assets/index-v2958-20261011.js`（**0.9.58 定版产物**）与 `build/index.html` | 覆盖后该文件的 md5 不再等于定版产物指纹，`docs/PUBLISH-MANIFEST.md` 里的参考 md5 立即失效 |
 > | `python localtest/chain_build.py --srv` | `srv/index_v28.ts`（**服务端全链定版产物**） | 同上；若该文件曾被手工改动而未回流到补丁模块，改动**永久丢失** |
 >
 > **因此，跑任何一个装配脚本之前：**
 >
 > ```bash
 > # 1) 先备份两份定版产物（这是唯一的回滚点）
-> cp build/assets/index-v2957-20261011.js build/assets/index-v2957-20261011.js.bak
+> cp build/assets/index-v2958-20261011.js build/assets/index-v2958-20261011.js.bak
 > cp srv/index_v28.ts                      srv/index_v28.ts.bak
 >
 > # 2) 记下当前 md5 留档，跑完后比对是否与预期一致
-> md5sum build/assets/index-v2957-20261011.js srv/index_v28.ts
+> md5sum build/assets/index-v2958-20261011.js srv/index_v28.ts
 >
 > # 3) 现在才跑装配
 > python build_v26n.py
@@ -480,8 +480,8 @@ node --experimental-strip-types srv/index_v28.ts
 >
 > **另外两点必须确认：**
 >
-> 1. **`build/assets/index-v2957-20261011.js` 是「定版产物」，不是可随意重生成的中间物。**
->    它是本仓库「可复现」承诺的**校验基准**（md5 `cacfe8f21bd283d46bb2b4c5f4c5012c`）。
+> 1. **`build/assets/index-v2958-20261011.js` 是「定版产物」，不是可随意重生成的中间物。**
+>    它是本仓库「可复现」承诺的**校验基准**（md5 `96f1b5e729156079506afa9bf1b00de3`）。
 >    一旦被覆盖，除非你手上还留着原文件，否则**这份基准就永久丢失了** —— 备份是唯一保险。
 > 2. **`srv/index_v28.ts` 必须是「冻结基座 + 全链补丁」的可重建物，不能是手工改过的孤本。**
 >    如果线上某次热修是直接编辑该文件而未回写到 `srv_patch_*.py`，那么重跑 `chain_build.py --srv`

@@ -205,6 +205,12 @@ FRZ_TOTAL_R238 = ('_np=S*0.32;YlxwWudaoCultEnsure();var __wud=YlxwWudaoCultPct()
 FRZ_TOTAL_R248 = ('_np=S*0.32;YlxwWudaoCultEnsure();var __wud=YlxwWudaoCultPct();'
                   'var __nixiu=YlxwR247Mech(t).nixiuExp;'
                   'return{total:_ar+_ta+_ti+_gr+_sy+_np+__wud+__nixiu,')
+# ★ R-249（2026-10-11）：r250 又插了 `var __xw=YlxwXianwuBonus().expRate;` 并追加 `+__xw`
+#   ⇒ 上面三形态在终态均归零（第四形态才成立）。再扩 tuple（四形态合计 == 1）。
+#   ★ 同类事故**第 5 次**，仍是 dryrun 自动派生名单（R-246）当场抓到。
+FRZ_TOTAL_R250 = ('_np=S*0.32;YlxwWudaoCultEnsure();var __wud=YlxwWudaoCultPct();'
+                  'var __nixiu=YlxwR247Mech(t).nixiuExp;var __xw=YlxwXianwuBonus().expRate;'
+                  'return{total:_ar+_ta+_ti+_gr+_sy+_np+__wud+__nixiu+__xw,')
 FRZ_TOTAL = ('return{total:r*d+a*0.26+l*0.6+c*0.6+Math.min(b,0.1)+S*0.32,'
              'art:r,talent:a,title:l,grotto:c,synergy:b,npc:S,spiritualRootBonus:d}')
 # R-218 标记 + 两个取值器定义（证明 R-218 注入块逐字未动）。
@@ -238,7 +244,7 @@ TOAST_ZERO = ('\\uff0c\\u672c\\u6b21\\u4e3a\\u8fdb\\u5ea6\\u79ef\\u7d2f'
               '\\uff08\\u5165\\u95e8\\u540e\\u83b7\\u5f97\\u52a0\\u6210\\uff09')
 
 FREEZE = [
-    ('冻结·total 计算式未动' + RETIRED_TAG,  (FRZ_TOTAL_NEW, FRZ_TOTAL_R238, FRZ_TOTAL_R248), 1,
+    ('冻结·total 计算式未动' + RETIRED_TAG,  (FRZ_TOTAL_NEW, FRZ_TOTAL_R238, FRZ_TOTAL_R248, FRZ_TOTAL_R250), 1,
      'R-228 同源化（拆具名局部量）⇒ 终态新式；R-238 插禅道项 +__wud；R-247 的 r248 插逆修项 +__nixiu '
      '⇒ 三形态 tuple 合计（R-246/R-247 修正）'),
     ('冻结·R218 标记未动',                 FRZ_R218_MARK,        1),

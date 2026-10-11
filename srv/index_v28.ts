@@ -378,6 +378,21 @@ db.serialize(() => {
   db.run('UPDATE titles SET attr_json = ? WHERE source = ?', ['{"atkRate":0.15}', 'rank_combat']);   // [r249] 武林盟主 · 战力第一 ⇒ 攻击 +15%
   db.run('UPDATE titles SET attr_json = ? WHERE source = ?', ['{"stoneRate":0.15}', 'rank_stones']); // [r249] 富甲一方 · 灵石第一 ⇒ 灵石收益 +15%
   db.run('UPDATE titles SET attr_json = ? WHERE source = ?', ['{"expRate":0.15}', 'rank_realm']);    // [r249] 登峰造极 · 境界第一 ⇒ 修为 +15%
+  // [r251] 四新榜称号 seed（INSERT OR IGNORE 幂等，照既有 3 条 seed 写法）：各 10%（比旧 3 榜 15% 低 —— 这 4 项更易登顶）。
+  db.run(`INSERT OR IGNORE INTO titles (name, attr_json, source) VALUES
+    ('万人敌', '{"atkRate":0.10}', 'rank_kills'),
+    ('功成名就', '{"expRate":0.10}', 'rank_achieve'),
+    ('苦修不辍', '{"defRate":0.10}', 'rank_playtime'),
+    ('德高望重', '{"stoneRate":0.10}', 'rank_fame')`);
+  // [r251] 排行称号结算状态（单行表 id=1）：last_date = 上次真正结算的北京日（YYYY-MM-DD）。
+  //   日期门依据：同北京日重复调用 reconcileRankTitles ⇒ 空转（零写）；跨天 / 首部署(last_date='') ⇒ 立即结算一次。
+  db.run(`
+    CREATE TABLE IF NOT EXISTS rank_title_state (
+      id INTEGER PRIMARY KEY CHECK (id = 1),
+      last_date TEXT NOT NULL DEFAULT ''
+    )
+  `);
+  db.run("INSERT OR IGNORE INTO rank_title_state (id, last_date) VALUES (1, '')");
   // Y2：daily_quests——每日任务进度 + 宝箱领取标记（quest_key='chest_25' 等，done=1 即已领）；
   // UNIQUE(user_id,date,quest_key) 是并发领取/重复计数的唯一防线；date=北京时区 YYYY-MM-DD
   db.run(`
@@ -4054,6 +4069,75 @@ const LEADERBOARD_SORTS: Record<string, { orderBy: string; aheadCondition: strin
       row.spirit_stones, row.realm_index, row.realm_level, row.updated_at, row.user_id,
     ],
   },
+  // [r251] 四新榜（各 10% 档）：orderBy / aheadCondition / getParams 照 combat 条目同构，仅换主排序列。
+  kills: {
+    orderBy: 'kill_count DESC, realm_index DESC, realm_level DESC, updated_at DESC, user_id ASC',
+    aheadCondition: `
+      (kill_count > ?)
+      OR (kill_count = ? AND realm_index > ?)
+      OR (kill_count = ? AND realm_index = ? AND realm_level > ?)
+      OR (kill_count = ? AND realm_index = ? AND realm_level = ? AND updated_at > ?)
+      OR (kill_count = ? AND realm_index = ? AND realm_level = ? AND updated_at = ? AND user_id < ?)
+    `,
+    getParams: (row) => [
+      row.kill_count,
+      row.kill_count, row.realm_index,
+      row.kill_count, row.realm_index, row.realm_level,
+      row.kill_count, row.realm_index, row.realm_level, row.updated_at,
+      row.kill_count, row.realm_index, row.realm_level, row.updated_at, row.user_id,
+    ],
+  },
+  achieve: {
+    orderBy: 'achievement_count DESC, realm_index DESC, realm_level DESC, updated_at DESC, user_id ASC',
+    aheadCondition: `
+      (achievement_count > ?)
+      OR (achievement_count = ? AND realm_index > ?)
+      OR (achievement_count = ? AND realm_index = ? AND realm_level > ?)
+      OR (achievement_count = ? AND realm_index = ? AND realm_level = ? AND updated_at > ?)
+      OR (achievement_count = ? AND realm_index = ? AND realm_level = ? AND updated_at = ? AND user_id < ?)
+    `,
+    getParams: (row) => [
+      row.achievement_count,
+      row.achievement_count, row.realm_index,
+      row.achievement_count, row.realm_index, row.realm_level,
+      row.achievement_count, row.realm_index, row.realm_level, row.updated_at,
+      row.achievement_count, row.realm_index, row.realm_level, row.updated_at, row.user_id,
+    ],
+  },
+  playtime: {
+    orderBy: 'play_time DESC, realm_index DESC, realm_level DESC, updated_at DESC, user_id ASC',
+    aheadCondition: `
+      (play_time > ?)
+      OR (play_time = ? AND realm_index > ?)
+      OR (play_time = ? AND realm_index = ? AND realm_level > ?)
+      OR (play_time = ? AND realm_index = ? AND realm_level = ? AND updated_at > ?)
+      OR (play_time = ? AND realm_index = ? AND realm_level = ? AND updated_at = ? AND user_id < ?)
+    `,
+    getParams: (row) => [
+      row.play_time,
+      row.play_time, row.realm_index,
+      row.play_time, row.realm_index, row.realm_level,
+      row.play_time, row.realm_index, row.realm_level, row.updated_at,
+      row.play_time, row.realm_index, row.realm_level, row.updated_at, row.user_id,
+    ],
+  },
+  fame: {
+    orderBy: 'reputation DESC, realm_index DESC, realm_level DESC, updated_at DESC, user_id ASC',
+    aheadCondition: `
+      (reputation > ?)
+      OR (reputation = ? AND realm_index > ?)
+      OR (reputation = ? AND realm_index = ? AND realm_level > ?)
+      OR (reputation = ? AND realm_index = ? AND realm_level = ? AND updated_at > ?)
+      OR (reputation = ? AND realm_index = ? AND realm_level = ? AND updated_at = ? AND user_id < ?)
+    `,
+    getParams: (row) => [
+      row.reputation,
+      row.reputation, row.realm_index,
+      row.reputation, row.realm_index, row.realm_level,
+      row.reputation, row.realm_index, row.realm_level, row.updated_at,
+      row.reputation, row.realm_index, row.realm_level, row.updated_at, row.user_id,
+    ],
+  },
 };
 
 // GET /api/leaderboard?sort=realm|combat|stones&limit=50&offset=0
@@ -4139,11 +4223,16 @@ app.get('/api/leaderboard/me', authenticateToken, (req: any, res: any) => {
       }
       if (!myRow) return res.json({ found: false, message: '您尚未上传存档，无法查看排名' });
 
-      // 查询三种排序的排名：必须和 /api/leaderboard 的 ORDER BY 完全一致
+      // 查询七种排序的排名：必须和 /api/leaderboard 的 ORDER BY 完全一致（aheadCondition / getParams 与 LEADERBOARD_SORTS 逐字同源）
       const queries = [
         { sort: 'realm', config: LEADERBOARD_SORTS.realm },
         { sort: 'combat', config: LEADERBOARD_SORTS.combat },
         { sort: 'stones', config: LEADERBOARD_SORTS.stones },
+        // [r251] 四新榜：与 LEADERBOARD_SORTS 新键同源 ⇒ 响应新增 kills_rank / achieve_rank / playtime_rank / fame_rank
+        { sort: 'kills', config: LEADERBOARD_SORTS.kills },
+        { sort: 'achieve', config: LEADERBOARD_SORTS.achieve },
+        { sort: 'playtime', config: LEADERBOARD_SORTS.playtime },
+        { sort: 'fame', config: LEADERBOARD_SORTS.fame },
       ];
 
       // fix(rank) 2026-09-17：name=角色昵称（无则回落登录账号）；username 同步为昵称与列表口径一致
@@ -7382,6 +7471,11 @@ const RANK_TITLE_SOURCES: Array<{ source: string; sort: string }> = [
   { source: 'rank_realm', sort: 'realm' },
   { source: 'rank_combat', sort: 'combat' },
   { source: 'rank_stones', sort: 'stones' },
+  // [r251] 四新榜称号来源（与 LEADERBOARD_SORTS 新键逐字对应）。
+  { source: 'rank_kills', sort: 'kills' },
+  { source: 'rank_achieve', sort: 'achieve' },
+  { source: 'rank_playtime', sort: 'playtime' },
+  { source: 'rank_fame', sort: 'fame' },
 ];
 // ─────────────────────────────────────────────────────────
 // [r249] R-249 排行称号轮换（服务端第 94 环 / 新末环）
@@ -7390,12 +7484,16 @@ const RANK_TITLE_SOURCES: Array<{ source: string; sort: string }> = [
 //   · 榜上 < minBoardSize(=2) 人 ⇒ 视为无主 ⇒ 该称号全表收回（沿用 shouldGrantRankTitle 语义）。
 //   · 被收回者若正佩戴（saves.title_id 指向该称号）⇒ 同步置空，杜绝「未持有却佩戴中」。
 // ─────────────────────────────────────────────────────────
-const RANK_TITLE_TICK_MS = 10 * 60 * 1000; // [r249] 排行称号重算周期 = 10 分钟
+const RANK_TITLE_TICK_MS = 60 * 60 * 1000; // [r251] 排行称号检查周期 = 每小时（真正结算由日期门保证每北京日一次）
 let rankTitleEngineOn = true;   // [r249] 引擎开关（关 ⇒ tick 首行早退，零 DB 操作）
 let rankTitleSettling = false;  // [r249] 重入锁（上一轮未结束则跳过本轮）
 async function reconcileRankTitles(): Promise<void> {
   // [r249] 全榜重算：对 RANK_TITLE_SOURCES 每条做「取 #1 → 收回非 #1 → 授予 #1」。整函数自吞异常，绝不阻塞存档链路。
   try {
+    // [r251] 日期门：每个北京日只真正结算一次。同北京日重复调用 ⇒ 空转（不产生任何写）；跨天 / 首部署 ⇒ 立即结算。
+    const today = bjDate(Date.now());
+    const st = await dbGet('SELECT last_date FROM rank_title_state WHERE id = 1');
+    if (st && st.last_date === today) return;
     for (const { source, sort } of RANK_TITLE_SOURCES) {
       const cfg = LEADERBOARD_SORTS[sort];
       const [top, cnt, t] = await Promise.all([
@@ -7421,13 +7519,15 @@ async function reconcileRankTitles(): Promise<void> {
         await grantTitleBySource(topId as number, source);
       }
     }
+    // [r251] 结算成功走完 ⇒ 标记今日已结算（放在最后；中途抛异常不写，避免误标已结算）。
+    await dbRun('UPDATE rank_title_state SET last_date = ? WHERE id = 1', [today]);
   } catch (e: any) {
     console.error('rank title reconcile error:', e?.message || e);
   }
 }
 // [r249] rankHolders 快照：三榜 #1 的 {name(rankings.name), title(称号名)}；无主 ⇒ null。内部自吞异常恒返回对象。
 async function rankHoldersSnapshot(): Promise<Record<string, { name: string; title: string } | null>> {
-  const out: Record<string, { name: string; title: string } | null> = { combat: null, stones: null, realm: null };
+  const out: Record<string, { name: string; title: string } | null> = { combat: null, stones: null, realm: null, kills: null, achieve: null, playtime: null, fame: null }; // [r251] 扩 7 键
   try {
     for (const { source, sort } of RANK_TITLE_SOURCES) {
       const cfg = LEADERBOARD_SORTS[sort];

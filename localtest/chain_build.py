@@ -686,10 +686,28 @@ SRV_CHAIN = [
                              #   · ★ 配套客户端半边 = STANDALONE_CLIENT 'r250'（`localtest/yl_r250_ext.py`）：
                              #     `YlxwXianwuBonus()` + 四处加成落点 + 增强 `YlxwTTitles`（attr 明细 + 持有者）。
                              #   · 幂等标记 `[r249]`；链序**必须排在 r233 之后**（新末环）。
+      # ---- 2026-10-11 0.9.59 批（R-250 仙务称号体系扩充 · 服务端半边）----
+      'srv_patch_r251.py',  # R-250 称号体系扩充「4 新榜 + 日结算 + /me 扩 7」（第 95 环 / 新末环）
+                             #   · 起因（用户反馈）：① 要更多称号 / 排行榜；② 加成**文案**没说清（机制本是对的）；
+                             #     ③ 结算太频繁（10 分钟）⇒ 改 1 天。
+                             #   · ★ 关键侦察：`rankings` 表**已有 4 个「填好但没启用」的列**
+                             #     （`kill_count` / `achievement_count` / `play_time` / `reputation`，
+                             #      `extractRankingData` **每次存档都在写**）⇒ **加新榜无需改表结构**。
+                             #   · 4 新榜（合计 7 榜）：击杀榜·万人敌 `atkRate` .10 / 成就榜·功成名就 `expRate` .10 /
+                             #     在线榜·苦修不辍 `defRate` .10 / 声望榜·德高望重 `stoneRate` .10。
+                             #   · 结算周期：新表 `rank_title_state(id, last_date)` + **北京日日期门**
+                             #     （`bjDate` 与上次相同 ⇒ 空转）⇒ 每北京日结算一次；
+                             #     `RANK_TITLE_TICK_MS` 10 分钟 → **1 小时**（每小时检查、每北京日结算）。
+                             #   · `GET /api/quest/summary` 的 `rankHolders` 扩为 **7 键**（既有 3 键一字未改）；
+                             #     `GET /api/leaderboard/me` 的 `queries` **3 → 7 条** ——
+                             #     ★ 否则新 tab 的「我的排名」会**回落显示灵石榜名次**（客户端是硬编码三元链）。
+                             #   · ★ 配套客户端半边 = STANDALONE_CLIENT 'r252'（`localtest/yl_r252_ext.py`）：
+                             #     `defRate` 新键 + 文案对齐（灵石获取 / 修炼速度）+ 排行榜 4 新 tab + 两条硬编码链扩 7。
+                             #   · 幂等标记 `[r251]`；链序**必须排在 r249 之后**（新末环）。
 ]
 
 # ---- 前端产物路径（0.9.31 换名：index-v2931-20261007.js，与 build_v26n.py OUT 逐字一致）----
-CLIENT_OUT = os.path.join(ROOT, 'build', 'assets', 'index-v2958-20261011.js')
+CLIENT_OUT = os.path.join(ROOT, 'build', 'assets', 'index-v2959-20261011.js')
 SRV_OUT = os.path.join(ROOT, 'srv', 'index_v28.ts')
 
 

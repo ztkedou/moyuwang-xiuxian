@@ -147,10 +147,23 @@ SUPERSEDED_BY_R179 = (
     '冻结·R155发送后清空',
 )
 
+# ★ 2026-10-14（R-255 年龄制重构）交接：R-255 把历练产地文案由「⚠️ 寿元 -N 年（危险度：…）」
+#   改写为「⚠️ 年龄 +N 岁（危险度：…）」⇒ 本环「寿元产地」两条针脚（判据串 + 冻结原文）
+#   在 R-255 之后的终态已不成立；断言**已移交** `localtest/yl_r255_ext.py`（E3b 门禁
+#   `E3b 历练日志新串在位`/`旧串清零`）。
+#   ★ 非静默删除：needle 原文与原因仍保留在本文件（FRZ_SOUL_SRC / M_PAT 常量未删），
+#     只是不再进入 gates()。
+SUPERSEDED_BY_R255 = (
+    'R161·旧寿元行未直接混发',
+    '冻结·寿元产地未动',
+)
+
 
 def gates():
-    """补丁后形态的门禁五元组 (name, needle, count, op, note)。★ 0.9.28：过滤 SUPERSEDED_BY_R179。"""
-    return [g for g in _gates_all() if g[0] not in SUPERSEDED_BY_R179]
+    """补丁后形态的门禁五元组 (name, needle, count, op, note)。
+    ★ 0.9.28：过滤 SUPERSEDED_BY_R179；★ 2026-10-14：再过滤 SUPERSEDED_BY_R255。"""
+    _skip = set(SUPERSEDED_BY_R179) | set(SUPERSEDED_BY_R255)
+    return [g for g in _gates_all() if g[0] not in _skip]
 
 
 def _gates_all():

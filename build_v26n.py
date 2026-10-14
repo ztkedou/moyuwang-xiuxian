@@ -338,7 +338,7 @@ from yl_r067_ext import apply as v28_r067_apply  # noqa: E402
 from yl_068_ext import apply as v28_r068_apply  # noqa: E402
 
 BASE = os.path.join(HERE, 'build', 'assets', 'index-v26m-20260927.js')
-OUT = os.path.join(HERE, 'build', 'assets', 'index-v2960-20261011.js')
+OUT = os.path.join(HERE, 'build', 'assets', 'index-v2961-20261011.js')
 
 # v28 模块调用顺序（锚点稳定性 + num-balance 必须最后）：
 #   saveretry → arb → version → mail → entry → sectgf → char → bond → ui
@@ -775,6 +775,18 @@ STANDALONE_CLIENT = [
     ('r250', os.path.join(HERE, 'localtest', 'yl_r250_ext.py')),  # R-249 仙务称号 attr 加成 + 称号页增强
     ('r252', os.path.join(HERE, 'localtest', 'yl_r252_ext.py')),  # R-250 defRate 新键 + 文案对齐 + 排行榜 4 新 tab
     ('r254', os.path.join(HERE, 'localtest', 'yl_r254_ext.py')),  # R-251 称号加成重规划：7 新维度 + 3 落点
+    # ---- 2026-10-14 批（R-255 寿命系统重构：剩余寿命递减 → 年龄递增；纯客户端）----
+    #   用户六条：①寿命进度条改「年龄」递增、建号 0 岁；②面板展示寿元区间（如炼气1层 90-100 岁），
+    #   真实死线在区间内随机抽定且不展示，到点只能重开；③升境界/吃延寿丹展示新区间并加上限；
+    #   ④打坐/历练的减寿改为加年龄；⑤区间上限沿用《凡人修仙传》设定；⑥彻底重构。
+    #   设计（docs/寿命重构设计方案.md v2）：age（递增）/ lifeRatio（建号随机 ∈[0.9,1]，隐藏）/
+    #   lifeBonus（永久加寿累计）；U_display = U_base + lifeBonus；deathLine = ratio×U_base + lifeBonus；
+    #   恒有 0.9×U_display ≤ deathLine ≤ U_display（永不穿帮，已数学证明 + 1000 组随机验证）。
+    #   ★★ 顺序铁律：**r255 必须排在最后** —— 它改的是 r106/r107/r140/r140b/r161/r179/r206/r219/r239
+    #      共同锚定的寿命机制终态（`R.maxLifespan` 加寿分支、历练结算行、死亡判定、丹药表、
+    #      `YLXW_MED_LIFE`）；那些环的旧形态针脚已按 §22.5 规矩升为 tuple 多形态或 SUPERSEDED 过滤
+    #      （见各文件内 SUPERSEDED_BY_R255 注释），终态断言移交本环 gates()。
+    ('r255', os.path.join(HERE, 'localtest', 'yl_r255_ext.py')),  # R-255 寿命重构（年龄制）
 ]
 
 

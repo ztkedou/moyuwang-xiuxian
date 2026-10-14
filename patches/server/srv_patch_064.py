@@ -209,10 +209,18 @@ def main() -> None:
         ("R64 丹炉造诣倍率 1.2",             "const ALCHEMY_PROF_FURNACE_MULT = 1.2;", 1),
         ("R64 新方 回春丹",                  "huichun:  { name: '回春丹',   minutes: 60,  cost: 10000,  rarity: '稀有', unlockLevel: 1, summary: '服用 气血+200', profGain: 30 },", 1),
         ("R64 新方 洗髓丹",                  "xisui:    { name: '洗髓丹',   minutes: 150, cost: 25000,  rarity: '稀有', unlockLevel: 3, summary: '永久 气血上限+50', profGain: 30 },", 1),
-        ("R64 新方 延寿丹",                  "yanshou:  { name: '延寿丹',   minutes: 180, cost: 30000,  rarity: '稀有', unlockLevel: 4, summary: '服用 寿命+10年', profGain: 30 },", 1),
+        # ★ 2026-10-14（R-255 年龄制重构·服务端半边 srv_patch_r255.py）：本环把这两条 summary
+        #   钉成**旧形态**（寿命+10年 / 寿命上限+1000年），而 R-255 之后它们是
+        #   「真实寿元+3年」/「真实寿元+5年」⇒ 改用 **tuple 多形态合计计数**（§22.5 规矩）：
+        #   本环运行时刻旧形态成立、终态（链尾）新形态成立，两种场景合计均为 1。
+        #   逐字原文保留，不静默放宽。
+        ("R64 新方 延寿丹",                  ("yanshou:  { name: '延寿丹',   minutes: 180, cost: 30000,  rarity: '稀有', unlockLevel: 4, summary: '服用 寿命+10年', profGain: 30 },",
+                                              "yanshou:  { name: '延寿丹',   minutes: 180, cost: 30000,  rarity: '稀有', unlockLevel: 4, summary: '服用 真实寿元+3年', profGain: 30 },"), 1),
         ("R64 新方 筑基丹",                  "zhuji:    { name: '筑基丹',   minutes: 240, cost: 40000,  rarity: '传说', unlockLevel: 4, summary: '服用 修为+500｜永久 神识+300 体魄+30 气血上限+100', profGain: 100 },", 1),
         ("R64 新方 龙血丹",                  "longxue:  { name: '龙血丹',   minutes: 360, cost: 60000,  rarity: '传说', unlockLevel: 6, summary: '永久 气血上限+500 体魄+50', profGain: 100 },", 1),
-        ("R64 新方 九转金丹",                "jiuzhuan: { name: '九转金丹', minutes: 720, cost: 120000, rarity: '仙品', unlockLevel: 8, summary: '服用 修为+5万｜永久 全属性+1000 寿命上限+1000年', profGain: 500 },", 1),
+        # ★ 2026-10-14：同上，改用 tuple 多形态合计计数（R-255 改 summary 文案）。
+        ("R64 新方 九转金丹",                ("jiuzhuan: { name: '九转金丹', minutes: 720, cost: 120000, rarity: '仙品', unlockLevel: 8, summary: '服用 修为+5万｜永久 全属性+1000 寿命上限+1000年', profGain: 500 },",
+                                              "jiuzhuan: { name: '九转金丹', minutes: 720, cost: 120000, rarity: '仙品', unlockLevel: 8, summary: '服用 修为+5万｜永久 全属性+1000 真实寿元+5年', profGain: 500 },"), 1),
         ("R64 旧方 聚气丹 带 rarity/unlock",  "juqi:     { name: '聚气丹',   minutes: 30,  cost: 5000,   rarity: '普通', unlockLevel: 1, summary: '服用 修为+150', profGain: 10 },", 1),
         ("R64 旧方 凝元丹 丹囊语义保留",       "ningyuan: { name: '凝元丹',   minutes: 120, cost: 20000,  rarity: '稀有', unlockLevel: 1, summary: '出炉入丹囊：渡劫垫刀，每颗天劫成功率+3%', profGain: 30 },", 1),
         ("R64 旧方 破境丹 带 summary",        "pojing:   { name: '破境丹',   minutes: 480, cost: 80000,  rarity: '传说', unlockLevel: 5, summary: '服用 修为+1万｜永久 神识+50 体魄+50 攻击+30 防御+30', profGain: 100 },", 1),
@@ -249,7 +257,12 @@ def main() -> None:
             why = ""
         else:
             label, needle, exp, why = item
-        act = out.count(needle)
+        # ★ 2026-10-14：needle 可为 tuple/list ⇒ 多形态**合计**计数（§22.5）。
+        #   string 行为逐字不变。R-255 改了两条 summary 文案，本环用 tuple 承载新旧两形态。
+        if isinstance(needle, (tuple, list)):
+            act = sum(out.count(x) for x in needle)
+        else:
+            act = out.count(needle)
         good = (act == exp)
         ok = ok and good
         print("  [%s] %-40s actual=%d expect==%d %s" % ("OK" if good else "FAIL", label, act, exp, why))

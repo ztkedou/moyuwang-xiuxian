@@ -5422,11 +5422,11 @@ const ALCHEMY_RECIPES: Record<string, AlchemyRecipeDef> = {
   huichun:  { name: '回春丹',   minutes: 60,  cost: 10000,  rarity: '稀有', unlockLevel: 1, summary: '服用 气血+200', profGain: 30 },
   ningyuan: { name: '凝元丹',   minutes: 120, cost: 20000,  rarity: '稀有', unlockLevel: 1, summary: '出炉入丹囊：渡劫垫刀，每颗天劫成功率+3%', profGain: 30 },
   xisui:    { name: '洗髓丹',   minutes: 150, cost: 25000,  rarity: '稀有', unlockLevel: 3, summary: '永久 气血上限+50', profGain: 30 },
-  yanshou:  { name: '延寿丹',   minutes: 180, cost: 30000,  rarity: '稀有', unlockLevel: 4, summary: '服用 寿命+10年', profGain: 30 },
+  yanshou:  { name: '延寿丹',   minutes: 180, cost: 30000,  rarity: '稀有', unlockLevel: 4, summary: '服用 真实寿元+3年', profGain: 30 },
   zhuji:    { name: '筑基丹',   minutes: 240, cost: 40000,  rarity: '传说', unlockLevel: 4, summary: '服用 修为+500｜永久 神识+300 体魄+30 气血上限+100', profGain: 100 },
   longxue:  { name: '龙血丹',   minutes: 360, cost: 60000,  rarity: '传说', unlockLevel: 6, summary: '永久 气血上限+500 体魄+50', profGain: 100 },
   pojing:   { name: '破境丹',   minutes: 480, cost: 80000,  rarity: '传说', unlockLevel: 5, summary: '服用 修为+1万｜永久 神识+50 体魄+50 攻击+30 防御+30', profGain: 100 },
-  jiuzhuan: { name: '九转金丹', minutes: 720, cost: 120000, rarity: '仙品', unlockLevel: 8, summary: '服用 修为+5万｜永久 全属性+1000 寿命上限+1000年', profGain: 500 },
+  jiuzhuan: { name: '九转金丹', minutes: 720, cost: 120000, rarity: '仙品', unlockLevel: 8, summary: '服用 修为+5万｜永久 全属性+1000 真实寿元+5年', profGain: 500 },
 };
 // [r077] R-077 炼丹开炉按成熟时长随机出丹数量（拍板 2026-10-01）：
 //   基础方（聚气丹/回春丹）1-10 枚随机；方子越高阶（成熟越久、单枚越贵）随机枚数越少、波动越窄；

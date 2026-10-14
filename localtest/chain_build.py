@@ -721,10 +721,28 @@ SRV_CHAIN = [
                              #     `damageReduction`）三处齐备 + 3 落点（`xt()` 的 hp/spirit、`YlxwBattleBonus`
                              #     的 4 键加法、顿悟式的 luckRate 乘子）。
                              #   · 幂等标记 `[r253]`；链序**必须排在 r251 之后**（新末环）。
+      'srv_patch_r255.py',   # R-255 寿命重构·服务端半边：炼丹配方 summary 文案同步（年龄制）（第 97 环 / 新末环）
+                             #   · 起因（用户六条诉求）：「把寿命彻底重构一下 … 吃延长寿命的丹药，
+                             #     就会展示新的寿命区间，并且把寿命上限加上」。
+                             #   · ★ 服务端**完全不参与寿命结算**（`lifespan`/`maxLifespan`/`寿元`
+                             #     在该文件里出现 0 次）⇒ 本环只改**两处玩家可见 summary**：
+                             #     延寿丹「寿命+10年」→「真实寿元+3年」（与客户端 maxLifespan:3 一致）；
+                             #     九转金丹「寿命上限+1000年」→「真实寿元+5年」（与客户端 maxLifespan:5 一致）。
+                             #     改前两条文案与客户端数值**长期脱节**（客户端实际 1 / 5）。
+                             #   · ★ 只改 `summary`，**不碰** cost / minutes / rarity / unlockLevel /
+                             #     profGain / 配方 key / 炼丹枚数旁表。
+                             #   · ★ 与 r064 的联动：`srv_patch_064.py` 的门禁逐字钉死这两条旧文案
+                             #     ⇒ 已按 §22.5 规矩把该环那两条门禁升为 **tuple 多形态合计计数**
+                             #     （旧形态在 064 运行时刻成立、新形态在链尾成立），逐字原文保留；
+                             #     该环门禁 runner 同步支持 tuple needle。
+                             #   · ★ 配套客户端半边 = STANDALONE_CLIENT 'r255'（`localtest/yl_r255_ext.py`）：
+                             #     age 递增 / lifeRatio 隐藏死线 / 寿元区间展示 / 突破与丹药加上限 /
+                             #     寿终清档重开 / 法宝 cost.lifespan 死代码清理 / 新丹驻颜丹·返春丹。
+                             #   · 链序**必须排在最后**（新末环）。
 ]
 
 # ---- 前端产物路径（0.9.31 换名：index-v2931-20261007.js，与 build_v26n.py OUT 逐字一致）----
-CLIENT_OUT = os.path.join(ROOT, 'build', 'assets', 'index-v2960-20261011.js')
+CLIENT_OUT = os.path.join(ROOT, 'build', 'assets', 'index-v2961-20261011.js')
 SRV_OUT = os.path.join(ROOT, 'srv', 'index_v28.ts')
 
 

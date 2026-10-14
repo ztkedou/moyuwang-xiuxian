@@ -221,8 +221,29 @@ FRZ_P0_DEF = 'function P0(t,r){if(!t){'
 FRZ_P0_HARD = 'P0(u,"hard")'
 
 
+# ★ 2026-10-14（R-255 年龄制重构）交接：R-255 把寿终判定从客户端 `$w` 的
+#   「lifespan <= 0 → 重生/三重惩罚」整段替换为「age >= deathLine → 清档重开」，
+#   并顺带把 R-219 注入函数里的 `nat` 分支由 `o.lifespan=...` 改为 `o.age=0`。
+#   下列 R-219 针脚钉的是**旧寿终路径**，在 R-255 之后的终态已不成立；断言**已移交**
+#   `localtest/yl_r255_ext.py`（E11 门禁：`E11 寿终新判定在位` / `E11 寿终旧判定清零`）。
+#   ★ 非静默删除：needle 原文与原因仍保留在本文件，只是不再进入 gates()。
+#   ★ 仍然有效且继续钉住的：战斗死亡路径（E2/N2/A2）、弹窗（E3/E4/E5）、
+#     注入块本体（MARK / 辅助函数 / 装备清空 / 属性系数 / 境界序 / 降境界 / 边界 / 日志）。
+SUPERSEDED_BY_R255 = (
+    '注入·自然寿终调用',
+    'E1·新串在位',
+    'E1·旧清档串清零',
+    '冻结·自然寿终非hard未动',
+)
+
+
 def gates():
-    """补丁后形态的门禁五元组 (name, needle, count, op, note)。"""
+    """补丁后形态的门禁五元组 (name, needle, count, op, note)。
+    ★ 2026-10-14：过滤 SUPERSEDED_BY_R255（寿终路径已由 R-255 年龄制重构整体承接）。"""
+    return [row for row in _gates_all() if row[0] not in SUPERSEDED_BY_R255]
+
+
+def _gates_all():
     return [
         # ---- 注入 ----
         ('注入·幂等标记唯一', MARK, 1, '==', '/*YLXW_R219_V2945*/'),

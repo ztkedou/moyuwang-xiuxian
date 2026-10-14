@@ -338,7 +338,7 @@ from yl_r067_ext import apply as v28_r067_apply  # noqa: E402
 from yl_068_ext import apply as v28_r068_apply  # noqa: E402
 
 BASE = os.path.join(HERE, 'build', 'assets', 'index-v26m-20260927.js')
-OUT = os.path.join(HERE, 'build', 'assets', 'index-v2961-20261011.js')
+OUT = os.path.join(HERE, 'build', 'assets', 'index-v2962-20261011.js')
 
 # v28 模块调用顺序（锚点稳定性 + num-balance 必须最后）：
 #   saveretry → arb → version → mail → entry → sectgf → char → bond → ui
@@ -787,6 +787,20 @@ STANDALONE_CLIENT = [
     #      `YLXW_MED_LIFE`）；那些环的旧形态针脚已按 §22.5 规矩升为 tuple 多形态或 SUPERSEDED 过滤
     #      （见各文件内 SUPERSEDED_BY_R255 注释），终态断言移交本环 gates()。
     ('r255', os.path.join(HERE, 'localtest', 'yl_r255_ext.py')),  # R-255 寿命重构（年龄制）
+    # ---- 2026-10-14 批（R-256 网络自愈 + 自动循环断点续跑；纯客户端）----
+    #   用户两个 bug：①「断网会提示网络断开连接，来网之后不会刷新也没有继续，只能手动点击才能继续」；
+    #                 ②「自动打坐和自动历练时如果刷新页面，这一轮的结算信息就没有了，打坐和历练也停止了」。
+    #   根因①：断网存档失败走 Je() → **模态弹窗** → alertState.isOpen 置真，而 isAlertOpen 是
+    #          自动打坐/历练的**硬门禁** ⇒ 两个循环被永久暂停；且全库 **0 处** online/offline 监听
+    #          ⇒ 来网后无任何自愈路径，只能手点「确定」。
+    #   根因②：autoMeditate/autoAdventure 是 **zustand 内存态**（初值 !1，全库 0 处持久化）⇒ 刷新回 false；
+    #          且 YLXW_MED_SESS/ADV_ACC 是**模块级 var**，结算日志只在 false→true 边沿触发 ⇒ 刷新即永久丢失。
+    #   修法（用户三项裁定：非阻塞提示 + 记住开启状态 + 时长只算到离开那一刻）：
+    #     A 非阻塞提示条 YLR256NetBanner + YLR256Notice（替掉 Je() 模态）+ offline/online 监听（来网自愈）
+    #     B 开关持久化 yl_auto_switch + 会话 yl_auto_sess（记开门时刻/离开时刻）+ boot 补发 + boot 恢复
+    #   ★★ 顺序铁律：**r256 必须排在最后** —— 它改 YLSaveNotice / 自动存档 .catch / store 初始化 /
+    #      setAutoMeditate 等被 r206/r239/r243/r254 触碰过的区段（前方环的针脚若有冲突按 §22.5 升 tuple）。
+    ('r256', os.path.join(HERE, 'localtest', 'yl_r256_ext.py')),  # R-256 网络自愈 + 断点续跑
 ]
 
 

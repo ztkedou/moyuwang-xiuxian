@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 r"""
-yl_r255_ext.py — R-255 寿命系统重构：剩余寿命递减 → 年龄递增（纯客户端）
+yl_r255_ext.py — R-252 寿命系统重构：剩余寿命递减 → 年龄递增（补丁 r255；纯客户端）
 
 需求原文（用户原话，逐条）
 --------------------------------------------------------------------------
@@ -793,7 +793,7 @@ def _dump_views(txt0, out_txt):
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description='R-255 寿命重构（年龄制）（客户端 --src 补丁）')
+    ap = argparse.ArgumentParser(description='R-252 寿命重构（年龄制）（客户端 --src 补丁）')
     ap.add_argument('--src', required=True, help='装配产物 js')
     ap.add_argument('--node', default=None, help='node 可执行文件（缺省自动探测 PATH）')
     ap.add_argument('--dump', action='store_true', help='只打印对照，不写盘')
@@ -816,7 +816,7 @@ def main() -> int:
     # 1) 幂等 / 部分补丁态
     st = _classify(txt0)
     if st == 'patched':
-        print('[SKIP] source looks already patched（R-255 年龄制已在位）')
+        print('[SKIP] source looks already patched（R-252 年龄制已在位）')
         return 3
     if st == 'partial':
         print('[FAIL] 检测到部分补丁态，拒绝写盘')

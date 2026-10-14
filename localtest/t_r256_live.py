@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-r"""R-256 浏览器实测（修正版）：两个 bug 的端到端验证。
+r"""R-253 浏览器实测（修正版）：两个 bug 的端到端验证。
 
 ★ 上一版测试的错处（已修）：自动开关不是文字按钮「自动打坐」，而是打坐/历练卡片右上角的
   **小图标按钮**，用 `title="开启自动打坐"` / `"关闭自动打坐"` 标识（产物 @899222 实测）。
@@ -236,7 +236,7 @@ def main():
         pg.screenshot(path=os.path.join(HERE, '_r256_result.png'))
         br.close()
     srv.shutdown()
-    print('\n===== R-256 浏览器实测 =====')
+    print('\n===== R-253 浏览器实测 =====')
     print('  PASS = %d   FAIL = %d' % (len(PASS), len(FAIL)))
     for f in FAIL:
         print('   FAIL: %s' % f)

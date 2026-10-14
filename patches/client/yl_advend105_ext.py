@@ -323,7 +323,7 @@ def apply(p, ctx):
         ('冻结·setAutoAdventure setter 未动', 'setAutoAdventure:a=>t({autoAdventure:a})', 1, '==', '本模块不改开关'),
         ('冻结·paused 初值未动',       'pausedByShop:!1,pausedByBattle:!1,pausedByReputationEvent:!1,pausedByHeavenEarthSoul:!1,pausedByTribulation:!1', 1, '==', ''),
         # ★ 关键冻结：确保 setAutoAdventure 既有调用次数未异常变化（实测基线值 29）
-        # ★ 2026-10-14 R-256 合法新增调用点（29 → 31）⇒ 改 `>=`（不变量 = 未被删）。
+        # ★ 2026-10-14 R-253 合法新增调用点（29 → 31）⇒ 改 `>=`（不变量 = 未被删）。
         #   旧精确值 29 保留在此注释里，不静默放宽。
         ('冻结·setAutoAdventure 未被删（R256 后 ≥29）', 'setAutoAdventure',                        29, '>=', '本模块不新增/删除任何 setAutoAdventure 调用点'),
 

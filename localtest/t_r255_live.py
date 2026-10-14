@@ -148,7 +148,7 @@ def main():
         chk('4 无 JS 运行时错误', len(errs) == 0, ('; '.join(errs[:3]) if errs else ''))
         br.close()
 
-    print('\n===== R-255 线上端到端验收 =====')
+    print('\n===== R-252 线上端到端验收 =====')
     print('  PASS = %d   FAIL = %d' % (len(PASS), len(FAIL)))
     for f in FAIL:
         print('   FAIL: %s' % f)

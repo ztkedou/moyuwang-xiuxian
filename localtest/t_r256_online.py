@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-r"""R-256 线上端到端验收：直接在 https://moyuwang.online/myxxz/ 上验两个 bug 的修复。
+r"""R-253 线上端到端验收：直接在 https://moyuwang.online/myxxz/ 上验两个 bug 的修复。
 
 与 t_r256_live.py 的区别：那条走本地 build/ + API 反代；本脚本**打线上真实站点**，
 验证「玩家现在打开游戏就是修好的」。
@@ -176,7 +176,7 @@ def main():
         chk('3 无 JS 运行时错误', len(errs) == 0, ('; '.join(errs[:2]) if errs else ''))
         pg.screenshot(path=os.path.join(HERE, '_r256_online.png'))
         br.close()
-    print('\n===== R-256 线上端到端 =====')
+    print('\n===== R-253 线上端到端 =====')
     print('  PASS = %d   FAIL = %d' % (len(PASS), len(FAIL)))
     for f in FAIL:
         print('   FAIL: %s' % f)

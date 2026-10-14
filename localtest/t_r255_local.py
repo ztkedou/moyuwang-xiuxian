@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""R-255 本地联调：静态服务 build/ + /yl/api 反代到线上，Playwright 实测年龄制。
+"""R-252 本地联调：静态服务 build/ + /yl/api 反代到线上，Playwright 实测年龄制。
 
 用法: python localtest/t_r255_local.py
 断言（全部在真实浏览器里读真产物渲染/状态，不靠文本猜测）：
@@ -248,7 +248,7 @@ def main():
         chk('F 无 JS 运行时错误', len(errs) == 0, ('; '.join(errs[:3]) if errs else ''))
         br.close()
     srv.shutdown()
-    print('\n===== R-255 本地联调结果 =====')
+    print('\n===== R-252 本地联调结果 =====')
     print('  PASS = %d   FAIL = %d' % (len(PASS), len(FAIL)))
     for f in FAIL:
         print('   FAIL: %s' % f)

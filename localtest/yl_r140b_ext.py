@@ -283,7 +283,7 @@ def gates():
 
         # ===================== 冻结 =====================
         ('冻结·ZS 未动（被 Ig 调用）', FRZ_ZS, 1, '==', '§3.4② 复用'),
-        # ★ 2026-10-14（R-255 年龄制重构）交接：R-255 把 @815297 的 permanentEffect 加寿分支
+        # ★ 2026-10-14（R-252 年龄制重构）交接：R-252 把 @815297 的 permanentEffect 加寿分支
         #   由「u.maxLifespan += R.maxLifespan」改写为「u.lifeBonus += R.maxLifespan」⇒
         #   本针脚钉的旧写法在终态已不成立；断言**已移交** `localtest/yl_r255_ext.py`（E7）。
         #   ★ 非静默删除：FRZ_LIFE 常量与原因仍保留在本文件，只是不再进入 gates()。

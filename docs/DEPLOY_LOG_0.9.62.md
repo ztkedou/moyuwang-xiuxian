@@ -13,7 +13,7 @@
 
 | # | 任务 | 客户端 | 服务端 |
 |---|---|---|---|
-| R-256 | 网络自愈 + 自动循环断点续跑 | `localtest/yl_r256_ext.py`（第 98 个 / 新末环） | **无** |
+| R-253 | 网络自愈 + 自动循环断点续跑 | `localtest/yl_r256_ext.py`（第 98 个 / 新末环） | **无** |
 
 ### 起因（用户原话）
 
@@ -21,7 +21,7 @@
 > 只能手动点击才能继续。2.自动打坐和自动历练时，如果刷新页面，这一轮的结算信息就没有了，
 > 打坐和历练也停止了。」
 
-### ★★ 本批最关键的一点：**这是纯客户端批**（与上一批 R-255 相反）
+### ★★ 本批最关键的一点：**这是纯客户端批**（与上一批 R-252 相反）
 
 `srv/index_v28.ts` 与 0.9.61 **逐字节相同**（`bc623f31…`，仍 97 环）
 ⇒ 部署**可以** `--skip-server`，**零停机**（不重启 yl-server）。
@@ -108,7 +108,7 @@ return !U.autoAdventure||…||U.isAlertOpen||…
 
 ## 5. 上游门禁同步（§22.5）
 
-R-256 的 B3 把 `setAutoAdventure` setter 包了一层，boot 恢复又新增 1 处调用
+R-253 的 B3 把 `setAutoAdventure` setter 包了一层，boot 恢复又新增 1 处调用
 ⇒ 全 bundle 该标识 **29 → 31**，打穿三条钉「精确 29」的针脚：
 
 | 模块 | 门禁 | 处理 |
@@ -127,7 +127,7 @@ R-256 的 B3 把 `setAutoAdventure` setter 包了一层，boot 恢复又新增 1
 |---|---|---|
 | `www/assets/index-v2961-20261011.js` | `5e3c732e6a5e019d69a918c9de8f5fd1` | 同左（旧包保留不删 = 回滚点） |
 | `www/assets/index-v2960-20261011.js` | `dba25e79bf68085d004f74809c567b71` | 同左（0.9.60，更早回滚点） |
-| `www/assets/index-v2962-20261011.js` | —（新文件） | **`7f28979b3f2d1e75f4f2b9794830dcbd`**（2,354,602 B） |
+| `www/assets/index-v2962-20261011.js` | —（新文件） | **`c2d13533179955841df86891f21a1cb8`**（2,354,602 B） |
 | `server/index.ts` | `bc623f3117529477157ebdbb413cac88`（97 环） | **同左（本批未变）** |
 | `www/CHANGELOG.md` | `db61534c31586a139e90d5fdf6a87ada` | **`0df22f63dfade6a6e1e230f4af64b06a`** |
 | `www/CHANGELOG_PLAYER.md` | `f01951faeeefabc253b6667a2ba56041` | **`425f02bfbb2d5cdca35319e27c50eb01`** |
@@ -167,7 +167,7 @@ cp /root/backup/index-v2961-20261011.js.pre-v2962-<TS> /opt/yl/www/assets/
 ## 9. 本批定版指纹（供后续批次做 PREV 用）
 
 ```
-PREV_BUNDLE_MD5=7f28979b3f2d1e75f4f2b9794830dcbd
+PREV_BUNDLE_MD5=c2d13533179955841df86891f21a1cb8
 PREV_SRV_MD5=bc623f3117529477157ebdbb413cac88
 PREV_CHANGELOG_MD5=0df22f63dfade6a6e1e230f4af64b06a
 PREV_PLAYER_MD5=425f02bfbb2d5cdca35319e27c50eb01

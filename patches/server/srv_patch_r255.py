@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 r"""
-srv_patch_r255.py — R-255 寿命重构·服务端半边：炼丹配方 summary 文案同步（年龄制）
+srv_patch_r255.py — R-252 寿命重构·服务端半边：炼丹配方 summary 文案同步（补丁 r255；年龄制）
 
 需求原文（用户原话）
 --------------------------------------------------------------------------
@@ -16,7 +16,7 @@ srv_patch_r255.py — R-255 寿命重构·服务端半边：炼丹配方 summary
     · 延寿丹   summary: '服用 寿命+10年'                   ← 客户端实际 effect.lifespan=1
     · 九转金丹 summary: '…永久 全属性+1000 寿命上限+1000年'  ← 客户端实际 maxLifespan=5
 
-  R-255 把寿命改为年龄制、并把延寿类丹药重做为「真实寿元 +N」之后，这两条文案必须
+  R-252（补丁 r255）把寿命改为年龄制、并把延寿类丹药重做为「真实寿元 +N」之后，这两条文案必须
   跟着改，否则丹房界面会给玩家看**不存在的数值**（§22.10 字段/文案跨端不符会静默显示错值）。
 
 ==============================================================================
@@ -32,7 +32,7 @@ srv_patch_r255.py — R-255 寿命重构·服务端半边：炼丹配方 summary
                                             ← 与客户端 permanentEffect:{maxLifespan:5} 一致
 
   ★ 只改 `summary`（玩家可见文案），**不改** cost / minutes / rarity / unlockLevel /
-    profGain / 配方 key —— 那些是经济与丹道数值，R-255 不碰。
+    profGain / 配方 key —— 那些是经济与丹道数值，R-252 不碰。
   ★ 与 `srv_patch_064.py` 的联动：该环的门禁里逐字钉死了这两条 summary 的**旧形态**
     （"R64 新方 延寿丹" / "R64 新方 九转金丹"）。本环在其**之后**运行 ⇒ 会把那两条钉死
     形态打穿。按 §22.5 规矩，已把 `srv_patch_064.py` 的那两条门禁改为
@@ -63,8 +63,8 @@ A2_OLD = "summary: '服用 修为+5万｜永久 全属性+1000 寿命上限+1000
 A2_NEW = "summary: '服用 修为+5万｜永久 全属性+1000 真实寿元+5年', profGain: 500 },"
 
 EDITS = [
-    ('R255-S1 延寿丹 summary 寿命+10年 → 真实寿元+3年', A1_OLD, A1_NEW, 1),
-    ('R255-S2 九转金丹 summary 寿命上限+1000年 → 真实寿元+5年', A2_OLD, A2_NEW, 1),
+    ('r255-S1 延寿丹 summary 寿命+10年 → 真实寿元+3年', A1_OLD, A1_NEW, 1),
+    ('r255-S2 九转金丹 summary 寿命上限+1000年 → 真实寿元+5年', A2_OLD, A2_NEW, 1),
 ]
 
 # 依赖：这两条必须落在 ALCHEMY_RECIPES 表内（防锚点漂到别处）
@@ -93,10 +93,10 @@ FREEZE = [
 def gates(out):
     """补丁后形态的门禁五元组 (label, needle, expect, op, note)。"""
     g = [
-        ('R255-S1 新 summary 在位', A1_NEW, 1, '==', '真实寿元+3年'),
-        ('R255-S1 旧 summary 清零', A1_OLD, 0, '==', '寿命+10年 已删'),
-        ('R255-S2 新 summary 在位', A2_NEW, 1, '==', '真实寿元+5年'),
-        ('R255-S2 旧 summary 清零', A2_OLD, 0, '==', '寿命上限+1000年 已删'),
+        ('r255-S1 新 summary 在位', A1_NEW, 1, '==', '真实寿元+3年'),
+        ('r255-S1 旧 summary 清零', A1_OLD, 0, '==', '寿命+10年 已删'),
+        ('r255-S2 新 summary 在位', A2_NEW, 1, '==', '真实寿元+5年'),
+        ('r255-S2 旧 summary 清零', A2_OLD, 0, '==', '寿命上限+1000年 已删'),
         # ---- 全局：服务端不得再出现「寿命」二字（年龄制口径统一）----
         ('全局·服务端「寿命」清零', '寿命', 0, '==', '两处 summary 均已改写'),
     ]
@@ -116,7 +116,7 @@ def _classify(txt):
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description='R-255 服务端：炼丹 summary 文案同步（年龄制）')
+    ap = argparse.ArgumentParser(description='R-252 服务端：炼丹 summary 文案同步（年龄制）')
     ap.add_argument('--src', required=True, help='服务端 index_v28.ts（就地原子写回）')
     a = ap.parse_args()
     src_path = a.src
@@ -137,7 +137,7 @@ def main() -> int:
     # 2) 幂等 / 部分态
     st = _classify(txt0)
     if st == 'patched':
-        print('[SKIP] source looks already patched（R-255 服务端文案已在位）')
+        print('[SKIP] source looks already patched（R-252 服务端文案已在位）')
         return 0
     if st == 'partial':
         print('[FAIL] 检测到部分补丁态，拒绝写盘')

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""R-255 寿终流程验证：把服务端 age 推到死线之上，再用浏览器重新读档，看是否弹「转世重修」。
+"""R-252 寿终流程验证：把服务端 age 推到死线之上，再用浏览器重新读档，看是否弹「转世重修」。
 
 ★ 为什么走浏览器：寿终判定在客户端 `$w` 的 useEffect 里（`age >= YlxwLifeDeathLine(t)`），
   必须让真实页面重新加载服务端存档才会触发 ⇒ 这是唯一能证明「到点只能重开」的端到端路径。
@@ -182,7 +182,7 @@ def main():
         chk('2d 无 JS 运行时错误', len(errs) == 0, ('; '.join(errs[:2]) if errs else ''))
         br.close()
     srv.shutdown()
-    print('\n===== R-255 寿终验证 =====')
+    print('\n===== R-252 寿终验证 =====')
     print('  PASS = %d   FAIL = %d' % (len(PASS), len(FAIL)))
     for f in FAIL:
         print('   FAIL: %s' % f)

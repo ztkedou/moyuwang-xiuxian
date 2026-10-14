@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 r"""
-yl_r256_ext.py — R-256 网络自愈 + 自动循环断点续跑（纯客户端）
+yl_r256_ext.py — R-253 网络自愈 + 自动循环断点续跑（补丁 r256；纯客户端）
 
 用户报的两个 bug（原话）
 --------------------------------------------------------------------------
@@ -280,7 +280,7 @@ A_NOTICE = ("function YLSaveNotice(msg) {\n"
             "  try { console.warn('[YLSaveRetry] ' + msg); } catch (e) {}\n"
             "}")
 N_NOTICE = ("function YLSaveNotice(msg) {\n"
-            "  /* R-256: route through the NON-modal banner. The old path called the\n"
+            "  /* r256: route through the NON-modal banner. The old path called the\n"
             "     error-modal helper, which set alertState.isOpen; isAlertOpen is a hard\n"
             "     gate for the auto-meditate / auto-adventure loops, so a network blip\n"
             "     locked both loops until the player clicked OK by hand. */\n"
@@ -302,7 +302,7 @@ N_AUTOSAVE_CATCH = ('YLSync.push({player:c.player,logs:c.logs,marketItems:Ze.get
 # A4 来网自愈：在既有 setInterval 注册之后追加 online/offline 兜底（幂等标记）
 A_TIMER = 'setInterval(function () { if (!window.__ylBlocked) YLSync.beat(); }, 15e3);'
 N_TIMER = (A_TIMER + '\n'
-           '  /* R-256: 来网自愈 —— 全库原本 **0 处** online/offline 监听 ⇒ 断网后不自愈。 */\n'
+           '  /* r256: 来网自愈 —— 全库原本 **0 处** online/offline 监听 ⇒ 断网后不自愈。 */\n'
            '  try { if (typeof YLR256OnlineHeal === "function" && navigator && navigator.onLine) { setTimeout(function () { try { YLR256OnlineHeal(); } catch (e) {} }, 800); } } catch (e) {}')
 
 # --------------------------------------------------------------------------- 锚点（Bug 2）
@@ -313,7 +313,7 @@ N_AUTO_INJ = AUTO_JS + A_AUTO_INJ
 # B2 store 初始化：读回持久化开关
 A_STORE = 'autoMeditate:!1,autoAdventure:!1,'
 N_STORE = ('autoMeditate:!1,autoAdventure:!1,'
-           '/* R-256 backfill saved switches. MUST inline the key and read localStorage\n'
+           '/* r256 backfill saved switches. MUST inline the key and read localStorage\n'
            '   directly: this store literal is evaluated BEFORE our `var YLXW_AUTO_KEY`\n'
            '   is assigned, so calling a helper here silently does getItem(undefined)\n'
            '   and the backfill no-ops (real bug found by browser e2e, not by unit test). */\n'
@@ -351,7 +351,7 @@ N_ADV_EFF = ('O.useEffect(()=>{YlxwAdvSession(r);try{'
 # B6 boot 钩子：挂到既有的「玩家变更」订阅（它必然在存档载入后触发）
 A_SUB = ('Be.subscribe(t=>t.player,(t,r)=>{t&&r&&t!==r&&Ny()},{equalityFn:Object.is})')
 N_SUB = (A_SUB + '\n'
-         '/* R-256: boot hook. The player-subscribe above is the first moment both\n'
+         '/* r256: boot hook. The player-subscribe above is the first moment both\n'
          '   player and gameStarted are ready on every load/character switch, which is\n'
          '   exactly when a lost settlement must be replayed and the switches resumed. */\n'
          'try { if (typeof YLR256Boot === "function") { setTimeout(function () { try { YLR256Boot(); } catch (e) {} }, 1200); } } catch (e) {}')
@@ -394,7 +394,7 @@ def gates():
         # ★ 旧串必须**带函数头**一起断言：裸函数体在 bundle 里有两处（YLSaveNotice 与
         #   YLArbNotice 的函数体逐字相同）⇒ 只查函数体必假失败（本环实测踩到）。
         ('A2 YLSaveNotice 旧 Je 路径清零', "function YLSaveNotice(msg) {\n  try { if (typeof Je === 'function') { Je(msg); return; } } catch (e) {}", 0, '==', ''),
-        ('A2 YLSaveNotice 新函数头在位', "function YLSaveNotice(msg) {\n  /* R-256: route through the NON-modal banner.", 1, '==', ''),
+        ('A2 YLSaveNotice 新函数头在位', "function YLSaveNotice(msg) {\n  /* r256: route through the NON-modal banner.", 1, '==', ''),
         ('A3 自动存档改非模态', 'YLR256Notice:Je)(f instanceof Error?f.message:', 1, '==', ''),
         ('A3 自动存档旧 Je 清零', 'v-a.current<gS||(a.current=v,Je(f instanceof Error?f.message:', 0, '==', ''),
         ('A4 来网兜底调用在位', 'if (typeof YLR256OnlineHeal === "function" && navigator && navigator.onLine)', 1, '==', ''),
@@ -427,7 +427,7 @@ def gates():
         ('冻结·YLSaveAttempt 未动', 'function YLSaveAttempt(t) {', 1, '==', ''),
         ('冻结·YLSaveFetchError 未动', 'function YLSaveFetchError() {', 1, '==', ''),
         ('冻结·重试退避未动', 'function YLSaveBackoff(i, hintMs) {', 1, '==', ''),
-        ('冻结·打坐 reducer 未动', 'lifespan:Math', 0, '==', '（R-255 后应为 0）'),
+        ('冻结·打坐 reducer 未动', 'lifespan:Math', 0, '==', '（R-252 后应为 0）'),
         ('冻结·YlxwMedSession 本体未动', 'function YlxwMedSession(on) {', 1, '==', ''),
         ('冻结·YlxwAdvSession 本体未动', 'function YlxwAdvSession(on) {', 1, '==', ''),
         ('冻结·自动打坐门禁未动', 'if(!(!B.autoMeditate||!B.player||B.loading||B.cooldown>0||B.autoAdventure||B.isShopOpen||B.isReputationEventOpen||B.isTurnBasedBattleOpen||B.isAlertOpen||g.current))', 1, '==', ''),
@@ -512,7 +512,7 @@ def _dump_views(txt0, out_txt):
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description='R-256 网络自愈 + 自动循环断点续跑（客户端 --src 补丁）')
+    ap = argparse.ArgumentParser(description='R-253 网络自愈 + 自动循环断点续跑（客户端 --src 补丁）')
     ap.add_argument('--src', required=True)
     ap.add_argument('--node', default=None)
     ap.add_argument('--dump', action='store_true')
@@ -533,7 +533,7 @@ def main() -> int:
 
     st = _classify(txt0)
     if st == 'patched':
-        print('[SKIP] source looks already patched（R-256 已在位）')
+        print('[SKIP] source looks already patched（R-253 已在位）')
         return 3
     if st == 'partial':
         print('[FAIL] 检测到部分补丁态，拒绝写盘')

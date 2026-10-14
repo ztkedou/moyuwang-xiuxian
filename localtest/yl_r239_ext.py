@@ -103,13 +103,13 @@ def gates():
         ('R239-B note old cleared', OLD_NOTE_FRAG, 0, '==', ''),
         ('R239-fn kept', 'function YlxwLifeMul() {', 1, '==', ''),
         ('R239-decl kept', 'var YLXW_LIFE_AUTO_MUL = 0.0125;', 1, '==', ''),
-        # ★ 2026-10-14 R-255（年龄制重构）后：打坐扣命常量 0.001 → 0.0002；
+        # ★ 2026-10-14 R-252（年龄制重构）后：打坐扣命常量 0.001 → 0.0002；
         #   用 tuple 合计两种形态（build 时=旧形态，dryrun 全链后=新形态），两种场景均 == 1。
         ('R239-MED_LIFE kept',
          ('var YLXW_MED_LIFE = 0.001;',
           'var YLXW_MED_LIFE = 0.0002;'), 1, '==', ''),
         ('R239-call kept', '*YlxwLifeMul();', 1, '==', ''),
-        # ★ 2026-10-14 R-255 后：历练结算行由「扣剩余寿命」改为「加年龄 + lifespanChange 分流」；
+        # ★ 2026-10-14 R-252 后：历练结算行由「扣剩余寿命」改为「加年龄 + lifespanChange 分流」；
         #   两种形态合计计数，两种场景均 == 1。
         ('R239-settle kept',
          ('S.lifespan=Math.max(0,Math.min(t.maxLifespan,(t.lifespan??t.maxLifespan)+(r.lifespanChange||0)-h))',
@@ -117,7 +117,7 @@ def gates():
          1, '==', ''),
         ('R239-risk kept',
          '(l?1:u==="\u4f4e"?.3:u==="\u4e2d"?.6:u==="\u9ad8"?1:u==="\u6781\u5ea6\u5371\u9669"?1.5:.4)', 1, '==', ''),
-        # ★ 2026-10-14 R-255 后：历练结算新增 4 处 lifespanChange 读取（10 → 14）⇒ 改 >= 语义。
+        # ★ 2026-10-14 R-252 后：历练结算新增 4 处 lifespanChange 读取（10 → 14）⇒ 改 >= 语义。
         ('R239-lifespanChange kept', 'lifespanChange', 10, '>=', ''),
         ('R239-r206life kept', '/*[r206life]*/', 1, '==', ''),
         ('R239-r180adv4 kept', '/*[r180adv4]*/', 1, '==', ''),

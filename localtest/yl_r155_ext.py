@@ -157,7 +157,7 @@ def _gates_all():
         ('冻结·AdvSummary签名仍在', 'function YlxwAdvSummary(el) {', 1, '==', ''),
         ('冻结·R146仍在', 'YLXW_R146_V2919', 1, '==', ''),
         ('冻结·MedSession仍在', 'function YlxwMedSession(', 1, '==', ''),
-        # ★ 2026-10-14 R-256 合法新增调用点（29 → 31）⇒ 改 `>=`（不变量 = 未被删）。
+        # ★ 2026-10-14 R-253 合法新增调用点（29 → 31）⇒ 改 `>=`（不变量 = 未被删）。
         #   旧精确值 29 保留在此注释里，不静默放宽。
         ('冻结·setAutoAdventure未被删（R256 后 ≥29）', 'setAutoAdventure', 29, '>=', ''),
         # 幂等

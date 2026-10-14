@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""R-255 深度联调：用**服务端权威存档**（GET /yl/api/save）验证年龄制。
+"""R-252 深度联调：用**服务端权威存档**（GET /yl/api/save）验证年龄制。
 
 ★ 为什么不用 localStorage：本项目 §10 明确「服务端是唯一真相，客户端只推不拉」，
   本地 `xiuxian-game-save` 已不再是进度缓存 ⇒ 必须问服务端要。
@@ -226,7 +226,7 @@ def main():
         chk('5 无 JS 运行时错误', len(errs) == 0, ('; '.join(errs[:3]) if errs else ''))
         br.close()
     srv.shutdown()
-    print('\n===== R-255 深度联调 =====')
+    print('\n===== R-252 深度联调 =====')
     print('  PASS = %d   FAIL = %d' % (len(PASS), len(FAIL)))
     for f in FAIL:
         print('   FAIL: %s' % f)

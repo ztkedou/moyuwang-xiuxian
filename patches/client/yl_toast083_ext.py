@@ -332,7 +332,10 @@ def _gates():
         ('toast·上限 5 条',           'var YLXW_TOAST_MAX = 5;',             1, '==', ''),
         ('toast·驻留 2400ms',         'var YLXW_TOAST_HOLD_MS = 2400;',      1, '==', ''),
         ('toast·pointer-events:none', 'pointer-events:none;max-width:min(92vw,420px);', 1, '==', '不挡点击'),
-        ('toast·定义+调用共 10 处',    'YlxwToast(',                          10, '==', '定义 1 + 打坐 4 + 0.8.7 T5 活动中心 3（只调用不改宿主）'),
+        # ★ 2026-10-21 §22.5 跨模块针脚升级：fb100（1.0 批，V28 模块）合法新增 2 处调用
+        #   （成功 gain / 失败 danger，key=fb100）⇒ 本环 V28 终态计数 10→12。
+        #   改 >=10：只增不减的调用面；fb100 的 ==2 由其自家 gates 钉死。
+        ('toast·定义+调用共 10 处',    'YlxwToast(',                          10, '>=', '定义 1 + 打坐 4 + 0.8.7 T5 活动中心 3（只调用不改宿主；fb100 +2 ⇒ >=10）'),
         ('toast·未重复注入',          'var YLXW_TOAST_HOST_ID =',            1, '==', ''),
         # ---- 宿主位置：0.8.7 T1 改屏幕中间水平居中（0.8.3 右贴边形态作废）----
         ('toast·宿主水平居中',        'position:fixed;top:148px;left:50%;transform:translateX(-50%);z-index:2147482000;', 1, '==', '0.8.7 T1 居中'),

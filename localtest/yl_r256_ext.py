@@ -201,7 +201,19 @@ AUTO_JS = (
     'function YLR256StampLeave() {\n'
     '  try {\n'
     '    var ls = YLR256LS(); if (!ls) return;\n'
-    '    var cur = YLR256ReadSess(); if (!cur) return;\n'
+    '    var cur = YLR256ReadSess();\n'
+    '    /* r256v2 (1.0 sandbox A8, reproduced): a boot/replay race can leave NO\n'
+    '       session record while the loop is provably alive (on-edge ran, off-edge\n'
+    '       never did). Reconstruct it from the in-memory start marker so a real\n'
+    '       page close still has something to settle; loop-off stays a no-op. */\n'
+    '    if (!cur) {\n'
+    '      var swx = YLR256ReadSwitch();\n'
+    '      var ms = Number(window.__ylR256MedStart) > 0 ? Number(window.__ylR256MedStart) : 0;\n'
+    '      var asx = Number(window.__ylR256AdvStart) > 0 ? Number(window.__ylR256AdvStart) : 0;\n'
+    '      if (swx && swx.m && ms) cur = { m: ms };\n'
+    '      else if (swx && swx.a && asx) cur = { a: asx };\n'
+    '      else return;\n'
+    '    }\n'
     '    cur.left = Date.now();\n'
     '    ls.setItem(YLXW_SESS_KEY, JSON.stringify(cur));\n'
     '  } catch (e) {}\n'
@@ -238,15 +250,20 @@ AUTO_JS = (
     '  try { if (window.__ylR256Boot) return; window.__ylR256Boot = 1; } catch (e) { return; }\n'
     '  try { YLR256ReplayLost(); } catch (e) {}\n'
     '  try { YLR256AutoResume(); } catch (e) {}\n'
-    '  /* Start a fresh session for whatever is now running, otherwise the run\n'
-    '     that begins right after this reload would have no record at all and the\n'
-    '     NEXT reload would lose it silently. */\n'
+    '  /* Start a fresh session for whatever the PERSISTED switch says is wanted,\n'
+    '     otherwise the run that begins right after this reload would have no\n'
+    '     record at all and the NEXT reload/close would lose it silently.\n'
+    '     r256v2 (1.0 sandbox A8, reproduced): keying this off the volatile store\n'
+    '     field (st.autoMeditate) raced with the login flow, which can reset the\n'
+    '     in-memory flag after the backfill , so rebuild never ran and a real page\n'
+    '     close had nothing to settle. The persisted switch is the durable intent;\n'
+    '     when the loop actually starts, the on-edge overwrites cur.m with the\n'
+    '     real start, so an early rebuild self-corrects. */\n'
     '  try {\n'
-    '    var st = (typeof Be !== "undefined" && Be.getState) ? Be.getState() : null;\n'
     '    var sw = YLR256ReadSwitch() || {};\n'
     '    var now = Date.now();\n'
-    '    if (st && st.autoMeditate && sw.m) YLR256WriteSess("m", now);\n'
-    '    if (st && st.autoAdventure && sw.a) YLR256WriteSess("a", now);\n'
+    '    if (sw.m) YLR256WriteSess("m", now);\n'
+    '    if (sw.a) YLR256WriteSess("a", now);\n'
     '  } catch (e) {}\n'
     '}\n'
     '/* boot resume: switch==1 means the user wants it running -> resume it. */\n'
@@ -336,16 +353,16 @@ N_MED_EFF = ('O.useEffect(()=>{YlxwMedSession(t);try{'
              '/* Only a REAL off-edge counts as a user stop. The first render already\n'
              '   runs with t=false, and wiping the stored session there would destroy the\n'
              '   very state the next page needs to replay (real bug found by e2e). */\n'
-             'if(t){window.__ylR256MedOn=1;'
+             'if(t){window.__ylR256MedOn=1;window.__ylR256MedStart=Date.now();'
              'if(!window.__ylBlocked&&document.visibilityState!=="hidden")YLR256WriteSess("m",Date.now());}'
-             'else if(window.__ylR256MedOn){window.__ylR256MedOn=0;YLR256ClearSess("m");}'
+             'else if(window.__ylR256MedOn){window.__ylR256MedOn=0;window.__ylR256MedStart=0;YLR256ClearSess("m");}'
              '}catch(e){}},[t])')
 
 A_ADV_EFF = 'O.useEffect(()=>{YlxwAdvSession(r)},[r])'
 N_ADV_EFF = ('O.useEffect(()=>{YlxwAdvSession(r);try{'
-             'if(r){window.__ylR256AdvOn=1;'
+             'if(r){window.__ylR256AdvOn=1;window.__ylR256AdvStart=Date.now();'
              'if(!window.__ylBlocked&&document.visibilityState!=="hidden")YLR256WriteSess("a",Date.now());}'
-             'else if(window.__ylR256AdvOn){window.__ylR256AdvOn=0;YLR256ClearSess("a");}'
+             'else if(window.__ylR256AdvOn){window.__ylR256AdvOn=0;window.__ylR256AdvStart=0;YLR256ClearSess("a");}'
              '}catch(e){}},[r])')
 
 # B6 boot 钩子：挂到既有的「玩家变更」订阅（它必然在存档载入后触发）
@@ -354,7 +371,31 @@ N_SUB = (A_SUB + '\n'
          '/* r256: boot hook. The player-subscribe above is the first moment both\n'
          '   player and gameStarted are ready on every load/character switch, which is\n'
          '   exactly when a lost settlement must be replayed and the switches resumed. */\n'
-         'try { if (typeof YLR256Boot === "function") { setTimeout(function () { try { YLR256Boot(); } catch (e) {} }, 1200); } } catch (e) {}')
+         'try { if (typeof YLR256Boot === "function") { setTimeout(function () { try { YLR256Boot(); } catch (e) {} }, 1200); } } catch (e) {}\n'
+         '/* r256v2 (1.0 sandbox A8, reproduced): the setTimeout above fires at\n'
+         '   script-eval +1.2s — usually BEFORE the save loads. In that state\n'
+         '   AutoResume no-ops (no player/gameStarted) and the login flow can still\n'
+         '   reset the in-memory switches afterwards, so the session record is never\n'
+         '   rebuilt and a real page close has nothing to settle. Latch a SECOND,\n'
+         '   late pass on the first player change where gameStarted is true:\n'
+         '   re-run resume + session rebuild (never ReplayLost — the pending session\n'
+         '   was already consumed or absent; a re-run would only re-set REPLAYED). */\n'
+         'try {\n'
+         '  var __yl256LateArmed = 0;\n'
+         '  Be.subscribe(function (s) { return s.player; }, function () {\n'
+         '    if (__yl256LateArmed) return;\n'
+         '    var s2 = null; try { s2 = Be.getState(); } catch (e0) {}\n'
+         '    if (!s2 || !s2.player || !s2.gameStarted) return;\n'
+         '    __yl256LateArmed = 1;\n'
+         '    setTimeout(function () { try {\n'
+         '      YLR256AutoResume();\n'
+         '      var st2 = (typeof Be !== "undefined" && Be.getState) ? Be.getState() : null;\n'
+         '      var sw2 = YLR256ReadSwitch() || {};\n'
+         '      if (sw2.m && st2 && st2.autoMeditate) YLR256WriteSess("m", Date.now());\n'
+         '      if (sw2.a && st2 && st2.autoAdventure) YLR256WriteSess("a", Date.now());\n'
+         '    } catch (e) {} }, 1200);\n'
+         '  }, { equalityFn: Object.is });\n'
+         '} catch (e) {}')
 
 EDITS = [
     ('A1 注入网络自愈块 YLR256NetBanner/Notice/OnlineHeal（幂等标记 %s）' % MARK, A_NET_INJ, N_NET_INJ, 1),
@@ -404,23 +445,42 @@ def gates():
         ('B1 读开关在位', 'function YLR256ReadSwitch()', 1, '==', ''),
         ('B1 写开关在位', 'function YLR256WriteSwitch(m, a)', 1, '==', ''),
         ('B1 待补发期禁止写入', 'if (Number(cur.left) > 0 && !YLR256_REPLAYED) return;', 1, '==', '保住开门时刻'),
-        ('B1 补发标志已置位', 'YLR256_REPLAYED = !0;', 3, '==', '声明初始化 + 两条早退 + 消费路径'),
-        ('B1 boot 为新会话记账', 'if (st && st.autoMeditate && sw.m) YLR256WriteSess("m", now);', 1, '==', ''),
+        # ★ 2026-10-21 §22.5 跨补丁针脚升级：r258 CloseSettle 合法追加第 4 处
+        #   `YLR256_REPLAYED = !0;`（r258 gates 'R1 REPLAYED 置位' 以 ==4 钉死总数）。
+        #   本环门禁改 >=3：r256 单独形态=3、r258 后形态=4 均绿（dryrun 在终态重跑本表）。
+        ('B1 补发标志已置位', 'YLR256_REPLAYED = !0;', 3, '>=', '声明初始化 + 两条早退 + 消费路径（r258 追加第 4 处）'),
+        # ★ 2026-10-21 r256v2（1.0 沙盒 A8）：boot 尾重建改按**持久化开关**——旧条件
+        #   `st && st.autoMeditate && sw.m` 在 login 流重置内存字段的竞态下恒 false
+        #   ⇒ 会话永不重建 ⇒ 真关页无从结算（插桩实锤，见 B6 晚到自愈注释）。
+        ('B1 boot 为新会话记账', 'if (sw.m) YLR256WriteSess("m", now);', 1, '==', '按持久化开关重建；loop 真启动时 on-edge 用真实起点覆盖'),
         ('B1 离开时刻打点在位', 'function YLR256StampLeave()', 1, '==', ''),
         ('B1 补发结算在位', 'function YLR256ReplayLost()', 1, '==', ''),
         ('B1 boot 恢复在位', 'function YLR256AutoResume()', 1, '==', ''),
         ('B1 pagehide 打点在位', 'window.addEventListener("pagehide", function () { YLR256StampLeave(); })', 1, '==', ''),
         ('B1 visibilitychange 打点在位', 'if (document.visibilityState === "hidden") YLR256StampLeave();', 1, '==', ''),
-        ('B2 store 回填在位', '...(function () { try { var _r = window.localStorage.getItem("yl_auto_switch");', 1, '==', '必须内联读，不依赖后置 var'),
+        # ★ 2026-10-21 §22.5 跨补丁针脚升级：r258 R3 在回填 IIFE 头插入 NavKind 守卫，
+        #   旧前缀（含 "...(function"）在 r258 后形态 0 命中 ⇒ 针脚改取两形态公共体
+        #   （r258 新前缀由其 gates 'R3 回填守卫恰好一处' 钉死）。
+        ('B2 store 回填在位', 'try { var _r = window.localStorage.getItem("yl_auto_switch"); if (!_r) return {};', 1, '==', '必须内联读，不依赖后置 var'),
         ('B3 setAutoMeditate 写持久化', '_s.m=a?1:0;YLR256WriteSwitch(_s.m,_s.a);', 1, '==', ''),
         ('B3 setAutoAdventure 写持久化', '_s.a=a?1:0;YLR256WriteSwitch(_s.m,_s.a);', 1, '==', ''),
         ('B4 打坐边沿记会话', 'YLR256WriteSess("m",Date.now())', 1, '==', ''),
-        ('B4 打坐只认真关闭边沿', 'else if(window.__ylR256MedOn){window.__ylR256MedOn=0;YLR256ClearSess("m");}', 1, '==', '首帧 false 不得清会话'),
+        ('B4 打坐只认真关闭边沿', 'else if(window.__ylR256MedOn){window.__ylR256MedOn=0;window.__ylR256MedStart=0;YLR256ClearSess("m");}', 1, '==', '首帧 false 不得清会话'),
         ('B5 历练边沿记会话', 'YLR256WriteSess("a",Date.now())', 1, '==', ''),
-        ('B5 历练只认真关闭边沿', 'else if(window.__ylR256AdvOn){window.__ylR256AdvOn=0;YLR256ClearSess("a");}', 1, '==', '首帧 false 不得清会话'),
+        ('B5 历练只认真关闭边沿', 'else if(window.__ylR256AdvOn){window.__ylR256AdvOn=0;window.__ylR256AdvStart=0;YLR256ClearSess("a");}', 1, '==', '首帧 false 不得清会话'),
         ('B6 boot 编排函数在位', 'function YLR256Boot()', 1, '==', ''),
         ('B6 boot 幂等守卫在位', 'if (window.__ylR256Boot) return; window.__ylR256Boot = 1;', 1, '==', ''),
         ('B6 boot 钩子已挂到玩家订阅', 'if (typeof YLR256Boot === "function") { setTimeout(function () { try { YLR256Boot(); } catch (e) {} }, 1200); }', 1, '==', ''),
+        # ---- r256v2（1.0 沙盒 A8 修复：会话重建三重自愈）----
+        ('B4·MedStart 记忆标记', 'window.__ylR256MedStart=Date.now();', 1, '==', '真边沿记内存起点'),
+        ('B5·AdvStart 记忆标记', 'window.__ylR256AdvStart=Date.now();', 1, '==', ''),
+        ('B4·MedStart 关边清零', 'window.__ylR256MedStart=0;', 1, '==', ''),
+        ('B5·AdvStart 关边清零', 'window.__ylR256AdvStart=0;', 1, '==', ''),
+        ('B1·StampLeave 无会话重建打坐支', 'if (swx && swx.m && ms) cur = { m: ms };', 1, '==', 'boot/回放竞态漏会话时按内存起点重建'),
+        ('B1·StampLeave 无会话重建历练支', 'else if (swx && swx.a && asx) cur = { a: asx };', 1, '==', ''),
+        ('B1·StampLeave 循环未跑不重建', 'cur = { a: asx };\n      else return;\n    }\n    cur.left = Date.now();', 1, '==', 'MedOn/AdvOn 均无 ⇒ 保持 no-op'),
+        ('B6·晚到自愈闩', 'var __yl256LateArmed = 0;', 1, '==', 'player+gameStarted 就绪后 +1.2s 补一轮 resume+重建'),
+        ('B6·晚到自愈重建会话', 'if (sw2.m && st2 && st2.autoMeditate) YLR256WriteSess("m", Date.now());', 1, '==', ''),
         # ---- 冻结：既有关键路径一字未动 ----
         ('冻结·YLSyncBanner 未动', 'function YLSyncBanner(on) {', 1, '==', ''),
         ('冻结·YLSync 对象未动', 'var YLSync = {', 1, '==', ''),
@@ -556,7 +616,8 @@ def main() -> int:
     ok = True
     for label, needle, exp, op, note in gates():
         act = out_txt.count(needle)
-        good = (act == exp)
+        # 2026-10-21：支持 '>='（B1 跨补丁针脚升级所需；此前 op 字段被忽略恒按 == 比）
+        good = (act >= exp) if str(op).startswith('>=') else (act == exp)
         ok = ok and good
         print('  [%s] %-32s actual=%d expect %s %d' % ('OK' if good else 'FAIL', label, act, op, exp))
     if not ok:

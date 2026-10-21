@@ -23,6 +23,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 # 客户端补丁模块（yl_*_ext.py）已收进 patches/client/，加进搜索路径保持裸名 import 不变
 sys.path.insert(0, os.path.join(HERE, 'patches', 'client'))
+# 1.0 批：yl_fb100_ext 在 localtest/（append 防抢位 patches/client/ 与根，同 dryrun_087 先例）
+sys.path.append(os.path.join(HERE, 'localtest'))
 from yl_patch import Patcher, zh  # noqa: E402
 from yl_v26n_ext import (  # noqa: E402
     CORE_JS, REFORGE_JS, SPELL_JS, BATTLE_PATCHES,
@@ -338,7 +340,7 @@ from yl_r067_ext import apply as v28_r067_apply  # noqa: E402
 from yl_068_ext import apply as v28_r068_apply  # noqa: E402
 
 BASE = os.path.join(HERE, 'build', 'assets', 'index-v26m-20260927.js')
-OUT = os.path.join(HERE, 'build', 'assets', 'index-v2962-20261011.js')
+OUT = os.path.join(HERE, 'build', 'assets', 'index-v100-20261020.js')
 
 # v28 模块调用顺序（锚点稳定性 + num-balance 必须最后）：
 #   saveretry → arb → version → mail → entry → sectgf → char → bond → ui
@@ -385,6 +387,8 @@ OUT = os.path.join(HERE, 'build', 'assets', 'index-v2962-20261011.js')
 from yl_r227_ext import apply as v28_r227_apply  # noqa: E402
 from yl_r228_ext import apply as v28_r228_apply  # noqa: E402
 from yl_r230_ext import apply as v28_r230_apply  # noqa: E402
+# ---- 2026-10-21 1.0 批（FB-100 玩家反馈，第 99 个 v28 模块；文件在 localtest/）----
+from yl_fb100_ext import apply as v28_fb100_apply  # noqa: E402
 
 V28_MODULES = [
     ('saveretry', v28_saveretry_apply),
@@ -556,6 +560,12 @@ V28_MODULES = [
     ('r227', v28_r227_apply),              # R-227 specialAbility 死数据：保留字段 + 3 处显式标注（唯一活消费点 = R38 建号向导卡 ⭐）
     ('r228', v28_r228_apply),              # R-228 修炼效率明细行权重 0.26/0.6/0.6/0.1/0.32 → 改读 bd() 返回值（同源，杜绝双写）
     ('r230', v28_r230_apply),              # R-230 天地之髓掉落门槛 [化神,∞) → [元婴,化神]（与天地精华同构；历练/额外/黑市 + minRealm 共 4 处）
+    # ---- 2026-10-21 1.0 批（FB-100 玩家反馈，第 99 模块）----
+    #   锚点全在基线（const Q0="/yl/api" 派生点 / 底部栏容器 className / 宗门卡↔页脚之间），
+    #   与前置模块零交集；YlxwVersionGet/YlxwToast 全 typeof 守卫，位置不敏感。
+    #   ★ 不放 numbal 之后：dryrun_087.wiring_checks 硬门禁「numbal 必须恒最后」
+    #     （localtest/dryrun_087.py:196），且 numbal 的预算重算无需看到本模块的 UI/API 桥块。
+    ('fb100', v28_fb100_apply),            # FB-100 底部栏「反馈」卡 + raw fetch /yl/api/feedback
     ('numbal', v28_numbal_apply),
 ]
 
@@ -801,6 +811,10 @@ STANDALONE_CLIENT = [
     #   ★★ 顺序铁律：**r256 必须排在最后** —— 它改 YLSaveNotice / 自动存档 .catch / store 初始化 /
     #      setAutoMeditate 等被 r206/r239/r243/r254 触碰过的区段（前方环的针脚若有冲突按 §22.5 升 tuple）。
     ('r256', os.path.join(HERE, 'localtest', 'yl_r256_ext.py')),  # R-256 网络自愈 + 断点续跑
+    # ---- 2026-10-21 1.0 批（序 = 列表序；两脚本锚区零交集：r257 锚 r146/r161/r162 日志包装链
+    #      最外层、r258 锚 r256 注入块 ⇒ 必须排 r256 之后；fb100 锚基线、已在 V28_MODULES 落位）----
+    ('r257', os.path.join(HERE, 'localtest', 'yl_r257_ext.py')),  # R-254 历练年龄/危险度行独立成条（最外层旁路；服务端零改动）
+    ('r258', os.path.join(HERE, 'localtest', 'yl_r258_ext.py')),  # R-255 真关页面不盗跑（boot 分流 + store 回填守卫；★ 必须排 r256 之后）
 ]
 
 

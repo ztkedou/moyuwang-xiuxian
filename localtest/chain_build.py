@@ -739,10 +739,18 @@ SRV_CHAIN = [
                              #     age 递增 / lifeRatio 隐藏死线 / 寿元区间展示 / 突破与丹药加上限 /
                              #     寿终清档重开 / 法宝 cost.lifespan 死代码清理 / 新丹驻颜丹·返春丹。
                              #   · 链序**必须排在最后**（新末环）。
+    # ---- 2026-10-21 1.0 批（FB-100 玩家反馈，第 98 环 / 新末环）----
+    'srv_patch_feedback.py',  # FB-100 feedback 表(+2 索引，与 GM 表同 serialize 块/生命周期)
+                              #   + 玩家端点 POST /api/feedback（authenticateToken；60s 频控查表回 409）
+                              #   + GM 端点 GET /api/gm/feedback、POST /api/gm/feedback/:id/status
+                              #     （authenticateGM；插在 logGmAction() 之后，无 TDZ）
+                              #   + feedback_inbox.jsonl 追加存档（try/catch 自吞，不影响 200）。
+                              #   · 配套客户端半边 = V28_MODULES 'fb100'（raw fetch，不走 Xc/YlxwPost）；
+                              #     GM 页半边 = gm-pro.html「反馈」页（api('/gm/feedback…')）。
 ]
 
 # ---- 前端产物路径（0.9.31 换名：index-v2931-20261007.js，与 build_v26n.py OUT 逐字一致）----
-CLIENT_OUT = os.path.join(ROOT, 'build', 'assets', 'index-v2962-20261011.js')
+CLIENT_OUT = os.path.join(ROOT, 'build', 'assets', 'index-v100-20261020.js')
 SRV_OUT = os.path.join(ROOT, 'srv', 'index_v28.ts')
 
 

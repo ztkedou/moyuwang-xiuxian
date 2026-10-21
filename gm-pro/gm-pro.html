@@ -1,0 +1,3416 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1.0" />
+<title>云灵 GM Pro v2</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Microsoft Yahei",sans-serif;background:#0f1115;color:#e6e6e6;font-size:13px}
+a{color:#5b8cff;text-decoration:none}
+a:hover{text-decoration:underline}
+.topbar{display:flex;align-items:center;gap:12px;padding:10px 16px;background:#161922;border-bottom:1px solid #262a35}
+.topbar h1{font-size:15px;margin:0;font-weight:600}
+.topbar .spacer{flex:1}
+.pill{padding:3px 8px;border-radius:10px;background:#262a35;color:#9aa3b2;font-size:11px}
+.pill.ok{background:#1a3a2c;color:#5be19e}
+.pill.warn{background:#3a2c1a;color:#e1c25b}
+.pill.err{background:#3a1a1a;color:#e15b5b}
+button{background:#2a3040;color:#e6e6e6;border:1px solid #3a4050;padding:6px 12px;border-radius:4px;cursor:pointer;font-size:12px;font-family:inherit}
+button:hover{background:#353c4f}
+button.primary{background:#3a5fff;border-color:#3a5fff}
+button.primary:hover{background:#4a6fff}
+button.danger{background:#a33a3a;border-color:#a33a3a}
+button.danger:hover{background:#b34a4a}
+button:disabled{opacity:.5;cursor:not-allowed}
+input,select,textarea{background:#1c1f29;color:#e6e6e6;border:1px solid #2a3040;padding:6px 8px;border-radius:4px;font-size:12px;width:100%;font-family:inherit}
+input:focus,select:focus,textarea:focus{outline:none;border-color:#3a5fff}
+label{display:block;font-size:11px;color:#9aa3b2;margin:8px 0 4px}
+.layout{display:grid;grid-template-columns:340px 1fr;min-height:calc(100vh - 51px)}
+.sidebar{border-right:1px solid #262a35;overflow-y:auto}
+.main{overflow-y:auto;padding:0}
+.tabs{display:flex;background:#161922;border-bottom:1px solid #262a35;padding:0 8px;gap:2px;position:sticky;top:0;z-index:10}
+.tabs button{background:transparent;border:none;padding:10px 16px;color:#9aa3b2;font-size:12px;border-bottom:2px solid transparent;border-radius:0}
+.tabs button:hover{color:#e6e6e6;background:transparent}
+.tabs button.active{color:#5b8cff;border-bottom-color:#3a5fff}
+.view-btn:hover{color:#e6e6e6;background:transparent}
+.view-btn.active{color:#5b8cff;border-bottom-color:#3a5fff}
+.tab-pane{padding:16px 20px;display:none}
+.tab-pane.active{display:block}
+.toolbar{display:flex;gap:8px;padding:10px;border-bottom:1px solid #262a35;align-items:center;flex-wrap:wrap}
+.toolbar input{flex:1;min-width:120px}
+.player-row{padding:10px 12px;border-bottom:1px solid #1c1f29;cursor:pointer}
+.player-row:hover{background:#1a1d27}
+.player-row.active{background:#1f2840;border-left:3px solid #3a5fff;padding-left:9px}
+.player-row .name{font-weight:600;display:flex;align-items:center;gap:4px}
+.player-row .meta{font-size:10px;color:#9aa3b2;margin-top:2px;display:flex;gap:8px;flex-wrap:wrap}
+.player-row .right{text-align:right;font-size:11px;margin-top:2px}
+.player-row .right .v{color:#e1c25b}
+.badge{display:inline-block;padding:1px 6px;border-radius:8px;background:#3a1a1a;color:#e15b5b;font-size:10px;margin-left:4px}
+.badge.sect{background:#1a2c3a;color:#5bc7e1}
+.badge.ban{background:#3a1a1a;color:#e15b5b}
+.section{background:#161922;border:1px solid #262a35;border-radius:6px;padding:14px;margin-bottom:14px}
+.section h2{margin:0 0 10px;font-size:13px;font-weight:600;color:#9aa3b2;text-transform:uppercase;letter-spacing:.5px;display:flex;justify-content:space-between;align-items:center}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.stat{background:#1c1f29;padding:10px;border-radius:4px}
+.stat .k{font-size:10px;color:#9aa3b2;text-transform:uppercase}
+.stat .v{font-size:16px;font-weight:600;margin-top:4px;word-break:break-all}
+.row{display:flex;gap:8px;align-items:flex-end;margin-bottom:8px;flex-wrap:wrap}
+.row > *{flex:1;min-width:120px}
+.actions{display:flex;gap:6px;flex-wrap:wrap}
+pre{background:#0a0c12;padding:10px;border-radius:4px;overflow:auto;font-size:11px;max-height:400px;border:1px solid #262a35}
+.toast{position:fixed;top:60px;right:20px;z-index:9999;display:flex;flex-direction:column;gap:8px;max-width:380px}
+.toast .t{padding:10px 16px;border-radius:4px;background:#161922;border:1px solid #262a35;font-size:12px;box-shadow:0 4px 12px rgba(0,0,0,.5)}
+.toast .t.ok{border-color:#1a3a2c;background:#1a3a2c;color:#5be19e}
+.toast .t.err{border-color:#3a1a1a;background:#3a1a1a;color:#e15b5b}
+.toast .t.info{background:#1a2c3a;color:#5bc7e1}
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:1000;display:flex;align-items:center;justify-content:center;padding:20px}
+.modal{background:#161922;border:1px solid #262a35;border-radius:8px;max-width:560px;width:100%;max-height:90vh;overflow-y:auto;padding:20px}
+.modal h3{margin:0 0 12px}
+.item-card{background:#1c1f29;padding:8px 10px;border-radius:4px;margin-bottom:4px;display:flex;justify-content:space-between;align-items:center;font-size:11px;gap:8px}
+.item-card .name{font-weight:600}
+.item-card .meta{color:#9aa3b2;font-size:10px;margin-top:2px;display:flex;gap:6px;flex-wrap:wrap}
+.item-card .right{display:flex;gap:4px;align-items:center}
+.item-card input.qty{width:50px;padding:2px 4px;font-size:11px}
+.tag{display:inline-block;padding:1px 6px;background:#262a35;border-radius:3px;font-size:10px;margin-right:4px;color:#9aa3b2}
+.danger-zone{border-color:#3a1a1a;background:#1a1015}
+.empty{text-align:center;padding:40px;color:#9aa3b2;font-size:12px}
+code{background:#0a0c12;padding:1px 5px;border-radius:2px;font-size:11px;color:#e1c25b}
+table.data{width:100%;border-collapse:collapse;font-size:11px}
+table.data th,table.data td{padding:6px 8px;border-bottom:1px solid #262a35;text-align:left}
+table.data th{background:#1c1f29;color:#9aa3b2;font-weight:600;font-size:10px;text-transform:uppercase}
+table.data tr:hover{background:#1a1d27}
+table.data input,table.data select{padding:3px 5px;font-size:11px;width:auto;min-width:80px}
+.kv{display:grid;grid-template-columns:160px 1fr 80px;gap:6px;align-items:center;margin-bottom:4px}
+.kv label{margin:0;font-size:11px;color:#9aa3b2}
+.kv input,.kv select{padding:4px 6px;font-size:11px}
+.kv button{padding:3px 8px;font-size:10px}
+.tab-badge{padding:1px 6px;background:#262a35;border-radius:8px;font-size:10px;color:#9aa3b2;margin-left:4px}
+.monitor-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}
+.dash-card{background:#1c1f29;padding:14px;border-radius:6px;border:1px solid #262a35}
+.dash-card .label{font-size:11px;color:#9aa3b2;text-transform:uppercase}
+.dash-card .value{font-size:24px;font-weight:600;margin-top:4px;color:#5b8cff}
+.dash-card .sub{font-size:10px;color:#9aa3b2;margin-top:2px}
+.bar{height:6px;background:#262a35;border-radius:3px;overflow:hidden;margin-top:4px}
+.bar-fill{height:100%;background:#3a5fff}
+
+/* ===== 移动端响应式：单列堆叠 + 小幅美化 ===== */
+@media (max-width: 768px){
+  /* 顶栏 */
+  .topbar{flex-wrap:wrap;gap:8px;padding:10px 12px}
+  .topbar h1{font-size:14px}
+
+  /* 视图/详情标签：横向可滚动，禁止压缩 */
+  #viewbar{overflow-x:auto;-webkit-overflow-scrolling:touch;white-space:nowrap;padding:0 6px}
+  #viewbar .view-btn{white-space:nowrap;flex:0 0 auto}
+  .tabs{overflow-x:auto;-webkit-overflow-scrolling:touch;white-space:nowrap}
+  .tabs button{white-space:nowrap;flex:0 0 auto;padding:10px 12px}
+
+  /* 主布局：两栏 -> 单列堆叠 */
+  .layout{grid-template-columns:1fr;min-height:0}
+  .sidebar{border-right:none;border-bottom:1px solid #262a35;max-height:44vh;overflow-y:auto;-webkit-overflow-scrolling:touch}
+  .main{padding:0}
+  .tab-pane{padding:12px}
+
+  /* 表单/网格：收紧间距，避免溢出 */
+  .toolbar{padding:8px}
+  .toolbar input{min-width:0}
+  .row > *{min-width:0}
+  .kv{grid-template-columns:104px 1fr 70px;gap:5px}
+  .kv label{font-size:11px}
+  .grid{grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px}
+  .monitor-grid{grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px}
+  .section{padding:12px;border-radius:8px}
+  .stat{padding:8px}
+  .stat .v{font-size:15px}
+  .player-row{padding:10px}
+
+  /* 数据表格：允许内容换行，避免整页横向溢出 */
+  table.data{table-layout:auto}
+  table.data th,table.data td{white-space:normal;word-break:break-word;padding:5px 6px;font-size:10px}
+  pre{max-height:50vh}
+
+  /* 弹窗与提示 */
+  .modal-bg{padding:12px;align-items:flex-start}
+  .modal{padding:16px;border-radius:10px}
+  .toast{left:12px;right:12px;max-width:none;top:12px}
+  .toast .t{font-size:12px}
+
+  /* 触控友好：加大点击区域 */
+  button{min-height:32px}
+  input,select,textarea{min-height:34px}
+  .empty{padding:28px;font-size:12px}
+}
+@media (max-width: 400px){
+  .kv{grid-template-columns:90px 1fr 62px;gap:4px}
+  .stat .v{font-size:14px}
+}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <h1>云灵 GM Pro v2</h1>
+  <span id="status" class="pill warn">未登录</span>
+  <span class="spacer"></span>
+  <a href="/yl/gm/" target="_blank" style="font-size:11px">→ 旧版 GM</a>
+  <button id="btn-logout" style="display:none">登出</button>
+</div>
+
+<div id="viewbar" style="display:none;background:#1a1d27;border-bottom:1px solid #262a35;padding:0 8px;gap:2px;align-items:stretch">
+  <button class="view-btn active" data-view="players" style="background:transparent;border:none;padding:10px 16px;color:#9aa3b2;font-size:12px;border-bottom:2px solid transparent;border-radius:0;font-family:inherit;cursor:pointer">玩家管理</button>
+  <button class="view-btn" data-view="dashboard" style="background:transparent;border:none;padding:10px 16px;color:#9aa3b2;font-size:12px;border-bottom:2px solid transparent;border-radius:0;font-family:inherit;cursor:pointer">监控仪表盘</button>
+  <button class="view-btn" data-view="market" style="background:transparent;border:none;padding:10px 16px;color:#9aa3b2;font-size:12px;border-bottom:2px solid transparent;border-radius:0;font-family:inherit;cursor:pointer">交易行管理</button>
+  <button class="view-btn" data-view="chat" style="background:transparent;border:none;padding:10px 16px;color:#9aa3b2;font-size:12px;border-bottom:2px solid transparent;border-radius:0;font-family:inherit;cursor:pointer">世界聊天</button>
+  <button class="view-btn" data-view="items" style="background:transparent;border:none;padding:10px 16px;color:#9aa3b2;font-size:12px;border-bottom:2px solid transparent;border-radius:0;font-family:inherit;cursor:pointer">全部物品</button>
+  <button class="view-btn" data-view="dicts" style="background:transparent;border:none;padding:10px 16px;color:#9aa3b2;font-size:12px;border-bottom:2px solid transparent;border-radius:0;font-family:inherit;cursor:pointer">游戏字典</button>
+  <button class="view-btn" data-view="activity" style="background:transparent;border:none;padding:10px 16px;color:#9aa3b2;font-size:12px;border-bottom:2px solid transparent;border-radius:0;font-family:inherit;cursor:pointer">活动管理</button>
+  <button class="view-btn" data-view="batch" style="background:transparent;border:none;padding:10px 16px;color:#9aa3b2;font-size:12px;border-bottom:2px solid transparent;border-radius:0;font-family:inherit;cursor:pointer">批量操作</button>
+  <button class="view-btn" data-view="audit" style="background:transparent;border:none;padding:10px 16px;color:#9aa3b2;font-size:12px;border-bottom:2px solid transparent;border-radius:0;font-family:inherit;cursor:pointer">审计日志</button>
+  <button class="view-btn" data-view="mail" style="background:transparent;border:none;padding:10px 16px;color:#9aa3b2;font-size:12px;border-bottom:2px solid transparent;border-radius:0;font-family:inherit;cursor:pointer">发信</button>
+  <button class="view-btn" data-view="feedback" style="background:transparent;border:none;padding:10px 16px;color:#9aa3b2;font-size:12px;border-bottom:2px solid transparent;border-radius:0;font-family:inherit;cursor:pointer">反馈</button>
+  <span style="flex:1"></span>
+  <span style="font-size:11px;color:#9aa3b2;align-self:center;padding-right:12px">v2.5 · GM 补全版</span>
+</div>
+
+<div id="loginBox" class="modal-bg">
+  <div class="modal" style="max-width:380px">
+    <h3>GM 登录</h3>
+    <label>GM 密码</label>
+    <input id="login-pwd" type="password" placeholder="输入 GM_PASSWORD" />
+    <div style="margin-top:14px;text-align:right"><button class="primary" id="btn-login">登录</button></div>
+    <div id="login-err" style="color:#e15b5b;margin-top:10px;font-size:11px"></div>
+  </div>
+</div>
+
+<div id="app" style="display:none">
+  <!-- 玩家管理视图 -->
+  <div class="view-pane" data-view-pane="players">
+    <div class="layout" style="min-height:calc(100vh - 96px)">
+      <div class="sidebar">
+        <div class="toolbar">
+          <input id="search" placeholder="搜索玩家(账号/角色名)..." />
+          <select id="filter-banned" style="width:auto;min-width:80px">
+            <option value="">全部</option><option value="0">正常</option><option value="1">已封禁</option>
+          </select>
+        </div>
+        <div class="toolbar" style="padding-top:0">
+          <button class="primary" id="btn-refresh" style="flex:1">刷新列表</button>
+        </div>
+        <div class="toolbar" style="padding:6px 10px;font-size:11px;color:#9aa3b2">
+          共 <span id="player-count">0</span> 人 · 第 <span id="page-info">1/1</span> 页
+          <span style="flex:1"></span>
+          <button id="btn-prev" style="padding:2px 6px">‹</button>
+          <button id="btn-next" style="padding:2px 6px">›</button>
+        </div>
+        <div id="player-list"></div>
+      </div>
+
+      <div class="main">
+        <div id="empty-detail" class="tab-pane active">
+          <div class="empty">← 在左侧选一个玩家</div>
+        </div>
+        <div id="detail" style="display:none">
+          <div class="tabs">
+            <button class="tab-btn active" data-tab="basic">基础属性</button>
+            <button class="tab-btn" data-tab="inventory">储物袋</button>
+            <button class="tab-btn" data-tab="extra">灵根/灵宠/成就</button>
+            <button class="tab-btn" data-tab="grotto">洞府</button>
+            <button class="tab-btn" data-tab="lottery">抽奖</button>
+            <button class="tab-btn" data-tab="actions">账号操作</button>
+          </div>
+          <div class="tab-pane" data-pane="basic"></div>
+          <div class="tab-pane" data-pane="inventory"></div>
+          <div class="tab-pane" data-pane="extra"></div>
+          <div class="tab-pane" data-pane="grotto"></div>
+          <div class="tab-pane" data-pane="lottery"></div>
+          <div class="tab-pane" data-pane="actions"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 监控仪表盘视图 -->
+  <div class="view-pane" data-view-pane="dashboard" style="display:none;padding:16px 20px">
+    <div id="dashboard-content">
+      <div class="empty">加载中...</div>
+    </div>
+    <div class="section" style="margin-top:14px;padding:10px 14px">
+      <h2 style="font-size:12px;display:flex;align-items:center;gap:10px">
+        存档 Schema 元数据（表结构）
+        <span style="flex:1"></span>
+        <button onclick="loadSchema()" style="padding:3px 10px;font-size:11px">加载 / 刷新</button>
+      </h2>
+      <div style="font-size:11px;color:#9aa3b2;margin-bottom:8px">
+        来自 <code>GET /gm/schema</code>：<code>PRAGMA table_info</code> 输出的各表字段定义，
+        写存档/排障时核对字段名用。
+      </div>
+      <div id="schema-content"><div class="empty">未加载</div></div>
+    </div>
+  </div>
+
+  <!-- 交易行管理视图 -->
+  <div class="view-pane" data-view-pane="market" style="display:none;padding:16px 20px">
+    <div class="toolbar" style="background:transparent;padding:0 0 10px">
+      <select id="market-status" style="width:auto;min-width:120px">
+        <option value="">全部状态</option>
+        <option value="active">在售</option>
+        <option value="sold">已售出</option>
+        <option value="cancelled">已下架</option>
+      </select>
+      <input id="market-search" placeholder="按物品名/卖家名筛选..." style="flex:1">
+      <button class="primary" onclick="loadMarket()">刷新</button>
+    </div>
+    <div id="market-content"><div class="empty">加载中...</div></div>
+    <div class="toolbar" style="background:transparent;padding:10px 0 0;font-size:11px;color:#9aa3b2" id="market-pager"></div>
+  </div>
+
+  <!-- 世界聊天视图 -->
+  <div class="view-pane" data-view-pane="chat" style="display:none;padding:16px 20px">
+    <div class="toolbar" style="background:transparent;padding:0 0 10px">
+      <input id="chat-search" placeholder="按用户/内容筛选..." style="flex:1">
+      <button class="primary" onclick="loadChat()">刷新</button>
+    </div>
+    <div id="chat-content"><div class="empty">加载中...</div></div>
+  </div>
+
+  <!-- 全部物品视图 -->
+  <div class="view-pane" data-view-pane="items" style="display:none;padding:16px 20px">
+    <div class="section" style="padding:10px 14px;margin-bottom:10px;background:#1a2c3a;border-color:#2c4a5a">
+      <div style="font-size:12px;color:#5bc7e1">
+        <b>关于物品字典：</b>游戏中的物品有<b>固定模板</b>（如下所列，共 <span id="items-count">0</span> 件），玩家获得的物品是从这些模板中按稀有度/概率抽出的。
+        <br>新物品来源：① 抽奖池 (lottery) ② 商店购买 ③ 怪物/秘境掉落 ④ 任务奖励 ⑤ 玩家间交易行。
+        <br>物品的<b>属性</b>(攻击/防御/附加效果等)会按<b>品质+词缀</b>随机生成。
+      </div>
+    </div>
+    <div class="toolbar" style="background:transparent;padding:0 0 10px">
+      <select id="items-type-filter" style="width:auto;min-width:140px">
+        <option value="">全部分类</option>
+      </select>
+      <input id="items-search" placeholder="按物品名搜索..." style="flex:1">
+      <button class="primary" onclick="loadItems()">刷新字典</button>
+    </div>
+    <div id="items-view-content"><div class="empty">加载中...</div></div>
+  </div>
+
+  <!-- 游戏字典视图（成就/称号/灵宠/洞府/功法/天赋/草药/宗门） -->
+  <div class="view-pane" data-view-pane="dicts" style="display:none;padding:16px 20px">
+    <div class="toolbar" style="background:transparent;padding:0 0 10px">
+      <select id="dicts-tab" style="width:auto;min-width:140px" onchange="switchDictsTab()">
+        <option value="achievements">成就</option>
+        <option value="titles">称号</option>
+        <option value="arts">功法</option>
+        <option value="pets">灵宠</option>
+        <option value="grotto">洞府</option>
+        <option value="talents">天赋</option>
+        <option value="sects">宗门</option>
+        <option value="herbs">草药</option>
+      </select>
+      <input id="dicts-search" placeholder="搜索中/英文/ID..." style="flex:1" oninput="renderDictsTab()">
+      <button class="primary" onclick="loadDicts()">刷新字典</button>
+    </div>
+    <div id="dicts-content"><div class="empty">加载中...</div></div>
+  </div>
+
+  <!-- 活动管理视图（GET/POST /gm/activity + /gm/activity/config） -->
+  <div class="view-pane" data-view-pane="activity" style="display:none;padding:16px 20px">
+    <div class="section" style="padding:12px 14px;margin-bottom:12px;background:#2c2437;border-color:#4a3a5a">
+      <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+        <div>
+          <div style="font-size:13px;color:#c9a0e1;font-weight:600">活动引擎全局开关</div>
+          <div style="font-size:11px;color:#9aa3b2;margin-top:3px">
+            关闭后：<b>所有倍率停止发放</b>（修为/灵石加倍立即失效），但活动仍在客户端展示倒计时。<br>
+            这是紧急止损用的 kill switch，日常勿关。
+          </div>
+        </div>
+        <span style="flex:1"></span>
+        <span id="act-engine-pill" class="pill" style="font-size:12px">未知</span>
+        <button id="act-engine-toggle" class="primary" onclick="toggleEngine()" disabled>加载中…</button>
+      </div>
+    </div>
+
+    <div class="toolbar" style="background:transparent;padding:0 0 10px">
+      <button class="primary" onclick="openActivityForm()">＋ 新建活动</button>
+      <button onclick="loadActivity()">刷新</button>
+      <span style="flex:1"></span>
+      <span id="act-mult-hint" style="font-size:11px;color:#9aa3b2;align-self:center"></span>
+    </div>
+
+    <div id="activity-content"><div class="empty">加载中...</div></div>
+  </div>
+
+  <!-- 批量操作视图（POST /gm/players/batch） -->
+  <div class="view-pane" data-view-pane="batch" style="display:none;padding:16px 20px">
+    <div class="section" style="padding:12px 14px;margin-bottom:12px;background:#3a2c1a;border-color:#5a452c">
+      <div style="font-size:12px;color:#e1c05b">
+        <b>⚠ 批量操作会一次改动多名玩家，不可撤销。</b>
+        <br>筛选条件为空 = <b>匹配全服所有已建号玩家</b>。执行前请先用下方「预览命中」确认人数。
+        <br>发放值为<b>增量</b>（正数发放、负数扣除）；物品按同名合并。
+      </div>
+    </div>
+
+    <div class="section" style="padding:12px 14px;margin-bottom:12px">
+      <h2 style="font-size:12px;margin-bottom:10px">① 筛选目标玩家</h2>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
+        <div>
+          <label>境界序号 (realm_index，留空=不限)</label>
+          <input id="bat-realm" type="number" min="0" placeholder="留空=全部境界" />
+        </div>
+        <div>
+          <label>最低战力 (combat_power ≥)</label>
+          <input id="bat-mincp" type="number" min="0" placeholder="留空=不限战力" />
+        </div>
+        <div>
+          <label>账号名关键字 (LIKE 模糊匹配)</label>
+          <input id="bat-keyword" placeholder="留空=不限账号" />
+        </div>
+      </div>
+      <div style="margin-top:10px">
+        <button onclick="previewBatch()">预览命中人数</button>
+        <span id="bat-preview" style="margin-left:12px;font-size:12px"></span>
+      </div>
+    </div>
+
+    <div class="section" style="padding:12px 14px;margin-bottom:12px">
+      <h2 style="font-size:12px;margin-bottom:10px">② 选择要执行的操作（留空=不执行该项）</h2>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
+        <div>
+          <label>灵石增减 (+发放 / -扣除)</label>
+          <input id="bat-stones" type="number" placeholder="如 1000 或 -1000" />
+        </div>
+        <div>
+          <label>抽奖券增减</label>
+          <input id="bat-tickets" type="number" placeholder="如 10" />
+        </div>
+        <div>
+          <label>修为增减</label>
+          <input id="bat-exp" type="number" placeholder="如 1000" />
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:10px;margin-top:10px">
+        <div>
+          <label>发放物品名（从物品字典选取或手填）</label>
+          <input id="bat-itemname" placeholder="留空=不发物品" list="bat-itemlist" />
+          <datalist id="bat-itemlist"></datalist>
+        </div>
+        <div>
+          <label>数量</label>
+          <input id="bat-itemqty" type="number" min="1" value="1" />
+        </div>
+        <div>
+          <label>类型</label>
+          <input id="bat-itemtype" value="材料" />
+        </div>
+        <div>
+          <label>品质</label>
+          <select id="bat-itemrarity">
+            <option value="普通">普通</option><option value="优秀">优秀</option>
+            <option value="精良">精良</option><option value="史诗">史诗</option>
+            <option value="传说">传说</option><option value="神话">神话</option>
+          </select>
+        </div>
+      </div>
+      <div style="margin-top:10px">
+        <label>封禁状态（留空=不改动）</label>
+        <select id="bat-ban" style="max-width:220px">
+          <option value="">不改动</option>
+          <option value="1">批量封禁</option>
+          <option value="0">批量解封</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="section" style="padding:12px 14px">
+      <h2 style="font-size:12px;margin-bottom:10px">③ 执行</h2>
+      <button class="danger" onclick="executeBatch()" id="bat-exec">执行批量操作</button>
+      <span id="bat-result" style="margin-left:12px;font-size:12px"></span>
+    </div>
+  </div>
+
+  <!-- 审计日志视图（GET /gm/audit-logs，客户端筛选 + CSV 导出） -->
+  <div class="view-pane" data-view-pane="audit" style="display:none;padding:16px 20px">
+    <div class="section" style="padding:10px 14px;margin-bottom:10px;background:#1a2c3a;border-color:#2c4a5a">
+      <div style="font-size:11px;color:#5bc7e1">
+        服务端 <code>/gm/audit-logs</code> 只支持 <code>limit</code>（上限 500），<b>无服务端筛选</b>。
+        下方筛选与导出均为<b>客户端处理</b>，数据取最近 N 条后在前端过滤。
+      </div>
+    </div>
+    <div class="toolbar" style="background:transparent;padding:0 0 10px;flex-wrap:wrap;gap:8px">
+      <label style="align-self:center;font-size:11px;color:#9aa3b2">取最近</label>
+      <input id="aud-limit" type="number" value="500" min="10" max="500" style="width:90px">
+      <label style="align-self:center;font-size:11px;color:#9aa3b2">条</label>
+      <button class="primary" onclick="loadAuditView()">加载</button>
+      <span style="width:12px"></span>
+      <input id="aud-f-action" placeholder="按动作筛选(如 grant/ban)" style="width:200px" oninput="renderAuditView()">
+      <input id="aud-f-target" placeholder="按目标筛选(如 user:75)" style="width:190px" oninput="renderAuditView()">
+      <input id="aud-f-when" placeholder="时间关键字(如 2026-09-29)" style="width:180px" oninput="renderAuditView()">
+      <button onclick="clearAuditFilters()">清除筛选</button>
+      <span style="flex:1"></span>
+      <button onclick="exportAuditCsv()">导出 CSV</button>
+    </div>
+    <div id="aud-summary" style="font-size:11px;color:#9aa3b2;margin-bottom:8px"></div>
+    <div id="audit-view-content"><div class="empty">点「加载」拉取日志</div></div>
+  </div>
+
+  <!-- 发信视图（POST /api/mail/send，GM 专用；服务端零改动，纯前端补入口） -->
+  <div class="view-pane" data-view-pane="mail" style="display:none;padding:16px 20px">
+    <div class="section" style="padding:12px 14px;margin-bottom:12px;background:#3a2c1a;border-color:#5a452c">
+      <div style="font-size:12px;color:#e1c05b">
+        <b>⚠ 发信会直接写入玩家邮箱；全服群发 = 给每个已建号玩家各发一封，不可撤回。</b>
+        <br>附件灵石为<b>随邮件到账</b>（玩家领取后生效），数额范围 <code>0 ~ 1e9</code>。
+        <br>每次成功发送都会写入 GM 审计日志（<code>mail_send</code>），可在「审计日志」视图核对。
+      </div>
+    </div>
+
+    <div class="section" style="padding:14px">
+      <h2 style="font-size:12px;margin-bottom:10px">① 收件人</h2>
+      <div style="display:flex;gap:20px;flex-wrap:wrap;align-items:center">
+        <label style="display:flex;align-items:center;gap:6px;margin:0">
+          <input type="radio" name="mail-mode" value="single" checked onchange="onMailModeChange()" style="width:auto;margin:0" />
+          <span>单发</span>
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;margin:0">
+          <input type="radio" name="mail-mode" value="all" onchange="onMailModeChange()" style="width:auto;margin:0" />
+          <span style="color:#e1a95b;font-weight:600">全服群发</span>
+        </label>
+      </div>
+
+      <div id="mail-single-fields" style="margin-top:12px">
+        <div style="display:grid;grid-template-columns:190px 1fr;gap:10px">
+          <div>
+            <label>标识类型</label>
+            <select id="mail-target-type" onchange="onMailTargetTypeChange()">
+              <option value="username">按用户名 (username)</option>
+              <option value="userId">按用户 ID (userId)</option>
+            </select>
+          </div>
+          <div>
+            <label id="mail-target-label">用户名</label>
+            <input id="mail-target" placeholder="输入用户名" />
+          </div>
+        </div>
+      </div>
+
+      <div id="mail-all-hint" style="display:none;margin-top:12px;font-size:12px;color:#e15b5b">
+        全服群发：将为 <b>所有已建号玩家</b> 各生成一封邮件（服务端 <code>INSERT...SELECT FROM users</code>）。
+      </div>
+    </div>
+
+    <div class="section" style="padding:14px">
+      <h2 style="font-size:12px;margin-bottom:10px">② 内容</h2>
+      <label>标题（必填，最长 100 字）</label>
+      <input id="mail-title" maxlength="100" placeholder="如：维护补偿" />
+      <label>正文（最长 2000 字）</label>
+      <textarea id="mail-content" rows="5" maxlength="2000" placeholder="正文内容…"></textarea>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px">
+        <div>
+          <label>发件人署名（可空，默认 system）</label>
+          <input id="mail-sender" maxlength="32" placeholder="system" />
+        </div>
+        <div>
+          <label>附件灵石（可空；0 ~ 1e9）</label>
+          <input id="mail-lingshi" type="number" min="0" max="1000000000" step="1" placeholder="留空 = 无附件" />
+        </div>
+      </div>
+    </div>
+
+    <div class="section" style="padding:14px">
+      <h2 style="font-size:12px;margin-bottom:10px">③ 发送</h2>
+      <button class="primary" id="mail-send-btn" onclick="sendMail()">发送</button>
+      <button onclick="resetMailForm()" style="margin-left:8px">清空表单</button>
+      <div id="mail-result" style="margin-top:12px;font-size:12px"></div>
+    </div>
+  </div>
+
+  <!-- 反馈视图（玩家端 POST /api/feedback 写入；GM 读 GET /api/gm/feedback、改状态 POST /api/gm/feedback/:id/status） -->
+  <div class="view-pane" data-view-pane="feedback" style="display:none;padding:16px 20px">
+    <div class="toolbar" style="background:transparent;padding:0 0 10px">
+      <select id="fb-status" style="width:auto;min-width:120px">
+        <option value="">全部状态</option>
+        <option value="open">待处理</option>
+        <option value="resolved">已处理</option>
+        <option value="closed">已关闭</option>
+      </select>
+      <button class="primary" onclick="loadFeedback()">刷新</button>
+      <span id="fb-summary" style="font-size:11px;color:#9aa3b2;align-self:center"></span>
+    </div>
+    <div id="fb-content"><div class="empty">加载中...</div></div>
+    <div class="toolbar" style="background:transparent;padding:10px 0 0;font-size:11px;color:#9aa3b2" id="fb-pager"></div>
+  </div>
+</div>
+
+<!-- 活动建场/编辑弹窗 -->
+<div id="act-modal" class="modal-bg" style="display:none">
+  <div class="modal" style="max-width:520px">
+    <h3 id="act-modal-title">新建活动</h3>
+    <input type="hidden" id="act-id" />
+    <label>活动类型</label>
+    <select id="act-type" onchange="onActTypeChange()"></select>
+    <div id="act-type-desc" style="font-size:11px;color:#9aa3b2;margin:6px 0 10px"></div>
+
+    <label>活动名称（留空则用类型默认名，最长 24 字）</label>
+    <input id="act-name" placeholder="留空使用默认名称" maxlength="24" />
+
+    <label>倍率（1 ~ 100；<span style="color:#e1a95b">仅 target=exp/stones 的类型真正生效</span>）</label>
+    <input id="act-multiplier" type="number" min="1" max="100" step="1" value="2" />
+
+    <label>开始时间</label>
+    <input id="act-start" type="datetime-local" />
+    <label>结束时间</label>
+    <input id="act-end" type="datetime-local" />
+
+    <label style="display:flex;align-items:center;gap:8px;margin-top:10px">
+      <input type="checkbox" id="act-enabled" checked style="width:auto;margin:0" />
+      <span>启用（启用且当前处于活动窗口内 → 全服江湖志播报一次）</span>
+    </label>
+
+    <div id="act-form-err" style="color:#e15b5b;margin-top:10px;font-size:11px"></div>
+    <div style="margin-top:16px;text-align:right">
+      <button onclick="closeActivityForm()">取消</button>
+      <button class="primary" onclick="saveActivity()" style="margin-left:8px">保存</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toasts"></div>
+
+<script>
+/* ===== 通用工具 ===== */
+const API = '/yl/api';
+let token = localStorage.getItem('yl_gm_token') || '';
+let currentUser = null;
+let currentSave = null;
+let allPlayers = [];
+let page = 1, pageSize = 20, total = 0, totalPages = 1;
+let itemsDict = [];
+let gameDicts = null;  // 游戏字典（成就/称号/灵宠/洞府/功法/天赋/草药/宗门/物品）
+let activeTab = 'basic';
+let petEditingIdx = -1;  // 当前正在编辑的灵宠下标（-1=关闭弹窗）
+
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function toast(msg,type='info',ms=3500){const d=document.createElement('div');d.className='t '+type;d.textContent=msg;document.getElementById('toasts').appendChild(d);setTimeout(()=>d.remove(),ms);}
+/* 强确认：危险操作须逐字输入玩家名方可执行（替代原先可连点/回车穿透的 confirm 弹窗）。
+   util: 不做任何自动 trim 之外的宽容匹配，大小写与空格必须完全一致，防止误触。 */
+function strongConfirm(title, detail, expectText){
+  const typed = window.prompt(title + '\n\n' + detail + '\n\n请输入玩家名以确认：' + expectText);
+  if(typed === null) return false;                    // 取消
+  if(String(typed).trim() !== String(expectText)){    // 不匹配一律拒绝
+    toast('确认失败：输入的玩家名与「'+expectText+'」不一致，操作已取消','err',5000);
+    return false;
+  }
+  return true;
+}
+async function api(path, opts={}){
+  opts.headers = Object.assign({'Content-Type':'application/json'}, opts.headers||{});
+  if(token) opts.headers['Authorization']='Bearer '+token;
+  if(opts.body && typeof opts.body!=='string') opts.body=JSON.stringify(opts.body);
+  const r = await fetch(API+path, opts);
+  if(r.status===401){token='';localStorage.removeItem('yl_gm_token');setStatus('登录已过期','err');showLogin();throw new Error('401');}
+  const j = await r.json().catch(()=>({}));
+  if(!r.ok) throw new Error(j.error || ('HTTP '+r.status));
+  return j;
+}
+function setStatus(t,cls){const el=document.getElementById('status');el.textContent=t;el.className='pill '+cls;}
+
+/* ===== 登录 ===== */
+function showLogin(){
+  document.getElementById('loginBox').style.display='flex';
+  document.getElementById('app').style.display='none';
+  document.getElementById('btn-logout').style.display='none';
+}
+function showApp(){
+  document.getElementById('loginBox').style.display='none';
+  document.getElementById('app').style.display='block';
+  document.getElementById('viewbar').style.display='flex';
+  document.getElementById('btn-logout').style.display='inline-block';
+  setStatus('已登录','ok');
+}
+document.getElementById('btn-login').onclick = async ()=>{
+  const pwd = document.getElementById('login-pwd').value;
+  document.getElementById('login-err').textContent='';
+  try{
+    const r = await api('/gm/login',{method:'POST',body:{password:pwd}});
+    token = r.token; localStorage.setItem('yl_gm_token', token);
+    showApp();
+    loadPlayers(); loadItems(); loadDicts();
+  }catch(e){document.getElementById('login-err').textContent = e.message;}
+};
+document.getElementById('login-pwd').onkeydown = e=>{if(e.key==='Enter') document.getElementById('btn-login').click();};
+document.getElementById('btn-logout').onclick = async ()=>{
+  try{await api('/gm/logout',{method:'POST'});}catch(e){}
+  token='';localStorage.removeItem('yl_gm_token');showLogin();
+};
+
+/* ===== 玩家列表 ===== */
+document.getElementById('btn-refresh').onclick=loadPlayers;
+document.getElementById('search').oninput=()=>{page=1;loadPlayers();};
+document.getElementById('filter-banned').onchange=()=>{page=1;loadPlayers();};
+document.getElementById('btn-prev').onclick=()=>{if(page>1){page--;loadPlayers();}};
+document.getElementById('btn-next').onclick=()=>{if(page<totalPages){page++;loadPlayers();}};
+
+async function loadPlayers(){
+  const q = document.getElementById('search').value.trim();
+  const banned = document.getElementById('filter-banned').value;
+  const params = new URLSearchParams({page, pageSize});
+  if(q) params.set('q',q);
+  if(banned) params.set('banned',banned);
+  try{
+    const r = await api('/gm/players?'+params);
+    allPlayers = r.players; total = r.total;
+    totalPages = Math.max(1, Math.ceil(total/pageSize));
+    document.getElementById('player-count').textContent = total;
+    document.getElementById('page-info').textContent = page+'/'+totalPages;
+    const box = document.getElementById('player-list');
+    if(allPlayers.length===0){box.innerHTML='<div class="empty">无匹配玩家</div>';return;}
+    box.innerHTML = allPlayers.map(p=>`
+      <div class="player-row ${currentUser&&currentUser.id===p.id?'active':''}" data-id="${p.id}">
+        <div class="name">
+          ${esc(p.charName||p.username)}
+          ${p.charName&&p.charName!==p.username?`<span class="tag" style="color:#9aa3b2">@${esc(p.username)}</span>`:''}
+          ${p.banned?'<span class="badge ban">封</span>':''}
+          ${p.sectName?'<span class="badge sect">'+esc(p.sectName)+'</span>':''}
+        </div>
+        <div class="meta">
+          <span>#${p.id}</span><span>${esc(p.realm||'未开始')}</span><span>Lv${p.realmLevel}</span><span>CP ${p.combatPower}</span>
+        </div>
+        <div class="right">灵石 <span class="v">${p.spiritStones}</span> · <span style="color:#9aa3b2;font-size:10px">${p.lastActive?p.lastActive.substring(0,16):'无存档'}</span></div>
+      </div>
+    `).join('');
+    box.querySelectorAll('.player-row').forEach(el=>{
+      el.onclick=()=>loadPlayer(parseInt(el.dataset.id));
+    });
+  }catch(e){toast('加载失败: '+e.message,'err');}
+}
+
+/* ===== 物品字典 ===== */
+async function loadItems(){
+  try{
+    const r = await api('/gm/items');
+    itemsDict = r.items;
+  }catch(e){toast('加载物品字典失败: '+e.message,'err');}
+}
+// 缓存物品分类下拉
+  let _itemTypeFilter = 'all';
+  let _slotFilter = 'all';
+const EQUIP_SLOT_ORDER = ['武器','帽','胸甲','护腕','腰带','鞋','披风','项链','戒指','护符','发簪','耳坠','手镯','法宝'];
+function slotFilterOptions(){
+  // 从 itemsDict 提取所有装备部位（slot）+ 数量
+  const counts = {};
+  itemsDict.forEach(it => { if(it.slot) counts[it.slot] = (counts[it.slot] || 0) + 1; });
+  const slots = EQUIP_SLOT_ORDER.filter(s => counts[s]).concat(Object.keys(counts).filter(s => !EQUIP_SLOT_ORDER.includes(s)).sort());
+  let html = '<option value="all">全部部位 ('+ Object.keys(counts).length +')</option>';
+  for(const s of slots){
+    html += `<option value="${esc(s)}" ${_slotFilter===s?'selected':''}>${esc(s)} (${counts[s]})</option>`;
+  }
+  return html;
+}
+function itemOptions(filterType, slotFilter){
+  // 按 type 分组生成 optgroup，可按 filterType / 部位(slot) 过滤
+  const groups = {};
+  itemsDict.forEach(it=>{
+    if(filterType && filterType !== 'all' && it.type !== filterType) return;
+    if(slotFilter && slotFilter !== 'all' && it.slot !== slotFilter) return;
+    if(!groups[it.type]) groups[it.type]=[];
+    groups[it.type].push(it);
+  });
+  let html = '';
+  for(const t of Object.keys(groups).sort()){
+    html += `<optgroup label="${esc(t)} (${groups[t].length})">`;
+    for(const it of groups[t]){
+      const realmTag = it.realm ? `[${esc(it.realm)}]` : '';
+      const slotTag = it.slot ? `[${esc(it.slot)}]` : '';
+      const label = `${esc(it.name)} | ${esc(it.subType||'')} | ${realmTag}${slotTag}${esc(it.rarity||'')}`;
+      html += `<option value="${esc(it.name)}" data-id="${esc(it.id||'')}" data-type="${esc(it.type)}" data-subtype="${esc(it.subType||'')}" data-rarity="${esc(it.rarity||'')}" data-realm="${esc(it.realm||'')}">${label}</option>`;
+    }
+    html += `</optgroup>`;
+  }
+  return html || '<option value="">-- 无物品 --</option>';
+}
+function itemTypeFilterOptions(){
+  // 从 itemsDict 提取所有 type + 数量
+  const counts = {};
+  itemsDict.forEach(it => { counts[it.type] = (counts[it.type] || 0) + 1; });
+  let html = '<option value="all">全部 ('+itemsDict.length+')</option>';
+  for(const t of Object.keys(counts).sort()){
+    html += `<option value="${esc(t)}" ${_itemTypeFilter===t?'selected':''}>${esc(t)} (${counts[t]})</option>`;
+  }
+  return html;
+}
+function refreshGrantItemSelect(){
+  // 重新填充 grant-name select 内容
+  const sel = document.getElementById('grant-name');
+  const filterSel = document.getElementById('grant-type-filter');
+  const slotSel = document.getElementById('grant-slot-filter');
+  const t = filterSel ? filterSel.value : _itemTypeFilter;
+  const s = slotSel ? slotSel.value : _slotFilter;
+  _itemTypeFilter = t; _slotFilter = s;
+  if(sel) sel.innerHTML = '<option value="">-- 选物品 --</option>' + itemOptions(t, s);
+}
+function onGrantTypeFilterChange(sel){
+  _itemTypeFilter = sel.value;
+  refreshGrantItemSelect();
+}
+function onGrantSlotFilterChange(sel){
+  _slotFilter = sel.value;
+  refreshGrantItemSelect();
+}
+
+/* ===== 游戏字典 (成就/称号/灵宠/洞府/功法/天赋/草药/宗门) ===== */
+async function loadDicts(){
+  try{
+    const d = await api('/gm/dicts');
+    gameDicts = d;
+    window._dictStats = {};
+    for(const k of ['achievements','titles','arts','pets','grotto','talents','sects','herbs','items','lottery','shops']){
+      window._dictStats[k] = Array.isArray(d[k]) ? d[k].length : 0;
+    }
+    // 更新"游戏字典"下拉框里的数字
+    const sel = document.getElementById('dicts-tab');
+    if(sel){
+      for(const opt of sel.options){
+        const m = opt.value.match(/^(achievements|titles|arts|pets|grotto|talents|sects|herbs)$/);
+        if(m) opt.textContent = ({achievements:'成就',titles:'称号',arts:'功法',pets:'灵宠',grotto:'洞府',talents:'天赋',sects:'宗门',herbs:'草药'})[m[1]] + ' (' + (window._dictStats[m[1]]||0) + ')';
+      }
+    }
+  }catch(e){
+    toast('加载游戏字典失败: '+e.message,'err');
+    gameDicts = {};
+  }
+}
+
+// 查中文名（成就/称号/灵宠/功法/洞府都靠这个）
+function cn(key, kind){
+  if(!gameDicts || !key) return null;
+  const list = gameDicts[kind] || [];
+  const hit = list.find(x => x.id === key || x.name === key);
+  return hit ? hit.name : null;
+}
+function grottoKeyCN(key){
+  // 洞府的字段名通常是英文 key 如 'level'、'autoHarvest'，dict 用 name 做字段名匹配
+  if(!gameDicts || !gameDicts.grotto) return null;
+  const hit = gameDicts.grotto.find(x => x.name === key || x.id === key);
+  return hit ? hit.name : null;
+}
+function grottoValCN(key, val){
+  if(!gameDicts || !gameDicts.grotto) return null;
+  const hit = gameDicts.grotto.find(x => x.name === key || x.id === key);
+  if(!hit) return null;
+  return hit.description ? hit.description : null;
+}
+
+/* ===== 玩家详情 ===== */
+async function loadPlayer(id){
+  const p = allPlayers.find(x=>x.id===id);
+  if(!p) return;
+  currentUser = p;
+  document.querySelectorAll('.player-row').forEach(el=>el.classList.toggle('active',parseInt(el.dataset.id)===id));
+  document.getElementById('empty-detail').style.display='none';
+  document.getElementById('detail').style.display='block';
+  showTabPane('basic');
+  renderBasicLoading();
+  try{
+    const save = await api('/gm/players/'+id+'/save');
+    currentSave = save;
+    renderAllTabs();
+  }catch(e){
+    document.querySelector('[data-pane="basic"]').innerHTML = '<div class="empty">该玩家无存档 (无法读取)</div>';
+  }
+}
+function renderBasicLoading(){
+  document.querySelectorAll('[data-pane]').forEach(el=>el.innerHTML='<div class="empty">加载中...</div>');
+}
+
+function renderAllTabs(){
+  const u = currentUser, s = currentSave, p = (s && s.player) || {};
+  // 顶部"玩家信息"卡片
+  const header = `
+    <div class="section" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+      <div>
+        <div style="font-size:16px;font-weight:600">${esc(p.name||u.username)} <span style="color:#9aa3b2;font-weight:normal;font-size:12px">@${esc(u.username)} · #${u.id}</span></div>
+        <div style="font-size:11px;color:#9aa3b2;margin-top:4px">
+          ${u.banned?'<span class="badge ban">封禁中</span>':''}
+          ${isMutedNow(u.mutedUntil)?'<span class="badge ban">禁言中</span>':''}
+          ${p.sectId?`<span class="badge sect">宗门#${esc(p.sectId)}</span>`:''}
+          GM Rev <code>${u.gmRevision||0}</code>
+          · 注册 ${esc((u.createdAt||'').substring(0,19))}
+        </div>
+      </div>
+      <div class="actions">
+        <button onclick="refreshSave()">重新读取</button>
+        <button onclick="loadAudit()">审计日志</button>
+      </div>
+    </div>
+  `;
+  // =============== basic ===============
+  document.querySelector('[data-pane="basic"]').innerHTML = header + `
+    <div class="section">
+      <h2>核心数值</h2>
+      <div class="grid">
+        ${kvStat('境界', esc(p.realm||'炼气期'))}
+        ${kvStat('等级', p.realmLevel||0)}
+        ${kvStat('灵石', p.spiritStones||0, 'gold')}
+        ${kvStat('修为', p.exp||0, 'gold')}
+        ${kvStat('抽奖券', p.lotteryTickets||0, 'gold')}
+        ${kvStat('HP / Max', `${p.hp||0} / ${p.maxHp||0}`)}
+        ${kvStat('攻击', p.attack||0)}
+        ${kvStat('防御', p.defense||0)}
+        ${kvStat('灵力', p.spirit||0)}
+        ${kvStat('体魄', p.physique||0)}
+        ${kvStat('速度', p.speed||0)}
+        ${kvStat('幸运', p.luck||0)}
+        ${kvStat('声望', p.reputation||0)}
+        ${kvStat('杀戮', p.killCount||0)}
+        ${kvStat('因果', p.karma||0)}
+        ${kvStat('寿元', `${p.lifespan||0}/${p.maxLifespan||0}`)}
+        ${kvStat('传承', p.inheritanceLevel||0)}
+        ${kvStat('炼丹等级', p.alchemyLevel||0)}
+        ${kvStat('成就数', (p.achievements||[]).length)}
+        ${kvStat('灵宠数', (p.pets||[]).length)}
+        ${kvStat('属性点', p.attributePoints||0)}
+      </div>
+    </div>
+    <div class="section">
+      <h2>修改核心数值 <span style="color:#5b8cff;font-size:10px">(留空=不修改)</span></h2>
+      <div class="row">
+        <div><label>灵石</label><input type="number" id="set-spiritStones" placeholder="${p.spiritStones||0}"></div>
+        <div><label>修为</label><input type="number" id="set-exp" placeholder="${p.exp||0}"></div>
+        <div><label>抽奖券</label><input type="number" id="set-lotteryTickets" placeholder="${p.lotteryTickets||0}"></div>
+        <div><label>境界等级</label><input type="number" id="set-realmLevel" placeholder="${p.realmLevel||0}"></div>
+        <div><label>声望</label><input type="number" id="set-reputation" placeholder="${p.reputation||0}"></div>
+        <div><label>杀戮</label><input type="number" id="set-killCount" placeholder="${p.killCount||0}"></div>
+      </div>
+      <div class="row">
+        <div><label>HP</label><input type="number" id="set-hp" placeholder="${p.hp||0}"></div>
+        <div><label>MaxHP</label><input type="number" id="set-maxHp" placeholder="${p.maxHp||0}"></div>
+        <div><label>攻击</label><input type="number" id="set-attack" placeholder="${p.attack||0}"></div>
+        <div><label>防御</label><input type="number" id="set-defense" placeholder="${p.defense||0}"></div>
+        <div><label>灵力</label><input type="number" id="set-spirit" placeholder="${p.spirit||0}"></div>
+        <div><label>体魄</label><input type="number" id="set-physique" placeholder="${p.physique||0}"></div>
+        <div><label>速度</label><input type="number" id="set-speed" placeholder="${p.speed||0}"></div>
+        <div><label>幸运</label><input type="number" id="set-luck" placeholder="${p.luck||0}"></div>
+        <div><label>属性点</label><input type="number" id="set-attributePoints" placeholder="${p.attributePoints||0}"></div>
+      </div>
+      <div class="row">
+        <div><label>境界名</label>
+          <select id="set-realm"><option value="">不变</option>
+            <option>炼气期</option><option>筑基期</option><option>金丹期</option>
+            <option>元婴期</option><option>化神期</option><option>合道期</option><option>长生境</option>
+          </select>
+        </div>
+        <div><label>因果 (正负整数)</label><input type="number" id="set-karma" placeholder="${p.karma||0}"></div>
+        <div><label>杀戮数</label><input type="number" id="set-killCount2" placeholder="${p.killCount||0}"></div>
+      </div>
+      <div class="actions">
+        <button class="primary" onclick="saveCore()">保存所有修改</button>
+        <button onclick="addSpiritStones()">+1000 灵石 (累加)</button>
+        <button onclick="addTickets()">+10 抽奖券 (累加)</button>
+        <button onclick="addExp()">+1000 修为 (累加)</button>
+      </div>
+    </div>
+  `;
+  // =============== inventory ===============
+  const inv = p.inventory || [];
+  document.querySelector('[data-pane="inventory"]').innerHTML = header + `
+    <div class="section">
+      <h2>发放物品 <span style="color:#5b8cff;font-size:10px">(从游戏真实物品字典 ${itemsDict.length}件)</span></h2>
+      <div class="row">
+        <div style="flex:1"><label>分类筛选</label>
+          <select id="grant-type-filter" onchange="onGrantTypeFilterChange(this)">${itemTypeFilterOptions()}</select>
+        </div>
+        <div style="flex:1.3"><label>部位筛选</label>
+          <select id="grant-slot-filter" onchange="onGrantSlotFilterChange(this)">${slotFilterOptions()}</select>
+        </div>
+        <div style="flex:3"><label>物品</label>
+          <select id="grant-name" style="width:100%"><option value="">-- 选物品 --</option>${itemOptions(_itemTypeFilter, _slotFilter)}</select>
+        </div>
+        <div><label>数量</label><input type="number" id="grant-qty" value="1" min="1"></div>
+        <div><label>品质(可选)</label>
+          <select id="grant-rarity"><option value="">不变</option><option>普通</option><option>稀有</option><option>传说</option><option>仙品</option></select>
+        </div>
+        <div><label>&nbsp;</label><button class="primary" onclick="grantItem()">发放</button></div>
+      </div>
+      <div class="row">
+        <div style="flex:2"><label>自定义物品 (不在字典内)</label>
+          <input id="grant-custom" placeholder="如 九天玄铁 / 隐身符">
+        </div>
+        <div><label>类型</label><input id="grant-type" placeholder="材料/武器/..."></div>
+        <div><label>品质</label>
+          <select id="grant-rarity2"><option>普通</option><option>稀有</option><option>传说</option><option>仙品</option></select>
+        </div>
+        <div><label>&nbsp;</label><button onclick="grantCustom()">发放自定义</button></div>
+      </div>
+    </div>
+    <div class="section">
+      <h2>背包 <span class="tab-badge">${inv.length} 项</span>
+        <span style="font-weight:normal;text-transform:none">
+          <input type="text" id="inv-search" placeholder="按名称筛选..." style="width:160px;display:inline-block;margin-left:10px" oninput="renderInventory()">
+          <button onclick="clearInventory()" class="danger" style="margin-left:6px">清空全部</button>
+        </span>
+      </h2>
+      <div class="toolbar" style="background:transparent;padding:8px 0">
+        <input id="inv-remove-name" placeholder="输入要移除的物品名(精确匹配)..." style="flex:1" list="inv-name-list">
+        <datalist id="inv-name-list">${inv.map(it=>`<option value="${esc(it.name||'')}"></option>`).join('')}</datalist>
+        <button onclick="removeItemByName()" class="danger">按名移除</button>
+      </div>
+      <div style="font-size:11px;color:#9aa3b2;margin-bottom:8px">
+        「按名移除」走服务端专用端点 <code>/inventory/remove</code>（服务端原子操作，只删匹配的首条），
+        比逐条改存档更安全。
+      </div>
+      <div id="inventory-list" style="max-height:600px;overflow-y:auto"></div>
+    </div>
+  `;
+  renderInventory();
+  // =============== extra ===============
+  const roots = p.spiritualRoots || {};
+  const pets = p.pets || [];
+  const achs = p.achievements || [];
+  const titles = p.unlockedTitles || [];
+  const arts = p.unlockedArts || [];
+  document.querySelector('[data-pane="extra"]').innerHTML = header + `
+    <div class="section">
+      <h2>灵根 (spiritualRoots) · 因果 · 声望 · 杀戮 <span style="color:#5b8cff;font-size:10px">(一个按钮保存所有)</span></h2>
+      <div class="grid" style="margin-bottom:10px">
+        ${kvStat('金', roots.metal ?? roots.gold ?? 0)}
+        ${kvStat('木', roots.wood ?? 0)}
+        ${kvStat('水', roots.water ?? 0)}
+        ${kvStat('火', roots.fire ?? 0)}
+        ${kvStat('土', roots.earth ?? 0)}
+        ${kvStat('变异', roots.special ?? 0)}
+      </div>
+      <div class="row">
+        <div><label>金灵根</label><input type="number" id="set-root-metal" placeholder="${roots.metal??0}"></div>
+        <div><label>木灵根</label><input type="number" id="set-root-wood" placeholder="${roots.wood??0}"></div>
+        <div><label>水灵根</label><input type="number" id="set-root-water" placeholder="${roots.water??0}"></div>
+        <div><label>火灵根</label><input type="number" id="set-root-fire" placeholder="${roots.fire??0}"></div>
+        <div><label>土灵根</label><input type="number" id="set-root-earth" placeholder="${roots.earth??0}"></div>
+        <div><label>变异灵根</label><input type="number" id="set-root-special" placeholder="${roots.special??0}"></div>
+      </div>
+      <div class="row">
+        <div><label>因果 (karma, 可负)</label><input type="number" id="set-karma2" placeholder="${p.karma||0}"></div>
+        <div><label>声望</label><input type="number" id="set-rep2" placeholder="${p.reputation||0}"></div>
+        <div><label>杀戮数</label><input type="number" id="set-kc" placeholder="${p.killCount||0}"></div>
+      </div>
+      <div class="actions">
+        <button class="primary" onclick="saveRootsAndKarma()">保存所有灵根/因果/声望/杀戮</button>
+        <span style="font-size:11px;color:#9aa3b2">留空 = 不修改该字段</span>
+      </div>
+    </div>
+    <div class="section">
+      <h2>灵宠 (${pets.length}) <span style="color:#5b8cff;font-size:10px">(点修改/删除操作单个灵宠)</span></h2>
+      <div id="pets-list" style="max-height:400px;overflow-y:auto"></div>
+      <details style="margin-top:10px">
+        <summary style="cursor:pointer;color:#5b8cff">+ 添加新灵宠</summary>
+        <div class="row" style="margin-top:8px">
+          <div>
+            <label>选择灵宠模板</label>
+            <select id="pet-template">
+              <option value="">-- 自定义 --</option>
+              ${(gameDicts?.pets||[]).map(pet=>`<option value="${esc(pet.id)}" data-name="${esc(pet.name)}" data-type="${esc(pet.species||pet.type||'')}" data-rarity="${esc(pet.rarity||'普通')}">${esc(pet.name)} (${esc(pet.species||pet.type||'')} ${esc(pet.rarity||'')})</option>`).join('')}
+            </select>
+          </div>
+          <div><label>或自定义名字</label><input id="pet-name" placeholder="如 青龙"></div>
+          <div><label>类型</label><input id="pet-type" placeholder="如 龙/凤/虎"></div>
+          <div><label>品质</label>
+            <select id="pet-rarity">
+              <option>普通</option><option>稀有</option><option>传说</option><option>仙品</option>
+            </select>
+          </div>
+          <div><label>等级</label><input type="number" id="pet-level" value="1" min="1"></div>
+          <div><label>攻击</label><input type="number" id="pet-atk" value="0" min="0"></div>
+          <div><label>防御</label><input type="number" id="pet-def" value="0" min="0"></div>
+          <div><label>速度</label><input type="number" id="pet-spd" value="0" min="0"></div>
+          <div><label>HP</label><input type="number" id="pet-hp" value="100" min="0"></div>
+          <div style="flex:0;min-width:auto"><label>&nbsp;</label><button class="primary" onclick="addPet()">添加</button></div>
+        </div>
+      </details>
+    </div>
+    <div class="section">
+      <h2>成就 (${achs.length}) <span style="color:#5b8cff;font-size:10px">(显示中文名)</span></h2>
+      <div class="actions" style="margin-bottom:8px">
+        <button onclick="unlockAllAch()">解锁全部成就</button>
+        <button class="danger" onclick="clearAch()">清空所有成就</button>
+      </div>
+      <div id="achs-list" style="max-height:300px;overflow-y:auto"></div>
+      <details style="margin-top:10px">
+        <summary style="cursor:pointer;color:#5b8cff">+ 从成就字典添加 (可多选)</summary>
+        <div class="row" style="margin-top:8px">
+          <div style="flex:3">
+            <label>搜索成就 (中/英)</label>
+            <input id="ach-search" placeholder="如 筑基 / ach-foundation" oninput="filterAchDict()">
+            <div id="ach-dict-list" style="max-height:300px;overflow-y:auto;border:1px solid #262a35;border-radius:4px;padding:6px;margin-top:6px;background:#0a0c12"></div>
+          </div>
+        </div>
+      </details>
+    </div>
+    <div class="section">
+      <h2>称号 (${titles.length}) · 功法 (${arts.length}) <span style="color:#5b8cff;font-size:10px">(显示中文名)</span></h2>
+      <div class="kv">
+        <label>当前称号 ID (留空=不修改)</label>
+        <input id="set-title" placeholder="${p.titleId||''}" list="dict-titles-list">
+        <datalist id="dict-titles-list">
+          ${(gameDicts?.titles||[]).map(t=>`<option value="${esc(t.id)}">${esc(t.name)} (${esc(t.rarity||'')})</option>`).join('')}
+        </datalist>
+      </div>
+      <div class="kv">
+        <label>当前功法 ID</label>
+        <input id="set-activeArt" placeholder="${p.activeArtId||''}" list="dict-arts-list">
+        <datalist id="dict-arts-list">
+          ${(gameDicts?.arts||[]).map(a=>`<option value="${esc(a.id)}">${esc(a.name)} (${esc(a.grade||'')})</option>`).join('')}
+        </datalist>
+      </div>
+      <div class="row">
+        <div style="flex:0;min-width:auto"><button class="primary" onclick="setSingleField('player.titleId', 'set-title', false)">保存当前称号</button></div>
+        <div style="flex:0;min-width:auto"><button class="primary" onclick="setSingleField('player.activeArtId', 'set-activeArt', false)">保存当前功法</button></div>
+      </div>
+      <details style="margin-top:10px" open>
+        <summary style="cursor:pointer;color:#5b8cff">称号列表 (已解锁) — 显示中文</summary>
+        <div id="titles-list-cn" style="margin-top:6px"></div>
+        <div class="row" style="margin-top:6px">
+          <div style="flex:2">
+            <label>从字典添加称号</label>
+            <input id="add-title-search" placeholder="搜索中/英文..." oninput="filterTitleDict()">
+            <div id="title-dict-list" style="max-height:200px;overflow-y:auto;border:1px solid #262a35;border-radius:4px;padding:6px;margin-top:6px;background:#0a0c12"></div>
+          </div>
+        </div>
+        <div class="toolbar" style="background:transparent;padding:8px 0 0">
+          <input id="grant-title-id" type="number" placeholder="称号 ID (直接授予)" style="max-width:180px">
+          <button class="primary" onclick="grantTitleById()">按 ID 授予称号</button>
+          <span style="font-size:11px;color:#9aa3b2;align-self:center">
+            走 <code>/title/grant</code> 幂等端点（重复授予不会报错，返回 granted:false）
+          </span>
+        </div>
+      </details>
+      <details style="margin-top:10px">
+        <summary style="cursor:pointer;color:#5b8cff">功法列表 (已解锁) — 显示中文</summary>
+        <div id="arts-list-cn" style="margin-top:6px"></div>
+        <div class="row" style="margin-top:6px">
+          <div style="flex:2">
+            <label>从字典添加工法</label>
+            <input id="add-art-search" placeholder="搜索中/英文..." oninput="filterArtDict()">
+            <div id="art-dict-list" style="max-height:200px;overflow-y:auto;border:1px solid #262a35;border-radius:4px;padding:6px;margin-top:6px;background:#0a0c12"></div>
+          </div>
+        </div>
+      </details>
+    </div>
+  `;
+  renderPets();
+  renderAchs();
+  renderTitlesCN();
+  renderArtsCN();
+  renderAchDict();
+  renderTitleDict();
+  renderArtDict();
+  // =============== grotto ===============
+  const grotto = p.grotto || {};
+  document.querySelector('[data-pane="grotto"]').innerHTML = header + `
+    <div class="section">
+      <h2>洞府 (grotto) 嵌套对象</h2>
+      <div class="row" style="margin-bottom:10px">
+        <button class="primary" onclick="saveGrotto()">保存洞府修改</button>
+        <button class="danger" onclick="clearGrotto()">清空洞府</button>
+      </div>
+      <div id="grotto-edit"></div>
+      <details style="margin-top:10px" open>
+        <summary style="cursor:pointer;color:#5b8cff">+ 添加洞府字段（中文键名下拉）</summary>
+        <div class="row" style="margin-top:8px">
+          <div style="flex:1"><label>键名（中文）</label>
+            <select id="grotto-newkey">${grottoKeyOptions()}</select>
+          </div>
+          <div style="flex:1"><label>类型</label>
+            <select id="grotto-newtype" onchange="onGrottoNewTypeChange()">
+              <option value="number">数字</option>
+              <option value="string">文本</option>
+              <option value="boolean">布尔</option>
+              <option value="json">JSON 对象</option>
+            </select>
+          </div>
+          <div style="flex:1"><label>值</label>
+            <input id="grotto-newval" placeholder="如 10 / true / 'hello' / {&quot;level&quot;:3}">
+          </div>
+          <div><label>&nbsp;</label><button class="primary" onclick="addGrottoKey()">添加</button></div>
+        </div>
+      </details>
+    </div>
+  `;
+  renderGrotto();
+  renderGrottoKeyDropdown();
+  // =============== lottery ===============
+  document.querySelector('[data-pane="lottery"]').innerHTML = header + `
+    <div class="section">
+      <h2>抽奖数据</h2>
+      <div class="grid">
+        ${kvStat('抽奖券', p.lotteryTickets||0, 'gold')}
+        ${kvStat('累计抽奖', p.lotteryCount||0)}
+        ${kvStat('突破失败', p.breakthroughFailCount||0)}
+        ${kvStat('金丹法数', p.goldenCoreMethodCount||0)}
+      </div>
+      <div class="kv">
+        <label>抽奖券 (set)</label><input type="number" id="set-lt" placeholder="${p.lotteryTickets||0}">
+        <button onclick="setSingleField('player.lotteryTickets', 'set-lt')">保存</button>
+      </div>
+      <div class="kv">
+        <label>累计抽奖 (set)</label><input type="number" id="set-lc" placeholder="${p.lotteryCount||0}">
+        <button onclick="setSingleField('player.lotteryCount', 'set-lc')">保存</button>
+      </div>
+      <div class="actions" style="margin-top:8px">
+        <button onclick="addTickets()">+10 抽奖券 (累加)</button>
+        <button onclick="addTickets(100)">+100 抽奖券</button>
+        <button onclick="addTickets(1000)">+1000 抽奖券</button>
+      </div>
+    </div>
+    <div class="section">
+      <h2>近期抽奖记录 (本玩家)</h2>
+      <div id="lottery-history"></div>
+    </div>
+  `;
+  loadLotteryHistory();
+  // =============== actions ===============
+  document.querySelector('[data-pane="actions"]').innerHTML = header + `
+    <div class="section">
+      <h2>账号操作</h2>
+      <div class="row">
+        <div><label>新密码 (修改后立即踢下线)</label><input id="new-pwd" type="text" placeholder="留空不修改"></div>
+        <div style="flex:0;min-width:auto"><label>&nbsp;</label><button class="primary" onclick="resetPassword()">修改密码</button></div>
+      </div>
+      <div class="actions" style="margin-top:10px">
+        ${u.banned?'<button class="primary" onclick="toggleBan(false)">解封账号</button>':'<button class="danger" onclick="toggleBan(true)">封禁账号</button>'}
+        <button onclick="kickPlayer()">踢下线</button>
+      </div>
+    </div>
+    <div class="section">
+      <h2>世界聊天禁言</h2>
+      <div style="font-size:11px;color:#9aa3b2;margin-bottom:8px">
+        禁言只拦截「世界聊天发言」（POST /api/messages），<b>不影响</b>登录 / 存档 / 领取。到期自动失效。
+      </div>
+      <div class="row">
+        <div><label>禁言时长 (分钟)</label><input id="mute-minutes" type="number" min="1" placeholder="例如 60"></div>
+        <div style="flex:0;min-width:auto"><label>&nbsp;</label><button class="danger" onclick="mutePlayer()">禁言</button></div>
+        <div style="flex:0;min-width:auto"><label>&nbsp;</label><button class="primary" onclick="unmutePlayer()">解除禁言</button></div>
+      </div>
+      <div class="actions" style="margin-top:8px">
+        <button onclick="mutePlayer(60)">禁言 1 小时</button>
+        <button onclick="mutePlayer(1440)">禁言 1 天</button>
+        <button onclick="mutePlayer(10080)">禁言 7 天</button>
+      </div>
+      <div id="mute-status" style="font-size:11px;margin-top:8px"></div>
+    </div>
+    <div class="section danger-zone">
+      <h2>危险操作 (不可逆)</h2>
+      <div class="actions">
+        <button class="danger" onclick="resetSave()">重置存档 (清空数据,保留账号)</button>
+        <button class="danger" onclick="deleteUser()">永久删除账号</button>
+      </div>
+    </div>
+    <div class="section">
+      <h2>原始存档 JSON</h2>
+      <pre>${esc(JSON.stringify(s, null, 2))}</pre>
+    </div>
+    <div class="section" id="audit-section" style="display:none">
+      <h2>审计日志 (最近 30 条)</h2>
+      <div id="audit-list"></div>
+    </div>
+  `;
+  renderMuteStatus();
+}
+
+function kvStat(k, v, color){
+  const c = color==='gold'?'color:#e1c25b':'';
+  return `<div class="stat"><div class="k">${esc(k)}</div><div class="v" style="${c}">${esc(v)}</div></div>`;
+}
+
+/* ===== 标签页切换 ===== */
+document.querySelectorAll('.tab-btn').forEach(btn=>{
+  btn.onclick=()=>showTabPane(btn.dataset.tab);
+});
+function showTabPane(name){
+  activeTab = name;
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('active',b.dataset.tab===name));
+  document.querySelectorAll('[data-pane]').forEach(p=>p.classList.toggle('active',p.dataset.pane===name));
+}
+
+/* ===== 视图切换 (玩家/仪表盘/交易行/聊天) ===== */
+let activeView = 'players';
+let marketPage = 1, marketPageSize = 20, marketTotal = 0;
+document.querySelectorAll('.view-btn').forEach(btn=>{
+  btn.onclick=()=>showView(btn.dataset.view);
+});
+function showView(name){
+  activeView = name;
+  document.querySelectorAll('.view-btn').forEach(b=>b.classList.toggle('active',b.dataset.view===name));
+  document.querySelectorAll('.view-pane').forEach(p=>p.style.display = p.dataset.viewPane===name ? 'block' : 'none');
+  if(name==='dashboard') loadDashboard();
+  if(name==='market') loadMarket();
+  if(name==='chat') loadChat();
+  if(name==='items') renderItemsView();
+  if(name==='dicts') renderDictsTab();
+  if(name==='activity') loadActivity();
+  if(name==='batch') initBatchView();
+  if(name==='audit' && auditRows.length === 0) loadAuditView();
+  if(name==='mail') initMailView();
+  if(name==='feedback') loadFeedback();
+}
+
+function refreshSave(){ if(currentUser) loadPlayer(currentUser.id); }
+
+/* ===== 基础修改 ===== */
+async function saveCore(){
+  if(!currentUser) return;
+  const get = id => document.getElementById(id).value;
+  const num = v => v===''?null:Number(v);
+  const set = [];
+  const fields = [
+    ['set-spiritStones','player.spiritStones'],
+    ['set-exp','player.exp'],
+    ['set-lotteryTickets','player.lotteryTickets'],
+    ['set-realmLevel','player.realmLevel'],
+    ['set-hp','player.hp'],
+    ['set-maxHp','player.maxHp'],
+    ['set-attack','player.attack'],
+    ['set-defense','player.defense'],
+    ['set-spirit','player.spirit'],
+    ['set-physique','player.physique'],
+    ['set-speed','player.speed'],
+    ['set-luck','player.luck'],
+    ['set-reputation','player.reputation'],
+    ['set-killCount','player.killCount'],
+    ['set-killCount2','player.killCount'],
+    ['set-karma','player.karma'],
+    ['set-attributePoints','player.attributePoints'],
+  ];
+  for(const [id,path] of fields){
+    const n = num(get(id));
+    if(n!=null) set.push({[path]:n});
+  }
+  const realm = get('set-realm');
+  if(realm) set.push({'player.realm':realm});
+  if(set.length===0) return toast('未修改任何字段','err');
+  try{
+    await api('/gm/players/'+currentUser.id+'/save',{method:'PUT',body:{set}});
+    toast('已保存 '+set.length+' 个字段','ok');
+    loadPlayer(currentUser.id); loadPlayers();
+  }catch(e){toast('保存失败: '+e.message,'err');}
+}
+
+async function setSingleField(path, inputId, isNumber=true){
+  const v = document.getElementById(inputId).value;
+  if(v==='' && isNumber) return toast('请输入值','err');
+  if(v==='' && !isNumber){ /* 字符串允许空表示清空 */
+  }
+  let val = isNumber ? Number(v) : v;
+  if(isNumber && isNaN(val)) return toast('值不是数字','err');
+  try{
+    await api('/gm/players/'+currentUser.id+'/save',{method:'PUT',body:{set:[{[path]:val}]}});
+    toast('已保存','ok');
+    loadPlayer(currentUser.id);
+  }catch(e){toast('保存失败: '+e.message,'err');}
+}
+
+async function addSpiritStones(){ await grantSimple('spiritStones',1000,'+1000 灵石'); }
+async function addExp(){ await grantSimple('exp',1000,'+1000 修为'); }
+async function addTickets(n=10){ await grantSimple('lotteryTickets',n,'+'+n+' 抽奖券'); }
+async function grantSimple(field,val,msg){
+  if(!currentUser) return;
+  try{
+    await api('/gm/players/'+currentUser.id+'/grant',{method:'POST',body:{[field]:val}});
+    toast(msg+' 已发放','ok');
+    loadPlayer(currentUser.id); loadPlayers();
+  }catch(e){toast('失败: '+e.message,'err');}
+}
+
+/* ===== 物品发放 ===== */
+async function grantItem(){
+  if(!currentUser) return;
+  const sel = document.getElementById('grant-name');
+  const opt = sel.options[sel.selectedIndex];
+  if(!opt || !opt.value) return toast('请选物品','err');
+  const qty = Math.max(1, Number(document.getElementById('grant-qty').value)||1);
+  const rarityOverride = document.getElementById('grant-rarity').value;
+  // 查找物品字典中完整定义（含 description/effect/slot/subType/realm/baseName）
+  const itemId = opt.dataset.id;
+  const dict = itemsDict.find(d => d.id === itemId) || itemsDict.find(d => d.name === opt.value) || {};
+  const equippableTypes = ['武器','护甲','戒指','首饰','法宝','发簪','耳坠','项链','手镯','护符','披风','帽','胸甲','护腕','腰带','鞋'];
+  const isEquip = equippableTypes.includes(dict.slot) || (dict.effect && Object.keys(dict.effect).length>0);
+  const body = {
+    item:{
+      name: opt.value,
+      type: opt.dataset.type,
+      rarity: rarityOverride || opt.dataset.rarity,
+      quantity: qty,
+      description: dict.description || '',
+      subType: dict.subType || opt.dataset.subtype || '',
+      realm: dict.realm || opt.dataset.realm || '',
+      baseName: dict.baseName || '',
+      slot: dict.slot || '',
+      equipmentSlot: dict.slot || '',
+      effect: dict.effect || null,
+      isEquippable: isEquip,
+      level: dict.level || 0,
+    }
+  };
+  try{
+    await api('/gm/players/'+currentUser.id+'/grant',{method:'POST',body});
+    toast('已发放 '+opt.value+' x'+qty,'ok');
+    loadPlayer(currentUser.id);
+  }catch(e){toast('失败: '+e.message,'err');}
+}
+async function grantCustom(){
+  if(!currentUser) return;
+  const name = document.getElementById('grant-custom').value.trim();
+  if(!name) return toast('请填物品名','err');
+  const body = {item:{name, type:document.getElementById('grant-type').value||'材料', rarity:document.getElementById('grant-rarity2').value, quantity:1}};
+  try{
+    await api('/gm/players/'+currentUser.id+'/grant',{method:'POST',body});
+    toast('已发放 '+name,'ok');
+    loadPlayer(currentUser.id);
+  }catch(e){toast('失败: '+e.message,'err');}
+}
+
+/* ===== 背包管理 ===== */
+function renderInventory(){
+  if(!currentSave) return;
+  const p = currentSave.player || {};
+  const inv = p.inventory || [];
+  const q = (document.getElementById('inv-search')?.value || '').trim().toLowerCase();
+  const filtered = q ? inv.filter(it => (it.name||'').toLowerCase().includes(q) || (it.type||'').toLowerCase().includes(q)) : inv;
+  const box = document.getElementById('inventory-list');
+  if(filtered.length===0){
+    box.innerHTML='<div class="empty">'+(q?'无匹配':'背包为空')+'</div>';
+    return;
+  }
+  box.innerHTML = filtered.map((it,i)=>{
+    const realIdx = inv.indexOf(it);
+    return `<div class="item-card" data-idx="${realIdx}">
+      <div style="flex:1;min-width:0">
+        <div class="name">${esc(it.name||'(无名)')}</div>
+        <div class="meta">
+          <span class="tag">${esc(it.type||'')}</span>
+          <span class="tag">${esc(it.rarity||'普通')}</span>
+          <code>${esc((it.id||'').substring(0,12))}</code>
+        </div>
+      </div>
+      <div class="right">
+        <input class="qty" type="number" value="${it.quantity||1}" min="0" data-idx="${realIdx}" onchange="updateItemQty(${realIdx}, this.value)" title="改数量后回车保存">
+        <button onclick="removeItemByIdx(${realIdx})" class="danger">删</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+async function updateItemQty(idx, val){
+  try{
+    await api('/gm/players/'+currentUser.id+'/save',{method:'PUT',body:{set:[{[`player.inventory.${idx}.quantity`]:Math.max(0,Number(val)||0)}]}});
+    toast('数量已更新','ok');
+  }catch(e){toast('更新数量失败: '+e.message,'err');}
+}
+async function removeItemByIdx(idx){
+  if(!confirm('删除该物品?')) return;
+  const inv = currentSave.player.inventory;
+  inv.splice(idx,1);
+  try{
+    await api('/gm/players/'+currentUser.id+'/save',{method:'PUT',body:{replace:{inventory:inv}}});
+    toast('已删除','ok');
+    loadPlayer(currentUser.id);
+  }catch(e){toast('删除失败: '+e.message,'err');}
+}
+// 按名移除：走服务端专用端点（POST /gm/players/:id/inventory/remove），原子删除匹配的首条
+async function removeItemByName(){
+  if(!currentUser) return;
+  const el = document.getElementById('inv-remove-name');
+  const name = (el.value || '').trim();
+  if(!name) return toast('请先输入要移除的物品名','err');
+  if(!confirm('移除玩家背包中名为「'+name+'」的物品（首条匹配）？')) return;
+  try{
+    const r = await api('/gm/players/'+currentUser.id+'/inventory/remove',{method:'POST',body:{name}});
+    toast(r.message || '已移除','ok');
+    el.value = '';
+    loadPlayer(currentUser.id);
+  }catch(e){toast('移除失败: '+e.message,'err');}
+}
+async function clearInventory(){
+  if(!currentUser) return;
+  const nm = currentUser.charName || currentUser.username;
+  if(!strongConfirm('⚠ 清空背包（不可逆）',
+    '将删除玩家「'+nm+'」储物袋中的全部物品，清空后无法恢复。',
+    nm)) return;
+  try{
+    await api('/gm/players/'+currentUser.id+'/inventory/clear',{method:'POST'});
+    toast('背包已清空','ok');
+    loadPlayer(currentUser.id);
+  }catch(e){toast('失败: '+e.message,'err');}
+}
+
+/* ===== 灵根/因果/声望/杀戮 统一保存按钮（一个按钮保存所有修改，保存后不跳页） ===== */
+async function saveRootsAndKarma(){
+  if(!currentUser) return;
+  const get = id => document.getElementById(id).value;
+  const num = v => v === '' ? null : Number(v);
+  const set = [];
+  const fields = [
+    ['set-root-metal', 'player.spiritualRoots.metal'],
+    ['set-root-wood', 'player.spiritualRoots.wood'],
+    ['set-root-water', 'player.spiritualRoots.water'],
+    ['set-root-fire', 'player.spiritualRoots.fire'],
+    ['set-root-earth', 'player.spiritualRoots.earth'],
+    ['set-root-special', 'player.spiritualRoots.special'],
+    ['set-karma2', 'player.karma'],
+    ['set-rep2', 'player.reputation'],
+    ['set-kc', 'player.killCount'],
+  ];
+  for (const [id, path] of fields) {
+    const n = num(get(id));
+    if (n != null) set.push({ [path]: n });
+  }
+  if (set.length === 0) return toast('未修改任何字段 (留空=不修改)', 'info');
+  try {
+    await api('/gm/players/' + currentUser.id + '/save', { method: 'PUT', body: { set } });
+    toast('已保存 ' + set.length + ' 个字段', 'ok');
+    // 刷新当前玩家详情, 保持在原 tab (extra)
+    await loadPlayer(currentUser.id);
+    showTabPane('extra');
+  } catch (e) { toast('保存失败: ' + e.message, 'err'); }
+}
+
+/* ===== 灵宠（按真实结构: stats 嵌套 + skills 数组 + evolutionStage + affection） ===== */
+function renderPets(){
+  if(!currentSave) return;
+  const pets = currentSave.player.pets || [];
+  const box = document.getElementById('pets-list');
+  if(pets.length===0){box.innerHTML='<div class="empty">无灵宠</div>';return;}
+  box.innerHTML = pets.map((pet,i)=>{
+    const cnName = (pet.id && cn(pet.id,'pets')) || (pet.name && cn(pet.name,'pets')) || null;
+    const s = pet.stats || {};
+    return `<div class="item-card">
+      <div style="flex:1;min-width:0">
+        <div class="name">${esc(pet.name||'(无名)')}${cnName && cnName!==pet.name?` <span class="tag" style="color:#9aa3b2">${esc(cnName)}</span>`:''}</div>
+        <div class="meta">
+          <span class="tag">Lv${pet.level||1}</span>
+          <span class="tag">${esc(pet.species||pet.type||'')}</span>
+          <span class="tag">${esc(pet.rarity||'普通')}</span>
+          <span>HP ${s.hp||0}</span>
+          <span>ATK ${s.attack||0}</span>
+          <span>DEF ${s.defense||0}</span>
+          <span>SPD ${s.speed||0}</span>
+          ${pet.evolutionStage?`<span class="tag" style="color:#e1c25b">进化 ${pet.evolutionStage}</span>`:''}
+          ${pet.affection?`<span>好感 ${pet.affection}</span>`:''}
+          ${pet.skills?.length?`<span class="tag" style="color:#5bc7e1">${pet.skills.length}技能</span>`:''}
+        </div>
+      </div>
+      <div class="right">
+        <button onclick="openPetEdit(${i})" class="primary">修改</button>
+        <button class="danger" onclick="removePet(${i})">删</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+async function addPet(){
+  const name = document.getElementById('pet-name').value.trim();
+  if(!name) return toast('请填名字','err');
+  const newPet = {
+    id: `gm-pet-${Date.now()}-${Math.floor(Math.random()*1000)}`,
+    name,
+    species: document.getElementById('pet-type').value.trim()||'灵宠',
+    rarity: document.getElementById('pet-rarity').value,
+    level: Number(document.getElementById('pet-level').value)||1,
+    exp: 0,
+    maxExp: 100,
+    stats: {
+      hp: Number(document.getElementById('pet-hp').value)||100,
+      attack: Number(document.getElementById('pet-atk').value)||10,
+      defense: Number(document.getElementById('pet-def')?.value)||5,
+      speed: Number(document.getElementById('pet-spd')?.value)||10,
+    },
+    skills: [],
+    evolutionStage: 0,
+    affection: 50,
+  };
+  const pets = (currentSave.player.pets||[]).concat([newPet]);
+  try{
+    await api('/gm/players/'+currentUser.id+'/save',{method:'PUT',body:{replace:{pets}}});
+    toast('已添加灵宠','ok');
+    loadPlayer(currentUser.id);
+  }catch(e){toast('失败: '+e.message,'err');}
+}
+async function removePet(i){
+  if(!confirm('删除该灵宠?')) return;
+  const pets = (currentSave.player.pets||[]).slice();
+  pets.splice(i,1);
+  try{
+    await api('/gm/players/'+currentUser.id+'/save',{method:'PUT',body:{replace:{pets}}});
+    toast('已删除','ok');
+    loadPlayer(currentUser.id);
+  }catch(e){toast('失败: '+e.message,'err');}
+}
+
+/* 灵宠编辑弹窗（适配灵宠真实结构: stats嵌套 + skills数组 + evolution + affection） */
+function openPetEdit(i){
+  if(!currentSave) return;
+  const pet = (currentSave.player.pets||[])[i];
+  if(!pet) return toast('灵宠不存在','err');
+  petEditingIdx = i;
+  const s = pet.stats || {};
+  const skills = Array.isArray(pet.skills) ? pet.skills : [];
+  const skillsHTML = skills.map((sk,si)=>skillRowHTML(sk, si)).join('');
+  const html = `
+    <div class="modal-bg" id="pet-edit-modal" onclick="if(event.target===this)closePetEdit()">
+      <div class="modal" style="max-width:680px;max-height:88vh;overflow-y:auto">
+        <h3>修改灵宠 #${i+1} <span style="font-size:11px;color:#9aa3b2;font-weight:normal">${esc(pet.id||'')}</span></h3>
+
+        <div class="section" style="padding:10px;margin-bottom:10px">
+          <h2 style="font-size:12px;margin-bottom:8px">基础信息</h2>
+          <div class="row">
+            <div><label>ID</label><input id="pet-e-id" value="${esc(pet.id||'')}"></div>
+            <div><label>名字</label><input id="pet-e-name" value="${esc(pet.name||'')}"></div>
+            <div><label>种类 species</label><input id="pet-e-species" value="${esc(pet.species||'')}"></div>
+            <div><label>品质</label>
+              <select id="pet-e-rarity">
+                <option ${pet.rarity==='普通'?'selected':''}>普通</option>
+                <option ${pet.rarity==='稀有'?'selected':''}>稀有</option>
+                <option ${pet.rarity==='传说'?'selected':''}>传说</option>
+                <option ${pet.rarity==='仙品'?'selected':''}>仙品</option>
+              </select>
+            </div>
+          </div>
+          <div class="row">
+            <div><label>等级</label><input type="number" id="pet-e-level" value="${pet.level||1}" min="1"></div>
+            <div><label>经验 exp</label><input type="number" id="pet-e-exp" value="${pet.exp||0}" min="0"></div>
+            <div><label>升级经验 maxExp</label><input type="number" id="pet-e-maxexp" value="${pet.maxExp||100}" min="1"></div>
+            <div><label>进化阶段 evolutionStage</label><input type="number" id="pet-e-evostage" value="${pet.evolutionStage||0}" min="0"></div>
+            <div><label>好感度 affection</label><input type="number" id="pet-e-affection" value="${pet.affection||0}" min="0" max="100"></div>
+          </div>
+        </div>
+
+        <div class="section" style="padding:10px;margin-bottom:10px">
+          <h2 style="font-size:12px;margin-bottom:8px">属性 stats (嵌套对象)</h2>
+          <div class="row">
+            <div><label>HP</label><input type="number" id="pet-e-hp" value="${s.hp||0}" min="0"></div>
+            <div><label>攻击 attack</label><input type="number" id="pet-e-atk" value="${s.attack||0}" min="0"></div>
+            <div><label>防御 defense</label><input type="number" id="pet-e-def" value="${s.defense||0}" min="0"></div>
+            <div><label>速度 speed</label><input type="number" id="pet-e-spd" value="${s.speed||0}" min="0"></div>
+          </div>
+        </div>
+
+        <div class="section" style="padding:10px;margin-bottom:10px">
+          <h2 style="font-size:12px;margin-bottom:8px">技能 skills (${skills.length}个) <button class="primary" style="float:right;padding:2px 8px" onclick="addSkillRow()">+ 添加技能</button></h2>
+          <div id="pet-e-skills-list">${skillsHTML || '<div class="empty" style="padding:10px">无技能,点击右上角添加</div>'}</div>
+        </div>
+
+        <details style="margin-top:6px"><summary style="cursor:pointer;color:#5b8cff;font-size:11px">高级: 整只 JSON 覆盖</summary>
+          <div class="row" style="margin-top:8px">
+            <div style="flex:1"><label>整只 JSON</label><textarea id="pet-e-json" rows="6" style="font-family:monospace">${esc(JSON.stringify(pet, null, 2))}</textarea></div>
+          </div>
+          <div style="font-size:10px;color:#9aa3b2">修改后,上面所有 UI 字段将被忽略,直接以 JSON 为准保存</div>
+        </details>
+
+        <div class="actions" style="margin-top:14px;justify-content:flex-end;gap:8px">
+          <button onclick="closePetEdit()">取消</button>
+          <button class="primary" onclick="savePetEdit()">保存灵宠</button>
+        </div>
+      </div>
+    </div>`;
+  const tmp = document.createElement('div');
+  tmp.innerHTML = html;
+  document.body.appendChild(tmp.firstElementChild);
+}
+/* 灵宠技能编辑器（按真实结构: 模板下拉+中文类型+数字效果字段） */
+const SKILL_TYPES_CN = [
+  {key:'attack', cn:'攻击'},
+  {key:'heal', cn:'治疗'},
+  {key:'buff', cn:'增益'},
+  {key:'debuff', cn:'减益'},
+  {key:'defense', cn:'防御'},
+  {key:'support', cn:'辅助'},
+  {key:'special', cn:'特殊'},
+];
+
+function flattenSkillEffect(eff, prefix){
+  // 把嵌套 effect 拍平成 [{key, value, label, min, max, step, type}]
+  prefix = prefix || '';
+  const out = [];
+  for(const [k, v] of Object.entries(eff || {})){
+    const fullKey = prefix + k;
+    if(typeof v === 'number'){
+      const cfg = (gameDicts?.effectFields && gameDicts.effectFields[k]) || {label:k, min:-1000, max:1000, step:0.1, type:'number'};
+      out.push({key:fullKey, value:v, label:cfg.label||k, min:cfg.min, max:cfg.max, step:cfg.step||1, type:cfg.type||'number'});
+    } else if(typeof v === 'boolean'){
+      const cfg = (gameDicts?.effectFields && gameDicts.effectFields[k]) || {label:k, type:'bool'};
+      out.push({key:fullKey, value:v, label:cfg.label||k, type:'bool'});
+    } else if(v && typeof v === 'object' && !Array.isArray(v)){
+      out.push(...flattenSkillEffect(v, fullKey + '.'));
+    } else if(typeof v === 'string'){
+      out.push({key:fullKey, value:v, label:k, type:'text'});
+    }
+  }
+  return out;
+}
+
+function effectFieldRowHTML(f){
+  // 效果字段只读 key+label，value 字段可改
+  if(f.type === 'bool'){
+    return `<div class="ef-row" style="display:flex;gap:6px;margin-bottom:4px;align-items:center">
+      <input type="text" class="ef-label" value="${esc(f.label||f.key)}" readonly style="flex:0 0 130px;background:#1a1d27;color:#9aa3b2">
+      <select class="ef-value" style="flex:0 0 100px">
+        <option value="true" ${f.value?'selected':''}>是 (true)</option>
+        <option value="false" ${!f.value?'selected':''}>否 (false)</option>
+      </select>
+      <span class="ef-key" style="flex:1;font-family:monospace;font-size:10px;color:#5b8cff;background:#14171f;padding:4px;border-radius:3px">${esc(f.key)}</span>
+    </div>`;
+  }
+  if(f.type === 'text'){
+    return `<div class="ef-row" style="display:flex;gap:6px;margin-bottom:4px;align-items:center">
+      <input type="text" class="ef-label" value="${esc(f.label||f.key)}" readonly style="flex:0 0 110px;background:#1a1d27;color:#9aa3b2">
+      <input type="text" class="ef-value" value="${esc(String(f.value))}" style="flex:0 0 120px">
+      <span class="ef-key" style="flex:1;font-family:monospace;font-size:10px;color:#5b8cff;background:#14171f;padding:4px;border-radius:3px">${esc(f.key)}</span>
+    </div>`;
+  }
+  return `<div class="ef-row" style="display:flex;gap:6px;margin-bottom:4px;align-items:center">
+    <input type="text" class="ef-label" value="${esc(f.label||f.key)}" readonly style="flex:0 0 110px;background:#1a1d27;color:#9aa3b2">
+    <input type="number" class="ef-value" value="${f.value}" min="${f.min}" max="${f.max}" step="${f.step||1}" style="flex:0 0 110px">
+    <span class="ef-key" style="flex:1;font-family:monospace;font-size:10px;color:#5b8cff;background:#14171f;padding:4px;border-radius:3px">${esc(f.key)}</span>
+  </div>`;
+}
+
+// 已废弃：不再允许添加/删除效果字段
+function addSkillEffectField(){return;}
+
+function applySkillTemplate(sel){
+  const skillId = sel.value;
+  const row = sel.closest('.skill-row');
+  if(!skillId){return;}
+  const tpl = (gameDicts?.skills||[]).find(s => s.id === skillId);
+  if(!tpl){toast('未找到技能模板: '+skillId,'err');return;}
+  row.querySelector('[data-f=id]').value = tpl.id;
+  row.querySelector('[data-f=name]').value = tpl.name;
+  row.querySelector('[data-f=type]').value = tpl.type;
+  row.querySelector('[data-f=cooldown]').value = tpl.cooldown||0;
+  row.querySelector('[data-f=description]').value = tpl.description||'';
+  const list = row.querySelector('[data-f=effectFieldsList]');
+  const effFields = flattenSkillEffect(tpl.effect||{});
+  if(effFields.length === 0){
+    list.innerHTML = '<div class="empty" style="padding:6px;color:#9aa3b2">该模板暂无效果字段，可点击"+"添加</div>';
+  } else {
+    list.innerHTML = effFields.map(f => effectFieldRowHTML(f)).join('');
+  }
+  toast('已套用技能模板: '+tpl.name,'ok');
+}
+
+function skillRowHTML(sk, idx){
+  const skillTypeOptions = SKILL_TYPES_CN.map(t => 
+    `<option value="${t.key}" ${sk.type===t.key?'selected':''}>${t.cn}</option>`
+  ).join('');
+  const skillSelectOptions = (gameDicts?.skills||[]).map(s => 
+    `<option value="${s.id}" ${sk.id===s.id?'selected':''}>${esc(s.name)}（${esc(s.typeCN||s.type)}）</option>`
+  ).join('');
+  const effFields = flattenSkillEffect(sk.effect||{});
+  const effFieldsHTML = effFields.length ? effFields.map(f => effectFieldRowHTML(f)).join('') : '<div class="empty" style="padding:6px;color:#9aa3b2">无效果字段，点击"+"添加</div>';
+  return `<div class="skill-row" data-idx="${idx}" style="border:1px solid #262a35;padding:8px;margin-bottom:6px;border-radius:4px;background:#1c1f29">
+    <div class="row">
+      <div style="flex:1.5">
+        <label>选技能模板（自动填充）</label>
+        <select data-f="skillTemplate" onchange="applySkillTemplate(this)">
+          <option value="">-- 自定义 / 留空 --</option>
+          ${skillSelectOptions}
+        </select>
+      </div>
+      <div style="flex:1"><label>技能ID</label><input data-f="id" value="${esc(sk.id||'')}" placeholder="如 skill-thunder"></div>
+      <div style="flex:1"><label>名字</label><input data-f="name" value="${esc(sk.name||'')}" placeholder="如 天雷剑诀"></div>
+    </div>
+    <div class="row" style="margin-top:6px">
+      <div style="flex:1"><label>类型</label>
+        <select data-f="type">${skillTypeOptions}</select>
+      </div>
+      <div style="flex:1"><label>冷却(回合)</label><input type="number" data-f="cooldown" value="${sk.cooldown||0}" min="0"></div>
+    </div>
+    <div class="row" style="margin-top:6px">
+      <div style="flex:1"><label>描述</label><input data-f="description" value="${esc(sk.description||'')}" placeholder="技能描述"></div>
+    </div>
+    <div class="row" style="margin-top:6px">
+      <div style="flex:1">
+        <label>效果字段（仅可改数值，字段名固定来自技能模板）</label>
+        <div data-f="effectFieldsList" class="effect-fields-list" style="background:#14171f;padding:6px;border-radius:3px;margin-top:4px">
+          ${effFieldsHTML}
+        </div>
+      </div>
+    </div>
+    <div style="text-align:right;margin-top:6px">
+      <button type="button" class="danger" style="padding:2px 8px;font-size:11px" onclick="this.closest('.skill-row').remove()">删此技能</button>
+    </div>
+  </div>`;
+}
+function addSkillRow(){
+  const box = document.getElementById('pet-e-skills-list');
+  if(!box) return;
+  if(box.querySelector('.empty')) box.innerHTML = '';
+  const tmp = document.createElement('div');
+  tmp.innerHTML = skillRowHTML({id:'',name:'',type:'attack',effect:{},cooldown:0,description:''}, Date.now());
+  box.appendChild(tmp.firstElementChild);
+}
+function closePetEdit(){
+  petEditingIdx = -1;
+  const m = document.getElementById('pet-edit-modal');
+  if(m) m.remove();
+}
+async function savePetEdit(){
+  if(petEditingIdx<0 || !currentUser) return;
+  const pets = (currentSave.player.pets||[]).slice();
+  const orig = pets[petEditingIdx];
+  if(!orig) return toast('灵宠不存在','err');
+  // 字段合并
+  const updated = {
+    ...orig,
+    id: document.getElementById('pet-e-id').value.trim() || orig.id,
+    name: document.getElementById('pet-e-name').value.trim() || orig.name,
+    species: document.getElementById('pet-e-species').value.trim() || orig.species,
+    rarity: document.getElementById('pet-e-rarity').value,
+    level: Math.max(1, Number(document.getElementById('pet-e-level').value)||1),
+    exp: Math.max(0, Number(document.getElementById('pet-e-exp').value)||0),
+    maxExp: Math.max(1, Number(document.getElementById('pet-e-maxexp').value)||1),
+    evolutionStage: Math.max(0, Number(document.getElementById('pet-e-evostage').value)||0),
+    affection: Math.max(0, Math.min(100, Number(document.getElementById('pet-e-affection').value)||0)),
+    stats: {
+      hp: Math.max(0, Number(document.getElementById('pet-e-hp').value)||0),
+      attack: Math.max(0, Number(document.getElementById('pet-e-atk').value)||0),
+      defense: Math.max(0, Number(document.getElementById('pet-e-def').value)||0),
+      speed: Math.max(0, Number(document.getElementById('pet-e-spd').value)||0),
+    },
+  };
+  // 收集技能（数字化效果字段）
+  const skillRows = document.querySelectorAll('#pet-e-skills-list .skill-row');
+  const newSkills = [];
+  for(const row of skillRows){
+    const sk = {
+      id: row.querySelector('[data-f=id]').value.trim(),
+      name: row.querySelector('[data-f=name]').value.trim(),
+      type: row.querySelector('[data-f=type]').value,
+      cooldown: Number(row.querySelector('[data-f=cooldown]').value)||0,
+      description: row.querySelector('[data-f=description]').value.trim(),
+    };
+    if(!sk.id && !sk.name){continue;}  // 跳过空行
+    // 收集效果字段（key 来自 .ef-key span，只读）
+    const effect = {};
+    for(const efRow of row.querySelectorAll('[data-f=effectFieldsList] .ef-row')){
+      const keyPath = efRow.querySelector('.ef-key').textContent.trim();
+      if(!keyPath){continue;}
+      const valueEl = efRow.querySelector('.ef-value');
+      let value;
+      if(valueEl.tagName === 'SELECT'){
+        value = valueEl.value === 'true';
+      } else if(valueEl.type === 'number'){
+        const n = Number(valueEl.value);
+        value = isNaN(n) ? 0 : n;
+      } else {
+        value = valueEl.value;
+      }
+      // 用点分 key 设置嵌套对象
+      const parts = keyPath.split('.').filter(p => p.length > 0);
+      let cur = effect;
+      for(let i = 0; i < parts.length - 1; i++){
+        const p = parts[i];
+        if(typeof cur[p] !== 'object' || cur[p] === null || Array.isArray(cur[p])){
+          cur[p] = {};
+        }
+        cur = cur[p];
+      }
+      cur[parts[parts.length - 1]] = value;
+    }
+    sk.effect = effect;
+    newSkills.push(sk);
+  }
+  updated.skills = newSkills;
+  // 检测 JSON 框是否被改动
+  const jsonEl = document.getElementById('pet-e-json');
+  let finalPet = updated;
+  if(jsonEl && jsonEl.value && jsonEl.value !== JSON.stringify(orig, null, 2)){
+    try { finalPet = JSON.parse(jsonEl.value); }
+    catch(e){ return toast('JSON 解析失败: '+e.message, 'err'); }
+  }
+  pets[petEditingIdx] = finalPet;
+  try{
+    await api('/gm/players/'+currentUser.id+'/save',{method:'PUT',body:{replace:{pets}}});
+    toast('灵宠已更新','ok');
+    closePetEdit();
+    loadPlayer(currentUser.id);
+  }catch(e){toast('保存失败: '+e.message,'err');}
+}
+
+/* ===== 成就 ===== */
+function renderAchs(){
+  if(!currentSave) return;
+  const achs = currentSave.player.achievements || [];
+  const box = document.getElementById('achs-list');
+  if(achs.length===0){box.innerHTML='<div class="empty">无成就</div>';return;}
+  box.innerHTML = achs.map((a,i)=>{
+    const idOrName = typeof a==='string'?a:(a.id||a.name||JSON.stringify(a));
+    const cnName = cn(idOrName,'achievements') || (typeof a==='object' && a.name) || null;
+    const hit = (gameDicts?.achievements||[]).find(x => x.id === idOrName);
+    const desc = hit?.description || '';
+    const rarity = hit?.rarity || '';
+    return `<div class="item-card">
+      <div style="flex:1;min-width:0">
+        <div class="name">${esc(cnName||idOrName)}${cnName?` <span class="tag" style="color:#9aa3b2">${esc(idOrName)}</span>`:''}</div>
+        <div class="meta">
+          ${rarity?`<span class="tag">${esc(rarity)}</span>`:''}
+          ${desc?`<span style="color:#9aa3b2">${esc(desc)}</span>`:''}
+        </div>
+      </div>
+      <div class="right">
+        <button class="danger" onclick="removeAch(${i})">删</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+// 成就字典（玩家可从字典选择）
+function renderAchDict(){
+  const list = (gameDicts?.achievements)||[];
+  const owned = new Set((currentSave?.player?.achievements||[]).map(a => typeof a==='string'?a:a.id));
+  const box = document.getElementById('ach-dict-list');
+  if(!box) return;
+  if(list.length===0){box.innerHTML='<div class="empty" style="padding:20px">字典未加载</div>';return;}
+  const q = (document.getElementById('ach-search')?.value || '').trim().toLowerCase();
+  const filtered = q ? list.filter(x => (x.id||'').toLowerCase().includes(q) || (x.name||'').toLowerCase().includes(q) || (x.description||'').toLowerCase().includes(q)) : list;
+  box.innerHTML = filtered.slice(0,200).map(x=>{
+    const has = owned.has(x.id);
+    return `<div style="display:flex;align-items:center;gap:8px;padding:4px 6px;border-bottom:1px solid #1c1f29">
+      <input type="checkbox" data-id="${esc(x.id)}" ${has?'checked disabled':''} style="flex:0;width:auto">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:12px">${esc(x.name||x.id)} <span class="tag" style="color:#9aa3b2">${esc(x.id)}</span> <span class="tag">${esc(x.rarity||'')}</span></div>
+        ${x.description?`<div style="font-size:10px;color:#9aa3b2">${esc(x.description)}</div>`:''}
+      </div>
+    </div>`;
+  }).join('') + (filtered.length>200?`<div class="empty" style="padding:6px">仅显示前 200 条,请用搜索框筛选</div>`:'');
+  if(!box._bound){
+    box._bound = true;
+    box.addEventListener('change', async e => {
+      const cb = e.target.closest('input[type=checkbox]');
+      if(!cb || cb.disabled) return;
+      const id = cb.dataset.id;
+      cb.disabled = true;
+      const list = (currentSave.player.achievements||[]).slice();
+      list.push(id);
+      try{
+        await api('/gm/players/'+currentUser.id+'/save',{method:'PUT',body:{replace:{achievements:list}}});
+        toast('已添加成就: '+id,'ok');
+        loadPlayer(currentUser.id);
+      }catch(err){cb.disabled=false; toast('失败: '+err.message,'err');}
+    });
+  }
+}
+function filterAchDict(){ renderAchDict(); }
+async function addAch(){
+  const id = document.getElementById('ach-id').value.trim();
+  if(!id) return toast('请填ID','err');
+  const list = (currentSave.player.achievements||[]).slice();
+  list.push(id);
+  try{
+    await api('/gm/players/'+currentUser.id+'/save',{method:'PUT',body:{replace:{achievements:list}}});
+    toast('已添加','ok');
+    loadPlayer(currentUser.id);
+  }catch(e){toast('失败: '+e.message,'err');}
+}
+async function removeAch(i){
+  const list = (currentSave.player.achievements||[]).slice();
+  list.splice(i,1);
+  try{
+    await api('/gm/players/'+currentUser.id+'/save',{method:'PUT',body:{replace:{achievements:list}}});
+    toast('已删除','ok');
+    loadPlayer(currentUser.id);
+  }catch(e){toast('失败: '+e.message,'err');}
+}
+async function clearAch(){
+  if(!confirm('清空所有成就?')) return;
+  try{
+    await api('/gm/players/'+currentUser.id+'/save',{method:'PUT',body:{replace:{achievements:[]}}});
+    toast('已清空','ok');
+    loadPlayer(currentUser.id);
+  }catch(e){toast('失败: '+e.message,'err');}
+}
+async function unlockAllAch(){
+  // 简单加一些常见成就 ID（实际游戏里应该有完整字典，简化处理）
+  const common = ['first_login','realm_1','realm_2','realm_3','realm_4','kill_10','kill_100','rich_1000'];
+  const list = Array.from(new Set([...(currentSave.player.achievements||[]), ...common]));
+  try{
+    await api('/gm/players/'+currentUser.id+'/save',{method:'PUT',body:{replace:{achievements:list}}});
+    toast('已批量添加 '+common.length+' 个常用成就ID','ok');
+    loadPlayer(currentUser.id);
+  }catch(e){toast('失败: '+e.message,'err');}
+}
+
+async function addToList(field, inputId){
+  const v = document.getElementById(inputId).value.trim();
+  if(!v) return toast('请填值','err');
+  const list = (currentSave.player[field]||[]).slice();
+  list.push(v);
+  try{
+    await api('/gm/players/'+currentUser.id+'/save',{method:'PUT',body:{replace:{[field]:list}}});
+    toast('已添加','ok');
+    loadPlayer(currentUser.id);
+  }catch(e){toast('失败: '+e.message,'err');}
+}
+
+/* ===== 洞府 ===== */
+// 草药数组字段：可视化增删（plantedHerbs/herbarium/herbs）
+const HERB_ARRAY_KEYS = ['plantedHerbs','herbarium','herbs'];
+// 建筑对象字段：升级信息（保留 JSON 编辑）
+const BUILDING_OBJ_KEYS = ['herbGarden','spiritPool','alchemyFurnace','library','spiritArray','slots'];
+
+function renderGrottoHerbList(k, list){
+  const cnKey = KNOWN_CN_GROTTO[k] || k;
+  const herbOptions = (gameDicts?.herbs||[]).map(h => {
+    const idOrName = h.id || h.name;
+    return `<option value="${esc(idOrName)}">${esc(h.name||idOrName)} (${esc(h.rarity||'')})</option>`;
+  }).join('');
+  const itemsHTML = (list||[]).map((it, i) => {
+    const idOrName = typeof it === 'string' ? it : (it.id || it.name || JSON.stringify(it));
+    return `<div class="grotto-herb-item" data-idx="${i}" style="display:flex;gap:6px;margin-bottom:4px;align-items:center;background:#1c1f29;padding:4px;border-radius:3px">
+      <span style="flex:0 0 30px;color:#5b8cff;font-size:11px">#${i+1}</span>
+      <span style="flex:1;font-size:12px">${esc(idOrName)}</span>
+      <button type="button" class="danger" style="padding:2px 6px" onclick="removeGrottoHerbItem('${esc(k)}', ${i})">×</button>
+    </div>`;
+  }).join('') || '<div class="empty" style="padding:6px">暂无</div>';
+  return `<div class="kv" style="display:block">
+    <label title="${esc(k)}">${esc(cnKey)} <span class="tag" style="color:#9aa3b2">${esc(k)}</span> <span class="pill">${(list||[]).length} 项</span></label>
+    <div style="background:#14171f;padding:6px;border-radius:3px;margin:4px 0">
+      ${itemsHTML}
+    </div>
+    <div style="display:flex;gap:6px;margin-top:4px">
+      <select id="grotto-herb-sel-${esc(k)}" style="flex:1">
+        <option value="">-- 选草药 (从字典) --</option>
+        ${herbOptions}
+      </select>
+      <button type="button" class="primary" style="padding:4px 10px" onclick="addGrottoHerbItem('${esc(k)}')">+ 添加</button>
+      <button type="button" class="danger" style="padding:4px 10px" onclick="clearGrottoArray('${esc(k)}')">清空</button>
+    </div>
+  </div>`;
+}
+
+async function addGrottoHerbItem(k){
+  const sel = document.getElementById('grotto-herb-sel-'+k);
+  if(!sel || !sel.value){return toast('请先选草药','err');}
+  const v = sel.value;
+  const grotto = {...(currentSave.player.grotto||{})};
+  grotto[k] = Array.isArray(grotto[k]) ? grotto[k].slice() : [];
+  // 避免重复
+  if(grotto[k].includes(v)){return toast('已存在: '+v,'err');}
+  grotto[k].push(v);
+  try{
+    await api('/gm/players/'+currentUser.id+'/save',{method:'PUT',body:{replace:{grotto}}});
+    toast('已添加: '+v,'ok');
+    loadPlayer(currentUser.id);
+  }catch(e){toast('失败: '+e.message,'err');}
+}
+async function removeGrottoHerbItem(k, idx){
+  if(!confirm('删除 '+k+' 第'+(idx+1)+'项?')) return;
+  const grotto = {...(currentSave.player.grotto||{})};
+  grotto[k] = Array.isArray(grotto[k]) ? grotto[k].slice() : [];
+  grotto[k].splice(idx, 1);
+  try{
+    await api('/gm/players/'+currentUser.id+'/save',{method:'PUT',body:{replace:{grotto}}});
+    toast('已删除','ok');
+    loadPlayer(currentUser.id);
+  }catch(e){toast('失败: '+e.message,'err');}
+}
+async function clearGrottoArray(k){
+  if(!confirm('清空 '+k+' 数组?')) return;
+  const grotto = {...(currentSave.player.grotto||{})};
+  grotto[k] = [];
+  try{
+    await api('/gm/players/'+currentUser.id+'/save',{method:'PUT',body:{replace:{grotto}}});
+    toast('已清空','ok');
+    loadPlayer(currentUser.id);
+  }catch(e){toast('失败: '+e.message,'err');}
+}
+
+const KNOWN_CN_GROTTO = {
+  // 基础
+  level:'等级', name:'名称', cost:'消耗', description:'描述',
+  // 修炼
+  expRateBonus:'修炼速度加成', autoHarvest:'自动收获',
+  growthSpeedBonus:'生长速度加成', maxHerbSlots:'最大草药槽',
+  storageCapacity:'储物容量', upgradeTime:'升级时长',
+  currentLevel:'当前等级', lastHarvest:'上次收获', lastHarvestTime:'上次收获时间',
+  // 建筑
+  herbGarden:'灵草园', spiritPool:'灵池', alchemyFurnace:'炼丹炉',
+  library:'藏经阁', herbarium:'药园', spiritArray:'灵阵',
+  spiritArrayEnhancement:'灵阵加成', dailySpeedupCount:'今日加速次数',
+  lastSpeedupResetDate:'上次加速重置日期',
+  // 列表
+  plantedHerbs:'已种草药', slots:'槽位', herbs:'草药列表',
+};
+
+function renderGrotto(){
+  if(!currentSave) return;
+  const g = currentSave.player.grotto || {};
+  const box = document.getElementById('grotto-edit');
+  const keys = Object.keys(g);
+  if(keys.length===0){box.innerHTML='<div class="empty">洞府为空 (可在下方添加字段)</div>';return;}
+  // 时间字段（特殊显示）
+  const TIME_KEYS = ['lastHarvestTime','lastSpeedupResetDate','lastHarvest'];
+  let html = '';
+  for(const k of keys){
+    const v = g[k];
+    const isObj = typeof v==='object' && v!==null && !Array.isArray(v);
+    const isArr = Array.isArray(v);
+    const isTime = TIME_KEYS.includes(k);
+    const cnKey = KNOWN_CN_GROTTO[k] || grottoKeyCN(k) || null;
+    // 草药数组：可视化增删
+    if(isArr && HERB_ARRAY_KEYS.includes(k)){
+      html += renderGrottoHerbList(k, v);
+      continue;
+    }
+    // 建筑对象：JSON 编辑 + 等级快捷修改
+    if(isObj && BUILDING_OBJ_KEYS.includes(k)){
+      const lvl = (typeof v.level === 'number') ? v.level : (typeof v.currentLevel === 'number' ? v.currentLevel : 1);
+      html += `<div class="kv" style="display:block">
+        <label title="${esc(k)}">${esc(cnKey||k)} <span class="tag" style="color:#9aa3b2">${esc(k)}</span> <span class="pill">Lv ${lvl}</span></label>
+        <div style="display:flex;gap:6px;margin:4px 0;align-items:center">
+          <span style="font-size:11px;color:#9aa3b2">等级</span>
+          <input type="number" value="${lvl}" min="1" max="10" style="flex:0 0 80px" onchange="updateBuildingLevel('${esc(k)}', this.value)">
+          <span style="font-size:11px;color:#9aa3b2">全部字段(JSON)</span>
+          <input type="text" value='${esc(JSON.stringify(v))}' style="flex:1;font-family:monospace;font-size:10px" onchange="updateBuildingJSON('${esc(k)}', this.value)" placeholder='{"level":3,...}'>
+        </div>
+      </div>`;
+      continue;
+    }
+    // 其他数组：JSON 显示
+    let valBox = '';
+    if(isArr){
+      valBox = `<code style="font-size:10px">${esc(JSON.stringify(v))}</code>
+        <button class="danger" style="margin-left:6px;padding:2px 6px" onclick="updateGrottoKey('${esc(k)}', '[]')">清空</button>`;
+    } else if(isObj){
+      valBox = `<div style="display:flex;gap:6px">
+        <input type="text" value='${esc(JSON.stringify(v))}' style="flex:1;font-family:monospace;font-size:10px" onchange="updateGrottoKey('${esc(k)}', this.value)" placeholder='{"key":value}'>
+        <button class="primary" style="padding:4px 8px" onclick="updateGrottoKey('${esc(k)}', this.previousElementSibling.value)">应用</button>
+      </div>`;
+    } else if(typeof v === 'boolean'){
+      valBox = `<select onchange="updateGrottoKey('${esc(k)}', this.value==='true')">
+        <option value="true" ${v?'selected':''}>开启</option>
+        <option value="false" ${!v?'selected':''}>关闭</option>
+      </select>`;
+    } else if(isTime){
+      valBox = `<input type="text" value="${esc(String(v))}" onchange="updateGrottoKey('${esc(k)}', this.value)" placeholder="ISO日期或null">`;
+    } else if(typeof v === 'number'){
+      valBox = `<input type="number" value="${v}" onchange="updateGrottoKey('${esc(k)}', this.value)">`;
+    } else {
+      valBox = `<input type="text" value="${esc(String(v))}" onchange="updateGrottoKey('${esc(k)}', this.value)">`;
+    }
+    html += `<div class="kv">
+      <label title="${esc(k)}">${esc(cnKey||k)}${cnKey?` <span class="tag" style="color:#9aa3b2">${esc(k)}</span>`:''}</label>
+      ${valBox}
+      <button class="danger" onclick="deleteGrottoKey('${esc(k)}')">删</button>
+    </div>`;
+  }
+  box.innerHTML = html;
+}
+
+async function updateBuildingLevel(k, v){
+  const grotto = {...(currentSave.player.grotto||{})};
+  if(!grotto[k] || typeof grotto[k] !== 'object') grotto[k] = {level: 1};
+  grotto[k] = {...grotto[k], level: Math.max(1, Number(v)||1)};
+  try{
+    await api('/gm/players/'+currentUser.id+'/save',{method:'PUT',body:{replace:{grotto}}});
+    toast('已更新 '+k+' 等级','ok');
+    loadPlayer(currentUser.id);
+  }catch(e){toast('失败: '+e.message,'err');}
+}
+async function updateBuildingJSON(k, jsonStr){
+  let v;
+  try{ v = JSON.parse(jsonStr); }
+  catch(e){return toast('JSON 解析失败: '+e.message,'err');}
+  const grotto = {...(currentSave.player.grotto||{})};
+  grotto[k] = v;
+  try{
+    await api('/gm/players/'+currentUser.id+'/save',{method:'PUT',body:{replace:{grotto}}});
+    toast('已更新 '+k,'ok');
+    loadPlayer(currentUser.id);
+  }catch(e){toast('失败: '+e.message,'err');}
+}
+// 洞府可用中文键名（与游戏真实结构一致）
+const GROTTO_KEYS_OPTIONS = [
+  ['level','等级（数字）'],
+  ['expRateBonus','修炼速度加成（数字）'],
+  ['autoHarvest','自动收获（布尔）'],
+  ['growthSpeedBonus','生长速度加成（数字）'],
+  ['maxHerbSlots','最大草药槽（数字）'],
+  ['storageCapacity','储物容量（数字）'],
+  ['lastHarvestTime','上次收获时间（字符串）'],
+  ['spiritArrayEnhancement','灵阵加成（数字）'],
+  ['dailySpeedupCount','今日加速次数（数字）'],
+  ['lastSpeedupResetDate','上次加速重置日期（字符串）'],
+  ['plantedHerbs','已种草药（数组）'],
+  ['herbarium','药园（数组）'],
+  ['slots','槽位（数组/对象）'],
+  ['herbs','草药列表（数组）'],
+  ['herbGarden','灵草园（对象）'],
+  ['spiritPool','灵池（对象）'],
+  ['alchemyFurnace','炼丹炉（对象）'],
+  ['library','藏经阁（对象）'],
+  ['spiritArray','灵阵（对象）'],
+];
+function grottoKeyOptions(){
+  return GROTTO_KEYS_OPTIONS.map(([k, label]) => `<option value="${esc(k)}">${esc(label)}</option>`).join('');
+}
+function onGrottoNewTypeChange(){
+  // 根据类型更新 value 输入框 placeholder
+  const t = document.getElementById('grotto-newtype').value;
+  const v = document.getElementById('grotto-newval');
+  if(t === 'number') v.placeholder = '如 10';
+  else if(t === 'boolean') v.placeholder = 'true / false';
+  else if(t === 'json') v.placeholder = '{"level":3,"exp":100}';
+  else v.placeholder = "如 '每日收获'";
+}
+
+// ===== 统一洞府更新（局部更新 currentSave + renderGrotto） =====
+// 避免 loadPlayer 重新加载整个玩家（会跳转到主页 + 重置左侧选中）
+async function grottoLocalUpdate(mutator, msg){
+  // mutator: (currentGrotto) => newGrotto
+  if(!currentSave || !currentUser) return;
+  const oldGrotto = currentSave.player.grotto || {};
+  const newGrotto = mutator({...oldGrotto});
+  try{
+    await api('/gm/players/'+currentUser.id+'/save',{method:'PUT',body:{replace:{grotto:newGrotto}}});
+    // 局部更新
+    currentSave.player.grotto = newGrotto;
+    toast(msg||'已更新','ok');
+    renderGrotto();
+    renderGrottoKeyDropdown();
+  }catch(e){toast('失败: '+e.message,'err');}
+}
+function renderGrottoKeyDropdown(){
+  // 重新渲染键名下拉（已存在的字段标 disabled）
+  const sel = document.getElementById('grotto-newkey');
+  if(!sel) return;
+  const existing = new Set(Object.keys(currentSave?.player?.grotto || {}));
+  sel.innerHTML = GROTTO_KEYS_OPTIONS.map(([k, label]) =>
+    `<option value="${esc(k)}" ${existing.has(k)?'disabled':''}>${esc(label)}${existing.has(k)?' (已存在)':''}</option>`
+  ).join('');
+}
+
+async function addGrottoHerbItem(k){
+  const sel = document.getElementById('grotto-herb-sel-'+k);
+  if(!sel || !sel.value){return toast('请先选草药','err');}
+  await grottoLocalUpdate(g => {
+    if(!Array.isArray(g[k])) g[k] = [];
+    if(!g[k].includes(sel.value)) g[k].push(sel.value);
+    return g;
+  }, '已添加: '+sel.value);
+}
+async function removeGrottoHerbItem(k, idx){
+  if(!confirm('删除 '+k+' 第'+(idx+1)+'项?')) return;
+  await grottoLocalUpdate(g => {
+    if(Array.isArray(g[k])) g[k].splice(idx, 1);
+    return g;
+  }, '已删除');
+}
+async function clearGrottoArray(k){
+  if(!confirm('清空 '+k+' 数组?')) return;
+  await grottoLocalUpdate(g => { g[k] = []; return g; }, '已清空');
+}
+async function updateBuildingLevel(k, v){
+  await grottoLocalUpdate(g => {
+    if(!g[k] || typeof g[k] !== 'object' || Array.isArray(g[k])) g[k] = {level: 1};
+    else g[k] = {...g[k]};
+    g[k].level = Math.max(1, Number(v)||1);
+    return g;
+  }, '已更新 '+k+' 等级');
+}
+async function updateBuildingJSON(k, jsonStr){
+  let v;
+  try{ v = JSON.parse(jsonStr); }
+  catch(e){return toast('JSON 解析失败: '+e.message,'err');}
+  await grottoLocalUpdate(g => { g[k] = v; return g; }, '已更新 '+k);
+}
+
+async function updateGrottoKey(k, v){
+  let val = v;
+  if(typeof v === 'string' && v.trim().startsWith('{')){
+    try { val = JSON.parse(v); } catch(e){/* keep as string */ }
+  } else {
+    const n = Number(v);
+    if(!isNaN(n) && String(v).trim()!=='') val = n;
+  }
+  await grottoLocalUpdate(g => { g[k] = val; return g; }, '已更新 '+k);
+}
+async function deleteGrottoKey(k){
+  if(!confirm('删除洞府字段 '+k+'?')) return;
+  await grottoLocalUpdate(g => { delete g[k]; return g; }, '已删除 '+k);
+}
+async function addGrottoKey(){
+  const k = document.getElementById('grotto-newkey').value.trim();
+  const t = document.getElementById('grotto-newtype').value;
+  const vRaw = document.getElementById('grotto-newval').value.trim();
+  if(!k){return toast('请选键名','err');}
+  // 解析值
+  let v;
+  try{
+    if(t === 'number') v = Number(vRaw) || 0;
+    else if(t === 'boolean') v = (vRaw === 'true' || vRaw === '1' || vRaw === '是');
+    else if(t === 'json') v = JSON.parse(vRaw || '{}');
+    else v = vRaw;  // string
+  }catch(e){return toast('值解析失败: '+e.message,'err');}
+  await grottoLocalUpdate(g => { g[k] = v; return g; }, '已添加: '+k);
+}
+async function clearGrotto(){
+  if(!confirm('清空整个洞府对象?')) return;
+  await grottoLocalUpdate(g => ({}), '已清空');
+}
+async function saveGrotto(){
+  // 重新读取（界面里没有内联收集多个 key 的逻辑——每个 key onchange 即时保存）
+  toast('洞府字段已在修改时即时保存','info');
+}
+
+// 按 ID 授予称号：走服务端专用幂等端点 POST /gm/title/grant（写 player_titles 表，非改存档）
+async function grantTitleById(){
+  if(!currentUser) return;
+  const el = document.getElementById('grant-title-id');
+  const titleId = parseInt(el.value);
+  if(!titleId || titleId <= 0) return toast('请输入合法的称号 ID','err');
+  try{
+    const r = await api('/gm/title/grant',{method:'POST',body:{userId: currentUser.id, titleId}});
+    toast(r.granted ? '称号已授予' : '该玩家已拥有此称号（未重复授予）', r.granted ? 'ok' : 'info');
+    el.value = '';
+    loadPlayer(currentUser.id);
+  }catch(e){toast('授予失败: '+e.message,'err');}
+}
+
+/* ===== 称号/功法 已解锁列表 + 字典 ===== */
+function renderTitlesCN(){
+  if(!currentSave) return;
+  const box = document.getElementById('titles-list-cn');
+  if(!box) return;
+  const titles = currentSave.player.unlockedTitles || [];
+  if(titles.length===0){box.innerHTML='<div class="empty">未解锁任何称号</div>';return;}
+  box.innerHTML = titles.map((t,i)=>{
+    const id = typeof t==='string'?t:(t.id||t.name||JSON.stringify(t));
+    const cnName = cn(id,'titles') || (typeof t==='object'&&t.name) || null;
+    const hit = (gameDicts?.titles||[]).find(x => x.id === id);
+    return `<div class="item-card">
+      <div style="flex:1;min-width:0">
+        <div class="name">${esc(cnName||id)}${cnName?` <span class="tag" style="color:#9aa3b2">${esc(id)}</span>`:''}</div>
+        ${hit?.description?`<div class="meta"><span style="color:#9aa3b2">${esc(hit.description)}</span></div>`:''}
+      </div>
+      <div class="right">
+        <button class="danger" onclick="removeFromList('unlockedTitles', ${i})">删</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+function renderArtsCN(){
+  if(!currentSave) return;
+  const box = document.getElementById('arts-list-cn');
+  if(!box) return;
+  const arts = currentSave.player.unlockedArts || [];
+  if(arts.length===0){box.innerHTML='<div class="empty">未解锁任何功法</div>';return;}
+  box.innerHTML = arts.map((t,i)=>{
+    const id = typeof t==='string'?t:(t.id||t.name||JSON.stringify(t));
+    const cnName = cn(id,'arts') || (typeof t==='object'&&t.name) || null;
+    const hit = (gameDicts?.arts||[]).find(x => x.id === id);
+    return `<div class="item-card">
+      <div style="flex:1;min-width:0">
+        <div class="name">${esc(cnName||id)}${cnName?` <span class="tag" style="color:#9aa3b2">${esc(id)}</span>`:''}</div>
+        ${hit?.description?`<div class="meta"><span style="color:#9aa3b2">${esc(hit.description)}</span></div>`:''}
+      </div>
+      <div class="right">
+        <button class="danger" onclick="removeFromList('unlockedArts', ${i})">删</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+function renderTitleDict(){
+  const list = (gameDicts?.titles)||[];
+  const owned = new Set((currentSave?.player?.unlockedTitles||[]).map(t => typeof t==='string'?t:t.id));
+  const box = document.getElementById('title-dict-list');
+  if(!box) return;
+  if(list.length===0){box.innerHTML='<div class="empty" style="padding:20px">字典未加载</div>';return;}
+  const q = (document.getElementById('add-title-search')?.value || '').trim().toLowerCase();
+  const filtered = q ? list.filter(x => (x.id||'').toLowerCase().includes(q) || (x.name||'').toLowerCase().includes(q) || (x.description||'').toLowerCase().includes(q)) : list;
+  box.innerHTML = filtered.map(x=>{
+    const has = owned.has(x.id);
+    return `<div style="display:flex;align-items:center;gap:8px;padding:4px 6px;border-bottom:1px solid #1c1f29">
+      <input type="checkbox" data-id="${esc(x.id)}" data-field="unlockedTitles" ${has?'checked disabled':''} style="flex:0;width:auto">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:12px">${esc(x.name||x.id)} <span class="tag" style="color:#9aa3b2">${esc(x.id)}</span></div>
+        ${x.description?`<div style="font-size:10px;color:#9aa3b2">${esc(x.description)}</div>`:''}
+      </div>
+    </div>`;
+  }).join('');
+  if(!box._bound){
+    box._bound = true;
+    box.addEventListener('change', async e => {
+      const cb = e.target.closest('input[type=checkbox]');
+      if(!cb || cb.disabled) return;
+      const id = cb.dataset.id;
+      const field = cb.dataset.field;
+      cb.disabled = true;
+      const list = (currentSave.player[field]||[]).slice();
+      list.push(id);
+      try{
+        await api('/gm/players/'+currentUser.id+'/save',{method:'PUT',body:{replace:{[field]:list}}});
+        toast('已添加: '+id,'ok');
+        loadPlayer(currentUser.id);
+      }catch(err){cb.disabled=false; toast('失败: '+err.message,'err');}
+    });
+  }
+}
+function filterTitleDict(){ renderTitleDict(); }
+function renderArtDict(){
+  const list = (gameDicts?.arts)||[];
+  const owned = new Set((currentSave?.player?.unlockedArts||[]).map(t => typeof t==='string'?t:t.id));
+  const box = document.getElementById('art-dict-list');
+  if(!box) return;
+  if(list.length===0){box.innerHTML='<div class="empty" style="padding:20px">字典未加载</div>';return;}
+  const q = (document.getElementById('add-art-search')?.value || '').trim().toLowerCase();
+  const filtered = q ? list.filter(x => (x.id||'').toLowerCase().includes(q) || (x.name||'').toLowerCase().includes(q) || (x.description||'').toLowerCase().includes(q)) : list;
+  box.innerHTML = filtered.map(x=>{
+    const has = owned.has(x.id);
+    return `<div style="display:flex;align-items:center;gap:8px;padding:4px 6px;border-bottom:1px solid #1c1f29">
+      <input type="checkbox" data-id="${esc(x.id)}" data-field="unlockedArts" ${has?'checked disabled':''} style="flex:0;width:auto">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:12px">${esc(x.name||x.id)} <span class="tag" style="color:#9aa3b2">${esc(x.id)}</span> <span class="tag">${esc(x.grade||'')}</span></div>
+        ${x.description?`<div style="font-size:10px;color:#9aa3b2">${esc(x.description)}</div>`:''}
+      </div>
+    </div>`;
+  }).join('');
+  if(!box._bound){
+    box._bound = true;
+    box.addEventListener('change', async e => {
+      const cb = e.target.closest('input[type=checkbox]');
+      if(!cb || cb.disabled) return;
+      const id = cb.dataset.id;
+      const field = cb.dataset.field;
+      cb.disabled = true;
+      const list = (currentSave.player[field]||[]).slice();
+      list.push(id);
+      try{
+        await api('/gm/players/'+currentUser.id+'/save',{method:'PUT',body:{replace:{[field]:list}}});
+        toast('已添加工法: '+id,'ok');
+        loadPlayer(currentUser.id);
+      }catch(err){cb.disabled=false; toast('失败: '+err.message,'err');}
+    });
+  }
+}
+function filterArtDict(){ renderArtDict(); }
+async function removeFromList(field, i){
+  if(!confirm('删除该 '+field+' 项?')) return;
+  const list = (currentSave.player[field]||[]).slice();
+  list.splice(i,1);
+  try{
+    await api('/gm/players/'+currentUser.id+'/save',{method:'PUT',body:{replace:{[field]:list}}});
+    toast('已删除','ok');
+    loadPlayer(currentUser.id);
+  }catch(e){toast('失败: '+e.message,'err');}
+}
+
+/* ===== 抽奖历史 ===== */
+async function loadLotteryHistory(){
+  if(!currentUser) return;
+  try{
+    const r = await api('/gm/lottery-history?limit=30&userId='+currentUser.id);
+    const list = r.history || r.entries || (Array.isArray(r)?r:[]);
+    const box = document.getElementById('lottery-history');
+    if(!list || list.length===0){box.innerHTML='<div class="empty">无抽奖记录</div>';return;}
+    box.innerHTML = `<table class="data"><tr><th>时间</th><th>物品</th><th>类型</th><th>品质</th><th>数量</th></tr>${list.map(h=>`<tr><td>${esc((h.created_at||h.createdAt||'').substring(0,19))}</td><td>${esc(h.prize_name||h.name||'')}</td><td>${esc(h.prize_type||h.type||'')}</td><td>${esc(h.prize_rarity||h.rarity||'')}</td><td>${h.quantity||1}</td></tr>`).join('')}</table>`;
+  }catch(e){
+    document.getElementById('lottery-history').innerHTML='<div class="empty">无法加载: '+e.message+'</div>';
+  }
+}
+
+/* ===== 账号操作 ===== */
+async function toggleBan(b){
+  if(!currentUser) return;
+  if(b && !confirm('确定封禁该玩家?')) return;
+  try{
+    const r = await api('/gm/players/'+currentUser.id+'/ban',{method:'POST',body:{banned:b}});
+    toast(r.message,'ok');
+    loadPlayers();
+    loadPlayer(currentUser.id);
+  }catch(e){toast('失败: '+e.message,'err');}
+}
+async function kickPlayer(){
+  if(!currentUser) return;
+  if(!confirm('踢该玩家下线?')) return;
+  try{
+    const r = await api('/gm/players/'+currentUser.id+'/kick',{method:'POST'});
+    toast(r.message,'ok');
+  }catch(e){toast('失败: '+e.message,'err');}
+}
+async function resetPassword(){
+  if(!currentUser) return;
+  const pwd = document.getElementById('new-pwd').value;
+  if(!pwd) return toast('请输入新密码','err');
+  if(!confirm('将密码改为 "'+pwd+'" 并踢下线?')) return;
+  try{
+    const r = await api('/gm/players/'+currentUser.id+'/reset-password',{method:'POST',body:{newPassword:pwd}});
+    toast(r.message,'ok');
+    document.getElementById('new-pwd').value='';
+  }catch(e){toast('失败: '+e.message,'err');}
+}
+async function resetSave(){
+  if(!currentUser) return;
+  const nm = currentUser.charName || currentUser.username;
+  if(!strongConfirm('⚠ 重置存档（不可逆）',
+    '将清零玩家「'+nm+'」的修为 / 灵石 / 装备 / 灵宠 / 境界等全部存档数据（账号保留）。',
+    nm)) return;
+  try{
+    await api('/gm/players/'+currentUser.id+'/reset-save',{method:'POST'});
+    toast('存档已重置','ok');
+    loadPlayer(currentUser.id); loadPlayers();
+  }catch(e){toast('失败: '+e.message,'err');}
+}
+async function deleteUser(){
+  if(!currentUser) return;
+  const nm = currentUser.charName || currentUser.username;
+  if(!strongConfirm('⚠⚠ 永久删除账号（不可恢复）',
+    '将永久删除玩家「'+nm+'」的账号及其存档 / 排名 / 抽奖历史，此操作无法撤销、无法找回。',
+    nm)) return;
+  try{
+    await api('/gm/players/'+currentUser.id,{method:'DELETE'});
+    toast('账号已删除','ok');
+    currentUser = null; currentSave = null;
+    document.getElementById('detail').style.display='none';
+    document.getElementById('empty-detail').style.display='block';
+    loadPlayers();
+  }catch(e){toast('失败: '+e.message,'err');}
+}
+/* ===== 世界聊天禁言 (POST /gm/players/:id/mute) =====
+   服务端契约：body { minutes?:number, until?:string }
+     · minutes>0 ⇒ 禁言到 now+minutes 分钟
+     · minutes<=0 / until 为空或已过去 ⇒ 解除禁言
+     · 返回 { ok:true, userId, mutedUntil }（mutedUntil 为 ISO 或 null）
+   GM 玩家列表已带 mutedUntil 字段 ⇒ 详情页可直接显示当前禁言状态。 */
+function fmtMute(iso){
+  if(!iso) return '—';
+  const d = new Date(iso);
+  return isNaN(d.getTime()) ? String(iso) : d.toLocaleString();
+}
+function isMutedNow(until){
+  return !!until && new Date(until).getTime() > Date.now();
+}
+function renderMuteStatus(){
+  const el = document.getElementById('mute-status');
+  if(!el) return;
+  const until = currentUser && currentUser.mutedUntil;
+  el.innerHTML = isMutedNow(until)
+    ? '<span style="color:#e15b5b">● 当前禁言中，至 ' + esc(fmtMute(until)) + '</span>'
+    : '<span style="color:#5be18a">● 未禁言</span>';
+}
+async function mutePlayer(minutes){
+  if(!currentUser) return;
+  const m = (minutes != null) ? minutes : parseInt(document.getElementById('mute-minutes').value, 10);
+  if(!Number.isFinite(m) || m <= 0) return toast('请输入有效的禁言分钟数','err');
+  const nm = currentUser.charName || currentUser.username;
+  if(!confirm('禁言玩家「' + nm + '」' + m + ' 分钟？\n\n仅拦截世界聊天发言，不影响登录/存档/领取。')) return;
+  try{
+    const r = await api('/gm/players/' + currentUser.id + '/mute', {method:'POST', body:{minutes:m}});
+    toast('已禁言至 ' + fmtMute(r.mutedUntil), 'ok');
+    currentUser.mutedUntil = r.mutedUntil;
+    renderMuteStatus();
+    loadPlayers();
+  }catch(e){toast('失败: '+e.message,'err');}
+}
+async function unmutePlayer(){
+  if(!currentUser) return;
+  const nm = currentUser.charName || currentUser.username;
+  if(!confirm('解除玩家「' + nm + '」的禁言？')) return;
+  try{
+    const r = await api('/gm/players/' + currentUser.id + '/mute', {method:'POST', body:{minutes:0}});
+    toast('已解除禁言', 'ok');
+    currentUser.mutedUntil = r.mutedUntil || null;
+    renderMuteStatus();
+    loadPlayers();
+  }catch(e){toast('失败: '+e.message,'err');}
+}
+async function loadAudit(){
+  if(!currentUser) return;
+  try{
+    const r = await api('/gm/players/'+currentUser.id+'/audit?limit=30');
+    const sec = document.getElementById('audit-section');
+    sec.style.display='block';
+    sec.scrollIntoView({behavior:'smooth'});
+    document.getElementById('audit-list').innerHTML = r.logs.length ? r.logs.map(l=>`
+      <div class="item-card">
+        <div style="flex:1;min-width:0">
+          <div class="name">${esc(l.action)} <span class="tag">${esc(l.target||'')}</span></div>
+          <div class="meta"><code>${esc((l.detail||'').substring(0,300))}</code></div>
+        </div>
+        <div style="font-size:10px;color:#9aa3b2">${(l.created_at||'').substring(0,19)}</div>
+      </div>
+    `).join('') : '<div class="empty">无审计日志</div>';
+  }catch(e){toast('失败: '+e.message,'err');}
+}
+
+/* ===== 启动 ===== */
+if(token){
+  api('/gm/dashboard').then(()=>{showApp();loadPlayers();loadItems();loadDicts();}).catch(()=>{showLogin();});
+}else{showLogin();}
+
+/* ===== 监控仪表盘 ===== */
+async function loadDashboard(){
+  const box = document.getElementById('dashboard-content');
+  box.innerHTML = '<div class="empty">加载中...</div>';
+  try{
+    const [d, audit] = await Promise.all([
+      api('/gm/dashboard'),
+      api('/gm/audit-logs?limit=20'),
+    ]);
+    const realm = (d.realmDistribution||[]).map(r=>{
+      const pct = d.totalSaves>0 ? Math.round((r.c / d.totalSaves) * 100) : 0;
+      return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+        <span style="width:70px;font-size:11px">${esc(r.realm)}</span>
+        <div class="bar" style="flex:1"><div class="bar-fill" style="width:${pct}%"></div></div>
+        <span style="width:60px;text-align:right;font-size:11px">${r.c} (${pct}%)</span>
+      </div>`;
+    }).join('');
+    const top = (d.topPower||[]).map((r,i)=>`<tr><td>#${i+1}</td><td>${esc(r.username)}</td><td style="text-align:right;color:#e1c25b">${r.combat_power||0}</td></tr>`).join('');
+    const logs = (audit.logs||[]).slice(0,15).map(l=>`<tr>
+      <td><code>${esc(l.action)}</code></td>
+      <td>${esc(l.target||'')}</td>
+      <td style="font-size:10px;color:#9aa3b2">${esc((l.created_at||'').substring(0,19))}</td>
+    </tr>`).join('');
+    box.innerHTML = `
+      <div class="monitor-grid">
+        ${dashCard('总玩家数', d.totalUsers, 'users 表', '#3a5fff')}
+        ${dashCard('有存档玩家', d.totalSaves, 'saves 表', '#5be19e')}
+        ${dashCard('今日活跃', d.activeToday, '过去 24h 有聊天', '#e1c25b')}
+        ${dashCard('累计抽奖', d.totalLottery, 'lottery_history', '#5bc7e1')}
+        ${dashCard('世界聊天', d.totalChat, 'chat_messages', '#a375ff')}
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px">
+        <div class="section">
+          <h2>境界分布</h2>
+          ${realm || '<div class="empty">暂无数据</div>'}
+        </div>
+        <div class="section">
+          <h2>战力榜 TOP 10</h2>
+          <table class="data"><tr><th>#</th><th>玩家</th><th style="text-align:right">战力</th></tr>${top || '<tr><td colspan=3 class="empty">暂无数据</td></tr>'}</table>
+        </div>
+      </div>
+      <div class="section" style="margin-top:14px">
+        <h2>最近 GM 操作 (15 条) · <a onclick="loadDashboard()">刷新</a></h2>
+        <table class="data"><tr><th>操作</th><th>对象</th><th>时间</th></tr>${logs || '<tr><td colspan=3 class="empty">暂无</td></tr>'}</table>
+      </div>
+    `;
+  }catch(e){box.innerHTML='<div class="empty">加载失败: '+esc(e.message)+'</div>';}
+}
+function dashCard(label, value, sub, color){
+  return `<div class="dash-card">
+    <div class="label">${esc(label)}</div>
+    <div class="value" style="color:${color}">${value||0}</div>
+    <div class="sub">${esc(sub)}</div>
+  </div>`;
+}
+
+/* ===== 交易行管理 ===== */
+async function loadMarket(){
+  marketPage = 1;
+  await loadMarketPage(1);
+}
+async function loadMarketPage(p){
+  marketPage = p;
+  const status = document.getElementById('market-status').value;
+  const q = document.getElementById('market-search').value.trim();
+  const params = new URLSearchParams({page: p, pageSize: marketPageSize});
+  if(status) params.set('status', status);
+  const box = document.getElementById('market-content');
+  box.innerHTML = '<div class="empty">加载中...</div>';
+  try{
+    const r = await api('/gm/market?'+params);
+    marketTotal = r.total;
+    let listings = r.listings || [];
+    if(q) listings = listings.filter(l => (l.item_name||'').includes(q) || (l.seller_name||'').includes(q));
+    if(listings.length===0){box.innerHTML='<div class="empty">无交易行商品</div>';}
+    else {
+      box.innerHTML = `<table class="data">
+        <tr><th>ID</th><th>状态</th><th>物品</th><th>类型/品质</th><th>价格</th><th>数量</th><th>卖家</th><th>时间</th><th>操作</th></tr>
+        ${listings.map(l=>`<tr>
+          <td>#${l.id}</td>
+          <td><span class="tag" style="${l.status==='active'?'color:#5be19e':(l.status==='sold'?'color:#e1c25b':'color:#e15b5b')}">${esc(l.status)}</span></td>
+          <td>${esc(l.item_name||'')}</td>
+          <td><span class="tag">${esc(l.item_type||'')}</span><span class="tag">${esc(l.item_rarity||'')}</span></td>
+          <td><input type="number" value="${l.price||0}" id="m-price-${l.id}" style="width:80px"></td>
+          <td><input type="number" value="${l.quantity||0}" id="m-qty-${l.id}" style="width:60px"></td>
+          <td>${esc(l.seller_name||'#'+l.seller_id)}</td>
+          <td style="font-size:10px;color:#9aa3b2">${esc((l.created_at||'').substring(0,16))}</td>
+          <td>
+            <button onclick="saveMarket(${l.id})" class="primary" style="padding:3px 8px;font-size:11px">保存</button>
+            ${l.status==='active'?`<button onclick="cancelMarket(${l.id})" class="danger" style="padding:3px 8px;font-size:11px">下架</button>`:''}
+          </td>
+        </tr>`).join('')}
+      </table>`;
+    }
+    // 分页
+    const totalPages = Math.max(1, Math.ceil(marketTotal / marketPageSize));
+    document.getElementById('market-pager').innerHTML = `共 ${marketTotal} 条 · 第 ${marketPage}/${totalPages} 页
+      <span style="flex:1"></span>
+      <button onclick="loadMarketPage(${marketPage-1})" ${marketPage<=1?'disabled':''} style="padding:2px 8px">‹</button>
+      <button onclick="loadMarketPage(${marketPage+1})" ${marketPage>=totalPages?'disabled':''} style="padding:2px 8px">›</button>`;
+  }catch(e){box.innerHTML='<div class="empty">加载失败: '+esc(e.message)+'</div>';}
+}
+async function saveMarket(id){
+  const price = Number(document.getElementById('m-price-'+id).value);
+  const quantity = Number(document.getElementById('m-qty-'+id).value);
+  try{
+    await api('/gm/market/'+id, {method:'PUT', body:{price, quantity}});
+    toast('已保存','ok');
+    loadMarketPage(marketPage);
+  }catch(e){toast('保存失败: '+e.message,'err');}
+}
+async function cancelMarket(id){
+  if(!confirm('确定强制下架商品 #'+id+'?')) return;
+  try{
+    await api('/gm/market/'+id+'/cancel', {method:'POST'});
+    toast('已下架','ok');
+    loadMarketPage(marketPage);
+  }catch(e){toast('下架失败: '+e.message,'err');}
+}
+document.getElementById('market-status')?.addEventListener?.('change', loadMarket);
+document.getElementById('market-search')?.addEventListener?.('input', ()=>{
+  clearTimeout(window._marketT);
+  window._marketT = setTimeout(loadMarket, 300);
+});
+
+/* ===== 世界聊天 ===== */
+async function loadChat(){
+  const q = (document.getElementById('chat-search')?.value || '').trim().toLowerCase();
+  const box = document.getElementById('chat-content');
+  box.innerHTML = '<div class="empty">加载中...</div>';
+  try{
+    const r = await api('/gm/messages?limit=200');
+    let msgs = r.messages || [];
+    if(q) msgs = msgs.filter(m => (m.user||'').toLowerCase().includes(q) || (m.text||'').toLowerCase().includes(q));
+    if(msgs.length===0){box.innerHTML='<div class="empty">无聊天记录</div>';return;}
+    box.innerHTML = `<table class="data">
+      <tr><th>ID</th><th>用户</th><th>内容</th><th>时间</th><th>操作</th></tr>
+      ${msgs.slice().reverse().map(m=>`<tr>
+        <td>#${m.id}</td>
+        <td>${esc(m.user||'')}</td>
+        <td style="max-width:400px;word-break:break-word">${esc(m.text||'')}</td>
+        <td style="font-size:10px;color:#9aa3b2">${esc((m.created_at||'').substring(0,19))}</td>
+        <td><button onclick="delMsg(${m.id})" class="danger" style="padding:3px 8px;font-size:11px">删</button></td>
+      </tr>`).join('')}
+    </table>`;
+  }catch(e){box.innerHTML='<div class="empty">加载失败: '+esc(e.message)+'</div>';}
+}
+async function delMsg(id){
+  if(!confirm('删除该消息?')) return;
+  try{
+    await api('/gm/messages/'+id, {method:'DELETE'});
+    toast('已删除','ok');
+    loadChat();
+  }catch(e){toast('失败: '+e.message,'err');}
+}
+document.getElementById('chat-search')?.addEventListener?.('input', ()=>{
+  clearTimeout(window._chatT);
+  window._chatT = setTimeout(loadChat, 300);
+});
+
+/* ===== 全部物品视图（统一物品列表） ===== */
+function renderItemsView(){
+  const box = document.getElementById('items-view-content');
+  const sel = document.getElementById('items-type-filter');
+  const search = document.getElementById('items-search');
+  if(itemsDict.length===0){
+    box.innerHTML='<div class="empty">物品字典为空,点击右上角"刷新字典"按钮加载</div>';
+    document.getElementById('items-count').textContent='0';
+    return;
+  }
+  // 初始化分类下拉
+  if(sel.options.length<=1){
+    const types = Array.from(new Set(itemsDict.map(x=>x.type))).sort();
+    sel.innerHTML = '<option value="">全部分类 ('+itemsDict.length+')</option>' + types.map(t=>`<option value="${esc(t)}">${esc(t)} (${itemsDict.filter(x=>x.type===t).length})</option>`).join('');
+  }
+  const curType = sel.value;
+  const q = (search.value||'').trim().toLowerCase();
+  const filtered = itemsDict.filter(x => (!curType || x.type===curType) && (!q || (x.name||'').toLowerCase().includes(q) || (x.description||'').toLowerCase().includes(q)));
+  document.getElementById('items-count').textContent = filtered.length;
+  if(filtered.length===0){box.innerHTML='<div class="empty">无匹配物品</div>';return;}
+  // 按类型分组
+  const groups = {};
+  for(const it of filtered){ (groups[it.type] = groups[it.type] || []).push(it); }
+  let html = '';
+  for(const t of Object.keys(groups).sort()){
+    html += `<div class="section" style="padding:10px 14px;margin-bottom:10px">
+      <h2 style="font-size:12px;margin-bottom:8px">${esc(t)} <span class="tab-badge">${groups[t].length}</span></h2>
+      <table class="data">
+        <tr><th>名称</th><th>品质</th><th>描述</th></tr>
+        ${groups[t].map(it=>`<tr>
+          <td><b>${esc(it.name)}</b></td>
+          <td><span class="tag">${esc(it.rarity||'普通')}</span></td>
+          <td style="color:#9aa3b2;font-size:11px">${esc(it.description||'—')}</td>
+        </tr>`).join('')}
+      </table>
+    </div>`;
+  }
+  box.innerHTML = html;
+}
+document.getElementById('items-type-filter')?.addEventListener('change', renderItemsView);
+document.getElementById('items-search')?.addEventListener('input', ()=>{ clearTimeout(window._itemsT); window._itemsT = setTimeout(renderItemsView, 200); });
+
+/* ===== 游戏字典视图 (成就/称号/灵宠/洞府/功法/天赋/草药/宗门) ===== */
+function switchDictsTab(){ renderDictsTab(); }
+function renderDictsTab(){
+  const box = document.getElementById('dicts-content');
+  if(!box) return;
+  if(!gameDicts){ box.innerHTML='<div class="empty">字典未加载,请点击右上角"刷新字典"</div>';return; }
+  const tab = document.getElementById('dicts-tab').value;
+  const q = (document.getElementById('dicts-search').value||'').trim().toLowerCase();
+  const list = gameDicts[tab] || [];
+  const filtered = q ? list.filter(x => (x.id||'').toLowerCase().includes(q) || (x.name||'').toLowerCase().includes(q) || (x.description||'').toLowerCase().includes(q)) : list;
+  if(filtered.length===0){box.innerHTML='<div class="empty">无匹配条目 ('+list.length+' 总数)</div>';return;}
+  box.innerHTML = `<div class="section" style="padding:10px 14px">
+    <h2 style="font-size:12px;margin-bottom:8px">${tab} <span class="tab-badge">${filtered.length}/${list.length}</span></h2>
+    <table class="data">
+      <tr><th>ID</th><th>中文名</th><th>分类/品质</th><th>说明</th></tr>
+      ${filtered.slice(0,500).map(x=>`<tr>
+        <td><code style="font-size:10px">${esc(x.id||'-')}</code></td>
+        <td><b>${esc(x.name||'-')}</b></td>
+        <td><span class="tag">${esc(x.rarity||x.grade||x.type||'')}</span></td>
+        <td style="color:#9aa3b2;font-size:11px;max-width:480px;word-break:break-word">${esc(x.description||x.requirement||'-')}</td>
+      </tr>`).join('')}
+    </table>
+    ${filtered.length>500?`<div class="empty" style="padding:6px">仅显示前 500 条,请用搜索框筛选</div>`:''}
+  </div>`;
+}
+
+/* =====================================================================
+   活动管理（端点：GET /gm/activity · POST /gm/activity · POST /gm/activity/config）
+   服务端契约要点：
+     · types 目录由服务端下发（ACT_TYPES），前端不硬编码，避免与后端漂移
+     · startAt / endAt 是 **ms epoch**；服务端要求 endAt > startAt，否则 400
+     · multiplier 服务端钳制 [1,100]（actClampMultiplier），非法值静默变 1
+     · 有 id = 编辑，无 id = 新建
+     · enabled=1 且当前落在窗口内 → 服务端自动全服播报一次
+   ===================================================================== */
+let actData = null;
+
+async function loadActivity(){
+  const box = document.getElementById('activity-content');
+  try{
+    const r = await api('/gm/activity');
+    actData = r;
+    // 引擎开关状态
+    const pill = document.getElementById('act-engine-pill');
+    pill.textContent = r.engineOn ? '已开启' : '已关闭';
+    pill.className = 'pill ' + (r.engineOn ? 'ok' : 'err');
+    const btn = document.getElementById('act-engine-toggle');
+    btn.disabled = false;
+    btn.textContent = r.engineOn ? '关闭引擎' : '开启引擎';
+    btn.className = r.engineOn ? 'danger' : 'primary';
+    btn.dataset.next = r.engineOn ? '0' : '1';
+    // 倍率说明
+    document.getElementById('act-mult-hint').textContent =
+      `叠乘上限 ×${r.multCap} · 单场配置上限 ×${r.multCfgMax} · 共 ${r.types?Object.keys(r.types).length:0} 种类型`;
+    // 类型下拉（服务端下发）
+    fillActTypeOptions();
+    renderActivityList();
+  }catch(e){
+    box.innerHTML = '<div class="empty" style="color:#e15b5b">加载失败: '+esc(e.message)+'</div>';
+  }
+}
+
+function fillActTypeOptions(){
+  const sel = document.getElementById('act-type');
+  const cur = sel.value;
+  const types = (actData && actData.types) || {};
+  sel.innerHTML = Object.keys(types).map(k =>
+    `<option value="${esc(k)}">${esc(types[k].name)}（${esc(k)}）</option>`
+  ).join('');
+  if(cur) sel.value = cur;
+  onActTypeChange();
+}
+
+// 类型联动：显示服务端 desc + 是否真正生效的提示（target 非 exp/stones 的类型只带窗口不产倍率）
+function onActTypeChange(){
+  const sel = document.getElementById('act-type');
+  const types = (actData && actData.types) || {};
+  const t = types[sel.value];
+  const el = document.getElementById('act-type-desc');
+  if(!t){ el.textContent=''; return; }
+  const effective = (t.target === 'exp' || t.target === 'stones');
+  el.innerHTML = esc(t.desc) +
+    (effective
+      ? ' <span style="color:#5be18a">✔ 该类型会实际改变结算倍率</span>'
+      : ' <span style="color:#e1a95b">⚠ target=' + esc(t.target) + '：仅供展示/由服务端独立结算器发放，倍率字段不生效</span>');
+  // 不生效的类型把倍率输入禁用并置 1，避免误配出"看着像加倍其实没用"的配置
+  const mult = document.getElementById('act-multiplier');
+  mult.disabled = !effective;
+  if(!effective) mult.value = 1;
+}
+
+// 把 ms epoch 转成 <input type="datetime-local"> 需要的本地时间字符串（YYYY-MM-DDTHH:mm）
+function msToLocalInput(ms){
+  const d = new Date(Number(ms));
+  if(isNaN(d.getTime())) return '';
+  const p = n => String(n).padStart(2,'0');
+  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+function localInputToMs(v){
+  if(!v) return NaN;
+  const t = new Date(v).getTime();   // datetime-local 无时区 → 按浏览器本地时区解析
+  return t;
+}
+
+function renderActivityList(){
+  const box = document.getElementById('activity-content');
+  const evs = (actData && actData.events) || [];
+  const types = (actData && actData.types) || {};
+  if(evs.length === 0){ box.innerHTML = '<div class="empty">暂无活动，点「＋ 新建活动」创建</div>'; return; }
+  const now = Date.now();
+  box.innerHTML = `<div class="section" style="padding:10px 14px">
+    <h2 style="font-size:12px;margin-bottom:8px">活动列表 <span class="tab-badge">${evs.length}</span></h2>
+    <table class="data">
+      <tr><th>ID</th><th>类型</th><th>名称</th><th>倍率</th><th>时间窗口</th><th>状态</th><th>操作</th></tr>
+      ${evs.map(e => {
+        const t = types[e.type];
+        const s = Number(e.start_at), en = Number(e.end_at);
+        const inWin = s <= now && now < en;
+        const state = !e.enabled ? '<span class="badge ban">已停用</span>'
+                    : (inWin ? '<span class="badge sect">进行中</span>'
+                    : (now < s ? '<span class="tag">未开始</span>' : '<span class="tag">已结束</span>'));
+        return `<tr>
+          <td>#${e.id}</td>
+          <td><b>${esc(t ? t.name : e.type)}</b><br><code style="font-size:10px;color:#9aa3b2">${esc(e.type)}</code></td>
+          <td>${esc(e.name||'-')}</td>
+          <td><span class="tag">×${esc(String(e.multiplier))}</span></td>
+          <td style="font-size:11px;color:#9aa3b2">${esc(msToLocalInput(s).replace('T',' '))} →<br>${esc(msToLocalInput(en).replace('T',' '))}</td>
+          <td>${state}</td>
+          <td style="white-space:nowrap">
+            <button style="padding:3px 8px;font-size:11px" onclick="openActivityForm(${e.id})">编辑</button>
+            <button class="danger" style="padding:3px 8px;font-size:11px" onclick="deleteActivity(${e.id})">删除</button>
+          </td>
+        </tr>`;
+      }).join('')}
+    </table>
+    <div style="font-size:11px;color:#9aa3b2;margin-top:8px">
+      时间显示为<b>本机本地时间</b>（提交时会换算成 ms epoch）。「进行中」= 已启用且当前落在窗口内。
+    </div>
+  </div>`;
+}
+
+function openActivityForm(id){
+  const evs = (actData && actData.events) || [];
+  const e = id ? evs.find(x => x.id === id) : null;
+  document.getElementById('act-modal-title').textContent = e ? ('编辑活动 #'+e.id) : '新建活动';
+  document.getElementById('act-id').value = e ? e.id : '';
+  document.getElementById('act-form-err').textContent = '';
+  fillActTypeOptions();
+  if(e){
+    document.getElementById('act-type').value = e.type;
+    onActTypeChange();
+    document.getElementById('act-name').value = e.name || '';
+    document.getElementById('act-multiplier').value = e.multiplier;
+    document.getElementById('act-start').value = msToLocalInput(e.start_at);
+    document.getElementById('act-end').value = msToLocalInput(e.end_at);
+    document.getElementById('act-enabled').checked = !!e.enabled;
+  }else{
+    // 默认：现在起 2 小时窗口，倍率 2
+    const nowMs = Date.now();
+    document.getElementById('act-name').value = '';
+    document.getElementById('act-start').value = msToLocalInput(nowMs);
+    document.getElementById('act-end').value = msToLocalInput(nowMs + 2*3600*1000);
+    document.getElementById('act-enabled').checked = true;
+  }
+  document.getElementById('act-modal').style.display = 'flex';
+}
+
+function closeActivityForm(){
+  document.getElementById('act-modal').style.display = 'none';
+}
+
+async function saveActivity(){
+  const err = document.getElementById('act-form-err');
+  err.textContent = '';
+  const id = parseInt(document.getElementById('act-id').value) || 0;
+  const type = document.getElementById('act-type').value;
+  const startAt = localInputToMs(document.getElementById('act-start').value);
+  const endAt = localInputToMs(document.getElementById('act-end').value);
+  // 前端先做服务端同款校验，省一次 400 往返（服务端仍是权威）
+  if(!Number.isFinite(startAt) || !Number.isFinite(endAt) || endAt <= startAt){
+    err.textContent = '⚠ 时间窗口非法：必须填写起止时间且结束时间晚于开始时间';
+    return;
+  }
+  const body = {
+    type,
+    name: document.getElementById('act-name').value.trim(),
+    multiplier: Number(document.getElementById('act-multiplier').value) || 1,
+    startAt, endAt,
+    enabled: document.getElementById('act-enabled').checked ? 1 : 0,
+  };
+  if(id) body.id = id;
+  try{
+    const r = await api('/gm/activity', {method:'POST', body});
+    toast(id ? '活动已更新' : ('活动已创建 #'+r.id), 'ok');
+    closeActivityForm();
+    loadActivity();
+  }catch(ex){ err.textContent = '保存失败: ' + ex.message; }
+}
+
+// 删除活动：DELETE /gm/activity/:id（服务端只删 events 行 + 写审计；不回收已发放收益）
+// 「进行中」活动删除会立刻停发倍率，属高风险操作 ⇒ 额外强确认一次。
+async function deleteActivity(id){
+  const evs = (actData && actData.events) || [];
+  const e = evs.find(x => x.id === id);
+  const nm = e ? (e.name || ('活动#'+id)) : ('活动#'+id);
+  const now = Date.now();
+  const inWin = e && Number(e.enabled) && Number(e.start_at) <= now && now < Number(e.end_at);
+  const head = inWin
+    ? '⚠ 该活动「进行中」，删除后其倍率将立即停发（全服收益当场变化）。\n\n'
+    : '';
+  if(!confirm(head + '删除活动「' + nm + '」(#id ' + id + ')？\n\n只删除活动配置行，不影响已发放收益；删除后无法恢复。')) return;
+  try{
+    await api('/gm/activity/' + id, {method:'DELETE'});
+    toast('活动已删除 #' + id, 'ok');
+    loadActivity();
+  }catch(ex){ toast('删除失败: ' + ex.message, 'err'); }
+}
+
+async function toggleEngine(){
+  const btn = document.getElementById('act-engine-toggle');
+  const next = btn.dataset.next === '1';
+  // kill switch 影响全服收益，切换前明确告知后果
+  const msg = next
+    ? '开启活动引擎？\n\n开启后，处于活动窗口内的倍率活动将立即开始生效（全服收益变化）。'
+    : '关闭活动引擎？\n\n⚠ 关闭后所有倍率活动立即停发（修为/灵石加倍当场失效），活动仍会在客户端展示。\n\n这是紧急止损开关，确认要关闭吗？';
+  if(!confirm(msg)) return;
+  try{
+    const r = await api('/gm/activity/config', {method:'POST', body:{engineOn: next ? 1 : 0}});
+    toast('引擎已' + (r.engineOn ? '开启' : '关闭'), r.engineOn ? 'ok' : 'err');
+    loadActivity();
+  }catch(e){ toast('切换失败: '+e.message, 'err'); }
+}
+
+/* =====================================================================
+   批量操作（POST /gm/players/batch）
+   服务端契约：
+     filter: { realm?, minCombatPower?, keyword? }
+     action: { spiritStones?, tickets?, exp?, item?{name,quantity,type,rarity}, ban? }
+   · filter 空对象 => 命中全服所有 rankings 内的玩家（= 已建号）
+   · 发放值均为"增量"，负数即扣除
+   · item 按 name 合并（同名叠加 quantity），否则 push 新条目
+   · 服务端只对 rankings 表内有记录的 user_id 生效
+   ===================================================================== */
+function buildBatchFilter(){
+  const f = {};
+  const realm = document.getElementById('bat-realm').value.trim();
+  const cp = document.getElementById('bat-mincp').value.trim();
+  const kw = document.getElementById('bat-keyword').value.trim();
+  if(realm !== '') f.realm = Number(realm);
+  if(cp !== '') f.minCombatPower = Number(cp);
+  if(kw) f.keyword = kw;
+  return f;
+}
+
+function buildBatchAction(){
+  const numOrNull = id => {
+    const v = document.getElementById(id).value.trim();
+    return v === '' ? null : Number(v);
+  };
+  const a = {};
+  const s = numOrNull('bat-stones');   if(s) a.spiritStones = s;
+  const t = numOrNull('bat-tickets');  if(t) a.tickets = t;
+  const e = numOrNull('bat-exp');      if(e) a.exp = e;
+  const name = document.getElementById('bat-itemname').value.trim();
+  if(name){
+    a.item = {
+      name,
+      quantity: Number(document.getElementById('bat-itemqty').value) || 1,
+      type: document.getElementById('bat-itemtype').value.trim() || '材料',
+      rarity: document.getElementById('bat-itemrarity').value,
+    };
+  }
+  const ban = document.getElementById('bat-ban').value;
+  if(ban !== '') a.ban = ban === '1';
+  return a;
+}
+
+// 预览：借筛选条件去分页接口估算命中量（batch 端点本身不提供 dry-run）
+async function previewBatch(){
+  const el = document.getElementById('bat-preview');
+  const f = buildBatchFilter();
+  el.textContent = '统计中...';
+  el.style.color = '#9aa3b2';
+  try{
+    const params = new URLSearchParams({page:1, pageSize:1});
+    if(f.keyword) params.set('q', f.keyword);
+    if(f.realm != null) params.set('realm', f.realm);
+    if(f.minCombatPower != null) params.set('minCombatPower', f.minCombatPower);
+    const r = await api('/gm/players?'+params);
+    const n = (typeof r.total === 'number') ? r.total : (r.players||[]).length;
+    el.textContent = `≈ 命中 ${n} 人${n > 1 ? '（批量操作将影响全部）' : ''}`;
+    el.style.color = n > 1 ? '#e1a95b' : '#5be18a';
+  }catch(ex){
+    el.textContent = '预览失败: ' + ex.message + '（可继续执行，服务端会返回实际影响数）';
+    el.style.color = '#e15b5b';
+  }
+}
+
+async function executeBatch(){
+  const resEl = document.getElementById('bat-result');
+  const filter = buildBatchFilter();
+  const action = buildBatchAction();
+  if(Object.keys(action).length === 0){
+    resEl.textContent = '⚠ 没有选择任何要执行的操作';
+    resEl.style.color = '#e15b5b';
+    return;
+  }
+  // 危险操作：明确列出血影响范围并要求确认
+  const scope = Object.keys(filter).length === 0
+    ? '全服所有已建号玩家'
+    : ('筛选命中的玩家（' + JSON.stringify(filter) + '）');
+  const effects = [];
+  if(action.spiritStones) effects.push('灵石 ' + (action.spiritStones > 0 ? '+' : '') + action.spiritStones);
+  if(action.tickets) effects.push('抽奖券 ' + (action.tickets > 0 ? '+' : '') + action.tickets);
+  if(action.exp) effects.push('修为 ' + (action.exp > 0 ? '+' : '') + action.exp);
+  if(action.item) effects.push('物品「' + action.item.name + '」×' + action.item.quantity);
+  if(action.ban !== undefined) effects.push(action.ban ? '封禁账号' : '解封账号');
+  if(!confirm('批量操作确认\n\n影响范围：' + scope +
+              '\n执行内容：' + effects.join('、') +
+              '\n\n此操作不可撤销，确认执行？')) return;
+
+  resEl.textContent = '执行中...';
+  resEl.style.color = '#9aa3b2';
+  document.getElementById('bat-exec').disabled = true;
+  try{
+    const r = await api('/gm/players/batch', {method:'POST', body:{filter, action}});
+    resEl.textContent = `✅ 已影响 ${r.affected} 名玩家`;
+    resEl.style.color = '#5be18a';
+    toast('批量操作完成，影响 ' + r.affected + ' 人', 'ok');
+  }catch(e){
+    resEl.textContent = '执行失败: ' + e.message;
+    resEl.style.color = '#e15b5b';
+  }finally{
+    document.getElementById('bat-exec').disabled = false;
+  }
+}
+
+/* ===== 存档 Schema 元数据（GET /gm/schema） ===== */
+async function loadSchema(){
+  const box = document.getElementById('schema-content');
+  box.innerHTML = '<div class="empty">加载中...</div>';
+  try{
+    const r = await api('/gm/schema');
+    const tables = Object.keys(r);
+    if(tables.length === 0){ box.innerHTML = '<div class="empty">无表信息</div>'; return; }
+    box.innerHTML = tables.map(t => {
+      const cols = r[t] || [];
+      return `<details style="margin-bottom:6px">
+        <summary style="cursor:pointer;color:#5b8cff;font-size:12px">
+          ${esc(t)} <span class="tab-badge">${cols.length} 字段</span>
+        </summary>
+        <table class="data" style="margin-top:6px">
+          <tr><th>#</th><th>字段名</th><th>类型</th><th>非空</th><th>默认值</th><th>主键</th></tr>
+          ${cols.map(c => `<tr>
+            <td>${esc(String(c.cid))}</td>
+            <td><code>${esc(c.name)}</code></td>
+            <td><span class="tag">${esc(c.type||'')}</span></td>
+            <td>${c.notnull ? '✔' : ''}</td>
+            <td style="color:#9aa3b2;font-size:11px">${esc(c.dflt_value==null?'':String(c.dflt_value))}</td>
+            <td>${c.pk ? '★' : ''}</td>
+          </tr>`).join('')}
+        </table>
+      </details>`;
+    }).join('');
+  }catch(e){
+    box.innerHTML = '<div class="empty" style="color:#e15b5b">加载失败: '+esc(e.message)+'</div>';
+  }
+}
+
+/* =====================================================================
+   审计日志视图（GET /gm/audit-logs?limit=N，服务端上限 500）
+   服务端**无筛选参数** ⇒ 筛选/导出一律在客户端做（取回后过滤）
+   ===================================================================== */
+let auditRows = [];
+
+async function loadAuditView(){
+  const box = document.getElementById('audit-view-content');
+  const lim = Math.min(500, Math.max(10, parseInt(document.getElementById('aud-limit').value) || 500));
+  box.innerHTML = '<div class="empty">加载中...</div>';
+  try{
+    const r = await api('/gm/audit-logs?limit=' + lim);
+    auditRows = r.logs || [];
+    renderAuditView();
+  }catch(e){
+    box.innerHTML = '<div class="empty" style="color:#e15b5b">加载失败: '+esc(e.message)+'</div>';
+  }
+}
+
+function clearAuditFilters(){
+  document.getElementById('aud-f-action').value = '';
+  document.getElementById('aud-f-target').value = '';
+  document.getElementById('aud-f-when').value = '';
+  renderAuditView();
+}
+
+// 取当前筛选后的行（导出与渲染共用同一口径，保证「所见即所导」）
+function filteredAuditRows(){
+  const fa = (document.getElementById('aud-f-action').value||'').trim().toLowerCase();
+  const ft = (document.getElementById('aud-f-target').value||'').trim().toLowerCase();
+  const fw = (document.getElementById('aud-f-when').value||'').trim().toLowerCase();
+  return auditRows.filter(l => {
+    if(fa && !String(l.action||'').toLowerCase().includes(fa)) return false;
+    if(ft && !String(l.target||'').toLowerCase().includes(ft)) return false;
+    if(fw && !String(l.created_at||'').toLowerCase().includes(fw)) return false;
+    return true;
+  });
+}
+
+function renderAuditView(){
+  const box = document.getElementById('audit-view-content');
+  const rows = filteredAuditRows();
+  document.getElementById('aud-summary').textContent =
+    `共取回 ${auditRows.length} 条 · 筛选后 ${rows.length} 条` +
+    (auditRows.length >= 500 ? '（已达服务端上限 500，更早记录需缩小条件或后续加服务端分页）' : '');
+  if(rows.length === 0){ box.innerHTML = '<div class="empty">无匹配日志</div>'; return; }
+  box.innerHTML = `<div class="section" style="padding:10px 14px">
+    <table class="data">
+      <tr><th>ID</th><th>动作</th><th>目标</th><th>详情</th><th>时间</th></tr>
+      ${rows.map(l=>`<tr>
+        <td>${esc(String(l.id==null?'':l.id))}</td>
+        <td><code>${esc(l.action||'')}</code></td>
+        <td style="font-size:11px">${esc(l.target||'')}</td>
+        <td style="font-size:11px;color:#9aa3b2;max-width:420px;word-break:break-word">${esc((l.detail||'').substring(0,300))}</td>
+        <td style="font-size:10px;color:#9aa3b2;white-space:nowrap">${esc((l.created_at||'').substring(0,19))}</td>
+      </tr>`).join('')}
+    </table>
+  </div>`;
+}
+
+// CSV 导出：含 BOM 以便 Excel 正确识别 UTF-8；字段做标准 CSV 转义
+function exportAuditCsv(){
+  const rows = filteredAuditRows();
+  if(rows.length === 0) return toast('无数据可导出','err');
+  const esc2 = v => {
+    const s = (v == null ? '' : String(v));
+    return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g,'""') + '"' : s;
+  };
+  const header = ['id','action','target','detail','created_at'];
+  const lines = [header.join(',')];
+  for(const l of rows) lines.push(header.map(h => esc2(l[h])).join(','));
+  const blob = new Blob(['\uFEFF' + lines.join('\r\n')], {type:'text/csv;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const ts = new Date().toISOString().replace(/[:.]/g,'-').substring(0,19);
+  a.href = url; a.download = `gm_audit_${ts}.csv`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url), 5000);
+  toast(`已导出 ${rows.length} 条到 CSV`,'ok');
+}
+
+// 批量视图初始化：填充物品字典 datalist（复用已加载的 itemsDict）
+function initBatchView(){
+  const dl = document.getElementById('bat-itemlist');
+  if(!dl) return;
+  if(dl.dataset.filled === '1') return;
+  const names = (itemsDict || []).map(it => it.name).filter(Boolean);
+  if(names.length === 0){ loadItems().then(initBatchView); return; }
+  dl.innerHTML = names.slice(0, 2000).map(n => `<option value="${esc(n)}"></option>`).join('');
+  dl.dataset.filled = '1';
+}
+
+/* =====================================================================
+   发信视图（POST /api/mail/send，GM 专用）
+   =====================================================================
+   服务端契约（srv/index_v28.ts:6084–6126）：
+     入参 { title, content, sender?, lingshi?, userId? | username? | all? }
+     单发：userId（直发）或 username（查表后发；用户不存在 → 404）
+     全服：all:true → INSERT...SELECT id FROM users，一人一封，返回 { ok, sent:<人数> }
+     lingshi 夹 [0, 1e9]；title 必填（≤100 字）；成功即写 logGmAction('mail_send', …)
+   本模块为纯前端入口，服务端零改动。
+   ===================================================================== */
+const MAIL_LINGSHI_MAX = 1e9;
+
+// 发信专用强确认：不动通用 strongConfirm（避免影响既有 3 处危险操作的校验口径）
+function mailConfirm(title, detail, expectText, label){
+  const typed = window.prompt(title + '\n\n' + detail + '\n\n请输入「' + label + '」以确认：' + expectText);
+  if(typed === null) return false;                    // 取消
+  if(String(typed).trim() !== String(expectText)){    // 不匹配一律拒绝
+    toast('确认失败：输入与「'+expectText+'」不一致，操作已取消','err',5000);
+    return false;
+  }
+  return true;
+}
+
+function onMailModeChange(){
+  const mode = document.querySelector('input[name="mail-mode"]:checked')?.value || 'single';
+  const single = document.getElementById('mail-single-fields');
+  const hint = document.getElementById('mail-all-hint');
+  if(single) single.style.display = (mode==='single') ? 'block' : 'none';
+  if(hint) hint.style.display = (mode==='all') ? 'block' : 'none';
+}
+
+function onMailTargetTypeChange(){
+  const t = document.getElementById('mail-target-type').value;
+  const lab = document.getElementById('mail-target-label');
+  const inp = document.getElementById('mail-target');
+  if(lab) lab.textContent = (t==='userId') ? '用户 ID' : '用户名';
+  if(inp) inp.placeholder = (t==='userId') ? '输入数字 ID，如 75' : '输入用户名';
+}
+
+function resetMailForm(){
+  ['mail-title','mail-content','mail-sender','mail-lingshi','mail-target'].forEach(id=>{
+    const el = document.getElementById(id); if(el) el.value = '';
+  });
+  const r = document.getElementById('mail-result'); if(r) r.innerHTML = '';
+}
+
+function initMailView(){ onMailModeChange(); onMailTargetTypeChange(); }
+
+async function sendMail(){
+  const resBox = document.getElementById('mail-result');
+  const btn = document.getElementById('mail-send-btn');
+  const mode = document.querySelector('input[name="mail-mode"]:checked')?.value || 'single';
+  const title = (document.getElementById('mail-title').value || '').trim();
+  const content = document.getElementById('mail-content').value || '';
+  const sender = (document.getElementById('mail-sender').value || '').trim();
+  const lingshiRaw = (document.getElementById('mail-lingshi').value || '').trim();
+
+  /* ---- 前端校验（与服务端同口径，尽量把错误拦在本地）---- */
+  if(!title){ toast('标题必填','err'); return; }
+  if(title.length > 100){ toast('标题最长 100 字','err'); return; }
+  if(content.length > 2000){ toast('正文最长 2000 字','err'); return; }
+
+  let lingshi = 0;
+  if(lingshiRaw !== ''){
+    lingshi = Number(lingshiRaw);
+    if(!Number.isFinite(lingshi) || !Number.isInteger(lingshi) || lingshi < 0){
+      toast('附件灵石必须是非负整数','err'); return;
+    }
+    if(lingshi > MAIL_LINGSHI_MAX){
+      toast('附件灵石超过上限 1e9，已拒绝','err'); return;
+    }
+  }
+
+  const body = { title, content };
+  if(sender) body.sender = sender;
+  if(lingshi) body.lingshi = lingshi;
+
+  /* ---- 提交前二次确认 ---- */
+  if(mode === 'all'){
+    body.all = true;
+    const detail = '收件人：全服所有已建号玩家'
+      + '\n标题：' + title
+      + (lingshi ? ('\n附件灵石：' + lingshi + ' 灵石 / 人') : '');
+    if(!mailConfirm('⚠⚠ 全服群发邮件（不可撤回）', detail, '全服群发', '确认口令')) return;
+  } else {
+    const target = (document.getElementById('mail-target').value || '').trim();
+    const ttype = document.getElementById('mail-target-type').value;
+    if(!target){ toast('请填写收件人','err'); return; }
+    if(ttype === 'userId'){
+      const uid = Number(target);
+      if(!Number.isInteger(uid) || uid <= 0){ toast('userId 必须是正整数','err'); return; }
+      body.userId = uid;
+    } else {
+      body.username = target;
+    }
+    const detail = '收件人：' + target
+      + '\n标题：' + title
+      + (lingshi ? ('\n附件灵石：' + lingshi) : '');
+    if(!mailConfirm('⚠ 发送邮件', detail, target, '收件人')) return;
+  }
+
+  /* ---- 提交 ---- */
+  btn.disabled = true; btn.textContent = '发送中…';
+  resBox.innerHTML = '';
+  try{
+    const r = await api('/mail/send', { method:'POST', body });
+    const sent = (r && r.sent != null) ? r.sent : 1;
+    resBox.innerHTML = '<div style="color:#5be19e">✅ 发送成功：'
+      + (mode==='all' ? ('全服 <b>'+esc(String(sent))+'</b> 名玩家各收到一封') : '已送达 1 封')
+      + (r && r.mailId != null ? '（mailId='+esc(String(r.mailId))+'）' : '')
+      + '</div>';
+    toast('邮件发送成功' + (mode==='all' ? ('（'+sent+' 人）') : ''), 'ok');
+    if(mode !== 'all') document.getElementById('mail-target').value = '';
+  }catch(e){
+    resBox.innerHTML = '<div style="color:#e15b5b">❌ 发送失败：'+esc(e.message)+'</div>';
+    toast('发送失败: '+e.message,'err',5000);
+  }finally{
+    btn.disabled = false; btn.textContent = '发送';
+  }
+}
+
+/* =====================================================================
+   反馈视图（GET /api/gm/feedback · POST /api/gm/feedback/:id/status）
+   =====================================================================
+   服务端契约（feedback 表，created_at 为毫秒时间戳，列表按 created_at 倒序）：
+     · GET  /api/gm/feedback?limit=50&offset=0&status= → { items:[全字段], total:N }
+     · POST /api/gm/feedback/:id/status {status} → 200 {ok:true}；非法 status 服务端 400
+     · status 枚举 open / resolved / closed；open 行提供「已处理」「关闭」两个操作
+   ===================================================================== */
+const FB_PAGE_SIZE = 50;
+const FB_STATUSES = ['open','resolved','closed'];
+const FB_KIND_CN = {bug:'bug', suggestion:'需求建议'};
+const FB_STATUS_CN = {open:'待处理', resolved:'已处理', closed:'已关闭'};
+const FB_STATUS_COLOR = {open:'#e15b5b', resolved:'#5be19e', closed:'#9aa3b2'};
+let fbOffset = 0, fbTotal = 0, fbRows = [];
+
+function fbFmtMs(ms){
+  const n = Number(ms);
+  if(!Number.isFinite(n) || n <= 0) return '—';
+  const d = new Date(n);
+  const p = x => String(x).padStart(2,'0');
+  return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+' '+p(d.getHours())+':'+p(d.getMinutes())+':'+p(d.getSeconds());
+}
+
+async function loadFeedback(){ await loadFeedbackPage(0); }
+
+async function loadFeedbackPage(offset){
+  offset = Math.max(0, Math.floor(Number(offset)||0));
+  const status = (document.getElementById('fb-status')?.value) || '';
+  const params = new URLSearchParams({limit: FB_PAGE_SIZE, offset});
+  if(status) params.set('status', status);
+  const box = document.getElementById('fb-content');
+  box.innerHTML = '<div class="empty">加载中...</div>';
+  try{
+    const r = await api('/gm/feedback?'+params);
+    fbOffset = offset;
+    fbTotal = r.total || 0;
+    fbRows = r.items || [];
+    renderFeedback();
+  }catch(e){ box.innerHTML = '<div class="empty" style="color:#e15b5b">加载失败: '+esc(e.message)+'</div>'; }
+}
+
+function renderFeedback(){
+  const box = document.getElementById('fb-content');
+  const status = (document.getElementById('fb-status')?.value) || '';
+  document.getElementById('fb-summary').textContent =
+    '共 ' + fbTotal + ' 条' + (status ? '（已按状态「'+(FB_STATUS_CN[status]||status)+'」过滤）' : '')
+    + (fbRows.length ? (' · 本页 ' + (fbOffset+1) + '-' + (fbOffset+fbRows.length)) : '');
+  if(fbRows.length === 0){
+    box.innerHTML = '<div class="empty">暂无反馈</div>';
+  } else {
+    box.innerHTML = `<div class="section" style="padding:10px 14px">
+    <table class="data">
+      <tr><th>时间</th><th>玩家</th><th>类型</th><th>内容</th><th>联系方式</th><th>版本</th><th>境界</th><th>状态</th><th>操作</th></tr>
+      ${fbRows.map(f=>`<tr>
+        <td style="font-size:10px;color:#9aa3b2;white-space:nowrap">${esc(fbFmtMs(f.created_at))}</td>
+        <td style="white-space:nowrap">${esc(f.username||'—')}${(f.user_id!=null)?`<br><span style="font-size:10px;color:#9aa3b2">#${esc(String(f.user_id))}</span>`:''}</td>
+        <td><span class="tag" style="${f.kind==='bug'?'color:#e15b5b':''}">${esc(FB_KIND_CN[f.kind]||f.kind||'—')}</span></td>
+        <td style="max-width:420px;word-break:break-word">${esc(f.content||'')}</td>
+        <td style="font-size:11px;word-break:break-all">${esc(f.contact||'—')}</td>
+        <td style="font-size:11px">${esc(f.version||'—')}</td>
+        <td style="font-size:11px">${esc(f.realm||'—')}</td>
+        <td><span class="tag" style="color:${FB_STATUS_COLOR[f.status]||'#9aa3b2'}">${esc(FB_STATUS_CN[f.status]||f.status||'—')}</span></td>
+        <td style="white-space:nowrap">
+          ${f.status==='open'?`<button class="primary" style="padding:3px 8px;font-size:11px" onclick="setFeedbackStatus(${esc(String(f.id))},'resolved')">已处理</button>
+          <button style="padding:3px 8px;font-size:11px" onclick="setFeedbackStatus(${esc(String(f.id))},'closed')">关闭</button>`:''}
+        </td>
+      </tr>`).join('')}
+    </table>
+  </div>`;
+  }
+  const totalPages = Math.max(1, Math.ceil(fbTotal / FB_PAGE_SIZE));
+  const curPage = Math.min(totalPages, Math.floor(fbOffset / FB_PAGE_SIZE) + 1);
+  document.getElementById('fb-pager').innerHTML = `第 ${curPage}/${totalPages} 页 · 共 ${fbTotal} 条
+    <span style="flex:1"></span>
+    <button onclick="loadFeedbackPage(${(curPage-2)*FB_PAGE_SIZE})" ${curPage<=1?'disabled':''} style="padding:2px 8px">‹</button>
+    <button onclick="loadFeedbackPage(${curPage*FB_PAGE_SIZE})" ${curPage>=totalPages?'disabled':''} style="padding:2px 8px">›</button>`;
+}
+
+async function setFeedbackStatus(id, status){
+  if(!FB_STATUSES.includes(status)) return toast('非法状态: '+status, 'err');
+  try{
+    await api('/gm/feedback/'+id+'/status', {method:'POST', body:{status}});
+    toast('反馈 #'+id+' 已标记为「'+(FB_STATUS_CN[status]||status)+'」', 'ok');
+    loadFeedbackPage(fbOffset);
+  }catch(e){ toast('操作失败: '+e.message, 'err'); }
+}
+document.getElementById('fb-status')?.addEventListener?.('change', loadFeedback);
+</script>
+</body>
+</html>

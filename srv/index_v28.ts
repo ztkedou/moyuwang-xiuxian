@@ -1399,6 +1399,26 @@ db.serialize(() => {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `);
+  // [r98fb] 玩家反馈表（三端契约 2026-10-21）：CREATE TABLE IF NOT EXISTS 幂等自建，回滚不删表。
+  //   created_at = Date.now() 毫秒；kind ∈ {bug,suggestion}；status ∈ {open,resolved,closed}（默认 open）。
+  //   60s 频控按 user_id 查最近一条、GM 列表按 created_at 倒序 ⇒ 建两个索引（与同块 idx_lottery_history_* 同风格）。
+  db.run(`
+    CREATE TABLE IF NOT EXISTS feedback (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER,
+      username TEXT,
+      kind TEXT,
+      content TEXT,
+      contact TEXT,
+      version TEXT,
+      realm TEXT,
+      ua TEXT,
+      status TEXT DEFAULT 'open',
+      created_at INTEGER
+    )
+  `);
+  db.run(`CREATE INDEX IF NOT EXISTS idx_feedback_user_created ON feedback(user_id, created_at)`);
+  db.run(`CREATE INDEX IF NOT EXISTS idx_feedback_created ON feedback(created_at)`);
 });
 
 // GM 鉴权中间件（基于 GM token）
@@ -1451,6 +1471,97 @@ function logGmAction(action: string, target?: string, detail?: any) {
     [action, target || null, detail ? JSON.stringify(detail) : null]
   );
 }
+
+// ─────────────────────────────────────────────────────────
+// [r98fb] 玩家反馈（服务端第 98 环 · 三端契约 2026-10-21）
+//   POST /api/feedback                玩家提交（authenticateToken 必须登录）
+//   GET  /api/gm/feedback             GM 列表（authenticateGM，created_at 倒序）
+//   POST /api/gm/feedback/:id/status  GM 改状态（authenticateGM）
+//   每条成功提交同步追加一行 JSON 到 <server目录>/feedback_inbox.jsonl（AI 免后台直读通道）；
+//   追加失败 try/catch 吞掉 + console.error，绝不影响 200 响应。60s 频控查表实现（勿用 403）。
+// ─────────────────────────────────────────────────────────
+const FEEDBACK_KINDS = ['bug', 'suggestion']; // [r98fb] kind 白名单
+const FEEDBACK_STATUSES = ['open', 'resolved', 'closed']; // [r98fb] status 白名单
+const FEEDBACK_COOLDOWN_MS = 60 * 1000; // [r98fb] 同一 user_id 提交冷却
+
+// [r98fb] JSONL 追加（AI 直读通道）：尽力而为，失败自吞
+function feedbackInboxAppend(entry: Record<string, unknown>): void {
+  try {
+    fs.appendFileSync(path.join(__dirname, 'feedback_inbox.jsonl'), JSON.stringify(entry) + '\n', 'utf8');
+  } catch (e: any) {
+    console.error('feedback inbox append error:', e?.message || e);
+  }
+}
+
+// [r98fb] 玩家提交反馈
+app.post('/api/feedback', authenticateToken, async (req: any, res: any) => {
+  try {
+    const body = req.body || {};
+    const kind = asStr(body.kind);
+    const content = asStr(body.content);
+    const contact = asStr(body.contact);
+    const version = asStr(body.version).slice(0, 64);
+    const realm = asStr(body.realm).slice(0, 64);
+    if (!FEEDBACK_KINDS.includes(kind)) {
+      return res.status(400).json({ error: 'kind 必须是 bug 或 suggestion' });
+    }
+    const contentLen = content.replace(/\s/g, '').length;
+    if (contentLen < 5 || contentLen > 2000) {
+      return res.status(400).json({ error: '反馈内容去空格后需 5~2000 字' });
+    }
+    if (contact.length > 100) {
+      return res.status(400).json({ error: '联系方式不能超过 100 字' });
+    }
+    // 60s 频控：查表（本用户最近一条 created_at 距今不足 60s ⇒ 409；契约明令勿用 403）
+    const last: any = await dbGet('SELECT created_at FROM feedback WHERE user_id = ? ORDER BY created_at DESC LIMIT 1', [req.user.id]);
+    if (last && last.created_at != null && Date.now() - Number(last.created_at) < FEEDBACK_COOLDOWN_MS) {
+      return res.status(409).json({ error: '提交太频繁，请稍后再试' });
+    }
+    const ua = asStr(req.headers['user-agent']);
+    const ins = await dbRun('INSERT INTO feedback (user_id, username, kind, content, contact, version, realm, ua, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', [req.user.id, req.user.username, kind, content, contact || null, version || null, realm || null, ua ? ua.slice(0, 256) : null, 'open', Date.now()]);
+    const fid = Number(ins.lastID);
+    feedbackInboxAppend({ ts: Date.now(), id: fid, user: req.user.username, kind: kind, content: content, contact: contact, version: version, realm: realm, ua: ua });
+    return res.json({ ok: true, id: fid });
+  } catch (e: any) {
+    console.error('feedback submit error:', e?.message || e);
+    return res.status(500).json({ error: '服务器繁忙' });
+  }
+});
+
+// [r98fb] GM 反馈列表（created_at 倒序；status 可选过滤；limit 默认 50 上限 200）
+app.get('/api/gm/feedback', authenticateGM, async (req: any, res: any) => {
+  try {
+    const status = asStr(req.query.status);
+    const limit = Math.min(Math.max(asInt(req.query.limit) || 50, 1), 200);
+    const offset = Math.max(asInt(req.query.offset) || 0, 0);
+    const hasStatus = FEEDBACK_STATUSES.includes(status);
+    const where = hasStatus ? ' WHERE status = ?' : '';
+    const base: any[] = hasStatus ? [status] : [];
+    const total: any = await dbGet('SELECT COUNT(*) AS c FROM feedback' + where, base);
+    const items = await dbAll('SELECT id, user_id, username, kind, content, contact, version, realm, ua, status, created_at FROM feedback' + where + ' ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?', base.concat([limit, offset]));
+    return res.json({ items: items, total: Number(total && total.c) || 0 });
+  } catch (e: any) {
+    console.error('gm feedback list error:', e?.message || e);
+    return res.status(500).json({ error: '服务器繁忙' });
+  }
+});
+
+// [r98fb] GM 改反馈状态（非法 status ⇒ 400；不存在 ⇒ 404）
+app.post('/api/gm/feedback/:id/status', authenticateGM, async (req: any, res: any) => {
+  try {
+    const id = asInt((req.params || {}).id);
+    const status = asStr((req.body || {}).status);
+    if (!Number.isFinite(id)) return res.status(400).json({ error: '无效的反馈 id' });
+    if (!FEEDBACK_STATUSES.includes(status)) return res.status(400).json({ error: 'status 必须是 open/resolved/closed' });
+    const r = await dbRun('UPDATE feedback SET status = ? WHERE id = ?', [status, id]);
+    if (!r || r.changes === 0) return res.status(404).json({ error: '反馈不存在' });
+    logGmAction('feedback_status', 'feedback:' + id, { status: status });
+    return res.json({ ok: true });
+  } catch (e: any) {
+    console.error('gm feedback status error:', e?.message || e);
+    return res.status(500).json({ error: '服务器繁忙' });
+  }
+});
 
 // 存档读改写互斥（P1-2）：进程内 per-user Promise 串行化（Map<userId, Promise> 队列），
 // 防止 GM patch 与玩家 POST /api/save 并发时 SELECT→UPDATE 间隙互相覆盖（后写者胜、先写者丢失）

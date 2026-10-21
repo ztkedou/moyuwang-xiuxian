@@ -119,6 +119,8 @@ EXPECTED_ORDER = [
     #     此处**不得重复列出**（重复会让顺序校验解析出错）。
     # 2026-10-09 0.9.50 批（R-227 / R-228 / R-230；序 = 编号序）
     'r227', 'r228', 'r230',
+    # 2026-10-21 1.0 批（FB-100 玩家反馈，第 99 模块；★ numbal 恒最后 ⇒ fb100 排其前）
+    'fb100',
     'numbal',
 ]
 NEW_MODULES = ['grotto087', 'farm087', 'xinfa087', 't6chardex',
@@ -144,10 +146,11 @@ NEW_MODULES = ['grotto087', 'farm087', 'xinfa087', 't6chardex',
                'r106', 'r107', 'r108', 'r109',
                'r111', 'r113', 'r114', 'r115',  # 2026-10-02 0.9.12 R-111 签到 / R-113 万妖五boss / R-114 历练收获 / R-115 洞府灵田
                'r124',
-               'r227', 'r228', 'r230']  # 2026-10-09 0.9.50 R-227 死数据标注 / R-228 明细同源 / R-230 天地之髓门槛
+               'r227', 'r228', 'r230',  # 2026-10-09 0.9.50 R-227 死数据标注 / R-228 明细同源 / R-230 天地之髓门槛
+               'fb100']  # 2026-10-21 1.0 批 FB-100 玩家反馈（第 99 v28 模块，numbal 之前）
 
-VERSION = '0.9.62'
-BUNDLE_BASENAME = 'index-v2962-20261011.js'   # 与 build_v26n.OUT / chain_build.CLIENT_OUT / build/index.html 逐字一致
+VERSION = '1.0'
+BUNDLE_BASENAME = 'index-v100-20261020.js'   # 与 build_v26n.OUT / chain_build.CLIENT_OUT / build/index.html 逐字一致
 # ★ 升版四件套之外的第 5 处：本文件的 VERSION 必须同步（下方 wiring_checks 用它交叉校验
 #   yl_version_ext.DEFAULT_VERSION 与 CHANGELOG 最新条目，两者都对上才算过）。
 

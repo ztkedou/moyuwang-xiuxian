@@ -1,5 +1,47 @@
 # 摸鱼修仙传 · 更新日志
 
+## [1.1] - 2026-10-21
+### 1.1（FB-100 反馈入口迁移 + PM-101 玩家私信；客户端 standalone +1 环 / 服务端第 99 环）
+
+#### 调整：反馈入口迁移（yl_fb100_ext v2，FB-100）
+
+- 「反馈」入口从底部操作栏第 6 卡迁到**顶栏「角色」按钮左侧紧邻**（桌面端 ≥768px 可见，
+  amber 高亮内联样式 + 红点角标，onClick → window.YLFB_OPEN 守卫）；移动端在 ☰ 抽屉
+  「设置」项之前补等价入口（与「信箱」同款 YlxwMk("mail") 图标、amber 配色）。
+- **底部操作栏恢复 5 卡原状**（打坐/历练/秘境/炼丹·炼器/宗门）：1.0 的容器 className
+  `ylbar6` 补丁、第 6「反馈」卡 JSX、`.ylbar6` 六列 `<style>` 规则全部回退
+  （门禁：ylbar6 / md:grid-cols-5 ylbar6 / children:"bug · 建议" 全文清零；底栏容器/页脚锚原样）。
+- 提交链路（raw fetch `/yl/api/feedback` + 401 pS() 静默续期重试恰一次 + 60s 冷却 +
+  模态校验 5~2000 字）逐字节保持 1.0 行为 —— INJECT_JS 相对 1.0 唯一差异 =
+  ensureStyle() 删 .ylbar6 一条规则（随底栏回退）。
+
+#### 新功能：玩家私信（PM-101）
+
+- 客户端 PM-101 环（`yl_pm101_ext`，4 补丁操作全 count=1；**standalone 薄壳 `yl_pm101_run.py`
+  接线，STANDALONE_CLIENT 'r144' 之后套用**——其 E3 锚 R-144 注入块内文本，V28 阶段不存在
+  （装配实测 PatchError），故不能进 V28_MODULES；67 条门禁（含 6 元组 within 限域）经
+  dryrun_087 R-246 自动派生规则收录重跑）：
+  ① 写信弹窗注入块 YL_PM101_V1（raw fetch `/yl/api/mail/send` + jo() Bearer；
+     401 → pS() 静默续期重试恰一次；绝不经 Xc/YlxwPost；30s 冷却仅成功记；
+     内容去空格 2~500 客户端预校验；409/400 透出服务端 error；401 终态只提示不登出；
+     全链 try/catch 防白屏；__YLPM_CUR 测试钩子）；
+  ② 仙友录好友行（YlxwTFriends）行尾「私信」钮 → YLPM_OPEN(N.name)；
+  ③ 在线人物玩家行（R-144 注入块 onlineRow）切磋钮后 acts.push 私信钮 → YLPM_OPEN(u)；
+  ④ 信箱行（YlxwTMail）「发信人」span +「回信」ghost 钮（判定 = g.kind==='player' ||
+     无 kind 且 sender≠system，新旧服务端响应形态都工作）。
+- 服务端第 99 环（`srv_patch_pm101.py`，CLI 契约照 srv_patch_feedback.py：--src 原子写 +
+  .bak-r99pm-<ts> / --check / --selftest / --reverse / 退出码 0/1/2/3）：
+  ① mail 表加 `kind` 列（safeAddColumn 幂等 ALTER，默认 'system'）；
+  ② 新端点 POST /api/mail/send（先于 GM 发信路由注册）：pm101Dispatch 按 Bearer 分流——
+     合法玩家 access token → pm101Rate（30s 冷却 409 / UTC+8 日限 50 条 409）→ pm101Send
+     （to 存在性 / to≠自己 / content 2~500 校验 400）→ insertMail(lingshi=0) +
+     UPDATE kind='player'（鸿函副作用不触发）→ 200 {ok,id}；过期 token 直接 401（静默续期
+     链路依赖）；GM 串/垃圾/无 Bearer → next() 落既有 GM 路由，GM 端点零改动。
+- ★ 主控裁定存档（2026-10-21 escalate，选 A）：私信**绝不写 chat_messages**（该表被玩家
+  世界聊天无过滤轮询，写入即向全体玩家泄漏）；自检含「mail 表落 kind='player' 行且
+  chat_messages 行数与内容零变化」硬断言。GM 侧审核私信后续批次按 B 方案
+  （/api/gm/messages UNION + DELETE /api/gm/messages/:id 按 kind 分流）另行立项。
+
 ## [1.0] - 2026-10-20
 ### 1.0 正式版（新功能「游戏内反馈」+ R-254/R-255 两修复；客户端 +3 环 / 服务端第 98 环）
 

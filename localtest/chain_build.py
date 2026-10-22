@@ -747,10 +747,22 @@ SRV_CHAIN = [
                               #   + feedback_inbox.jsonl 追加存档（try/catch 自吞，不影响 200）。
                               #   · 配套客户端半边 = V28_MODULES 'fb100'（raw fetch，不走 Xc/YlxwPost）；
                               #     GM 页半边 = gm-pro.html「反馈」页（api('/gm/feedback…')）。
+    # ---- 2026-10-21 1.1 批（PM-101 玩家私信，第 99 环 / 新末环）----
+    'srv_patch_pm101.py',  # PM-101 mail 表加 kind 列（复用 safeAddColumn 幂等 ALTER，默认 'system'）
+                           #   + 新端点 POST /api/mail/send（插在 GM 发信路由之前注册，先注册者先匹配）：
+                           #   pm101Dispatch 按 Bearer 分流——合法玩家 access token → authenticateToken
+                           #   → pm101Rate（30s 冷却 409 / UTC+8 日限 50 条 409）→ pm101Send（to 存在性 /
+                           #   to≠自己 / content 去空格 2~500 → 400）→ insertMail(lingshi=0) +
+                           #   UPDATE kind='player'（鸿函副作用不触发）→ 200 {ok,id}；过期 token 直接 401
+                           #   （客户端静默续期链路依赖）；GM 串/垃圾/无 Bearer → next() 落既有 GM 路由，
+                           #   GM 端点零改动。CLI 契约照 srv_patch_feedback.py（[r99pm] 幂等退出码 3）。
+                           #   · ★ 绝不写 chat_messages（该表被玩家世界聊天无过滤轮询，写入即泄漏；
+                           #     主控 2026-10-21 escalate 裁定 A，自检含 chat_messages 零变化硬断言）。
+                           #   · 配套客户端半边 = V28_MODULES 'pm101'（yl_pm101_ext，raw fetch 同款纪律）。
 ]
 
 # ---- 前端产物路径（0.9.31 换名：index-v2931-20261007.js，与 build_v26n.py OUT 逐字一致）----
-CLIENT_OUT = os.path.join(ROOT, 'build', 'assets', 'index-v100-20261020.js')
+CLIENT_OUT = os.path.join(ROOT, 'build', 'assets', 'index-v101-20261021.js')
 SRV_OUT = os.path.join(ROOT, 'srv', 'index_v28.ts')
 
 

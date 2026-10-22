@@ -120,6 +120,10 @@ EXPECTED_ORDER = [
     # 2026-10-09 0.9.50 批（R-227 / R-228 / R-230；序 = 编号序）
     'r227', 'r228', 'r230',
     # 2026-10-21 1.0 批（FB-100 玩家反馈，第 99 模块；★ numbal 恒最后 ⇒ fb100 排其前）
+    #   ★ 1.1 批 PM-101（yl_pm101_ext）**不在本表**：其 E3 锚 STANDALONE_CLIENT 'r144' 的
+    #     产物（V28 阶段 count=0，装配实测 PatchError），⇒ 走 standalone 薄壳
+    #     localtest/yl_pm101_run.py 在 'r144' 之后套用；其 67 条门禁（6 元组 within）由
+    #     下方 standalone 门禁段按 R-246 自动派生规则收录重跑。
     'fb100',
     'numbal',
 ]
@@ -147,10 +151,10 @@ NEW_MODULES = ['grotto087', 'farm087', 'xinfa087', 't6chardex',
                'r111', 'r113', 'r114', 'r115',  # 2026-10-02 0.9.12 R-111 签到 / R-113 万妖五boss / R-114 历练收获 / R-115 洞府灵田
                'r124',
                'r227', 'r228', 'r230',  # 2026-10-09 0.9.50 R-227 死数据标注 / R-228 明细同源 / R-230 天地之髓门槛
-               'fb100']  # 2026-10-21 1.0 批 FB-100 玩家反馈（第 99 v28 模块，numbal 之前）
+               'fb100']  # 2026-10-21 1.0 批 FB-100 玩家反馈（第 99 v28 模块，numbal 之前；PM-101 走 standalone，见上）
 
-VERSION = '1.0'
-BUNDLE_BASENAME = 'index-v100-20261020.js'   # 与 build_v26n.OUT / chain_build.CLIENT_OUT / build/index.html 逐字一致
+VERSION = '1.1'
+BUNDLE_BASENAME = 'index-v101-20261021.js'   # 与 build_v26n.OUT / chain_build.CLIENT_OUT / build/index.html 逐字一致
 # ★ 升版四件套之外的第 5 处：本文件的 VERSION 必须同步（下方 wiring_checks 用它交叉校验
 #   yl_version_ext.DEFAULT_VERSION 与 CHANGELOG 最新条目，两者都对上才算过）。
 

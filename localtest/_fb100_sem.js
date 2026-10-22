@@ -1,4 +1,6 @@
-// FB-100 语义真值表：把注入块从**产物**里切出来，在 Node 里直跑反馈提交状态机（仿 _r256_sem.js）。
+// FB-100 语义真值表（1.1 入口迁移版）：把注入块从**产物**里切出来，在 Node 里直跑反馈提交状态机（仿 _r256_sem.js）。
+// 1.1 入口已迁到顶栏工具条 + 移动抽屉（React JSX 树内，Node 直跑不可达，由 yl_fb100_ext.gates() 覆盖）；
+//   底部栏第 6 卡与 .ylbar6 六列样式已回退 ⇒ 本表第 0 节改验「样式含模态遮罩、不含 ylbar6」。
 // 不依赖浏览器：stub DOM/fetch/jo/ln/pS/Be/YlxwVersionGet/YlxwToast，验证：
 //   校验(空/太短/太长/联系超长) / 冷却拦截 / 401 静默续期重试恰一次 / 409 与 500(400) 分支 / 成功后清空表单。
 // 用法：node _fb100_sem.js <补丁后产物.js>
@@ -78,9 +80,10 @@ async function main() {
   chk(fetchCalls === 0 && pSCalls === 0, '求值期不得发请求/续期');
   const styleEl = documentStub.head.children.find((e) => e.id === 'ylfb-style');
   chk(!!styleEl, 'load 时应注入 <style id="ylfb-style">');
-  chk(!!styleEl && styleEl.textContent.includes('.ylbar6{grid-template-columns:repeat(6,minmax(0,1fr))}'),
-      '样式应含 6 列 .ylbar6 定义');
-  ok('三个 window 导出 + 6 列样式就绪');
+  chk(!!styleEl && styleEl.textContent.includes('.ylfb-mask{position:fixed;left:0;top:0;right:0;bottom:0'),
+      '样式应含模态遮罩 .ylfb-mask 定义');
+  chk(!!styleEl && !styleEl.textContent.includes('ylbar6'), '1.1 回退：样式不得再含 .ylbar6 六列规则');
+  ok('三个 window 导出 + 模态样式就绪（底栏 6 列规则已回退）');
 
   // ---------- 1. 校验（全在冷却/网络之前，fetch 必须保持 0） ----------
   console.log('\n=== 1. 校验：空 / 太短 / 太长 / 联系方式超长 ===');

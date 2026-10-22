@@ -306,6 +306,10 @@ const db = new sqlite3.Database(dbPath, (err) => {
         )
       `);
       db.run(`CREATE INDEX IF NOT EXISTS idx_mail_user_id ON mail(user_id, id)`);
+      // [r99pm] 玩家私信（服务端第 99 环）：mail 表加 kind 列——'system'=系统/GM 信（默认），
+      //   'player'=玩家私信。幂等：复用 safeAddColumn（duplicate column name 自吞），
+      //   与 CREATE 同 serialize 串行序，新库/旧库都收敛到同一列集。
+      safeAddColumn('mail', 'kind', "ALTER TABLE mail ADD COLUMN kind TEXT DEFAULT 'system'");
     });
   }
 });
@@ -8004,6 +8008,93 @@ app.post('/api/mail/claim-all', authenticateToken, rateLimit({ windowMs: 60 * 10
   }
 });
 
+// ─────────────────────────────────────────────────────────
+// [r99pm] 玩家私信（服务端第 99 环 · 接口契约 2026-10-21 B 段）
+//   POST /api/mail/send（authenticateToken）：入参 {to, content}
+//   · 与下方既有 GM 发信路由同路径：本环路由先注册，pm101Dispatch 按 Authorization Bearer 是否为
+//     合法玩家 access token 分流——是 → authenticateToken → pm101Send（本环业务，绝不 next）；
+//     否（GM 串/垃圾/无 Bearer）→ 原样 next() 落到下方既有 GM 路由，GM 端点一个字节不动。
+//   · 校验：to=目标用户名（users 表校验存在，不存在 400）；to==自己 400；content 去空格后 2~500 字
+//     400；同一发送者 30s 内二连发 409；每玩家每日（UTC+8 日期口径）上限 50 条 409；成功 200 {ok,id}。
+//   · 落库走既有 insertMail（lingshi=0 ⇒ attached_lingshi=0 且 0 < CHRONICLE_MAIL_STONES(10000)，
+//     ≥1000 灵石「鸿函」入志副作用不触发），行 kind 由补写 UPDATE 置 'player'（insertMail 零改动）。
+//   · 本环绝不写 chat_messages：该表是玩家可见世界聊天（GET /api/messages 无过滤轮询），写入即泄漏
+//     私信；GM GET /api/gm/messages 依旧只读世界聊天、看不到私信行（主控 2026-10-21 裁定 A：GM 侧
+//     如需审核私信，后续批次按「UNION + DELETE 分流」另行立项）。
+// ─────────────────────────────────────────────────────────
+const PM_COOLDOWN_MS = 30 * 1000; // [r99pm] 同一发送者二连发冷却
+const PM_DAILY_LIMIT = 50; // [r99pm] 每玩家每日私信上限
+const PM_UTC8_OFFSET_MS = 8 * 60 * 60 * 1000; // [r99pm] 日限按 UTC+8 日期口径
+// [r99pm] created_at 为 SQLite CURRENT_TIMESTAMP（UTC 'YYYY-MM-DD HH:MM:SS'）；按 id DESC 取最近一封
+const PM_LAST_SEND_SQL = "SELECT created_at FROM mail WHERE kind = 'player' AND sender = ? ORDER BY id DESC LIMIT 1";
+const PM_DAILY_COUNT_SQL = "SELECT COUNT(*) AS c FROM mail WHERE kind = 'player' AND sender = ? AND created_at >= ?";
+// [r99pm] 防刷安全网：合法路径被 30s 冷却压到 ≤2 条/分钟，20 条/分钟仅拦异常轰炸（同族 mail:* 端点同风格）
+const pm101Rate = rateLimit({ windowMs: 60 * 1000, max: 20, keyFn: (req: any) => 'pm:send:' + (req.user?.id ?? req.ip) });
+
+// [r99pm] 玩家私信落库：insertMail 零改动复用 + 补写 kind='player'（insertMail 的 INSERT 不含 kind ⇒ 默认 'system'）
+async function pm101InsertPlayerMail(targetUserId: number, senderName: string, content: string): Promise<number> {
+  const mailId = await insertMail(targetUserId, '来自 ' + senderName + ' 的私信', content, senderName, 0);
+  await dbRun("UPDATE mail SET kind = 'player' WHERE id = ?", [mailId]);
+  return mailId;
+}
+
+// [r99pm] 玩家私信业务体（仅在 Bearer 为合法玩家 access token 时被 pm101Dispatch 调用）
+async function pm101Send(req: any, res: any) {
+  try {
+    const body = req.body || {};
+    const to = asStr(body.to).trim();
+    const content = asStr(body.content).trim();
+    if (!to) return res.status(400).json({ error: '需要收件人' });
+    const stripped = content.replace(/\s/g, '').length;
+    if (stripped < 2 || stripped > 500) {
+      return res.status(400).json({ error: '私信内容去空格后需 2~500 字' });
+    }
+    const row: any = await dbGet('SELECT id, username FROM users WHERE username = ?', [to]);
+    if (!row) return res.status(400).json({ error: '收件人不存在' });
+    if (Number(row.id) === Number(req.user.id)) return res.status(400).json({ error: '不能给自己发私信' });
+    const nowMs = Date.now();
+    const last: any = await dbGet(PM_LAST_SEND_SQL, [req.user.username]);
+    if (last && last.created_at != null) {
+      const lastMs = Date.parse(String(last.created_at).replace(' ', 'T') + 'Z');
+      if (Number.isFinite(lastMs) && nowMs - lastMs < PM_COOLDOWN_MS) {
+        return res.status(409).json({ error: '发送太频繁，请稍后再试' });
+      }
+    }
+    // [r99pm] UTC+8 当日零点（折回 UTC 毫秒再格式化成 SQLite CURRENT_TIMESTAMP 同构文本）
+    const d8 = new Date(nowMs + PM_UTC8_OFFSET_MS);
+    const dayStartUtcMs = Date.UTC(d8.getUTCFullYear(), d8.getUTCMonth(), d8.getUTCDate()) - PM_UTC8_OFFSET_MS;
+    const dayStartSql = new Date(dayStartUtcMs).toISOString().slice(0, 19).replace('T', ' ');
+    const cnt: any = await dbGet(PM_DAILY_COUNT_SQL, [req.user.username, dayStartSql]);
+    if (Number(cnt && cnt.c) >= PM_DAILY_LIMIT) {
+      return res.status(409).json({ error: '今日私信已达上限（50 条）' });
+    }
+    const mailId = await pm101InsertPlayerMail(Number(row.id), req.user.username, content);
+    return res.json({ ok: true, id: mailId });
+  } catch (e: any) {
+    console.error('pm send error:', e?.message || e);
+    return res.status(500).json({ error: '服务器繁忙' });
+  }
+}
+
+// [r99pm] 玩家/GM 分流：过期 access token 必须直接 401（客户端只认 401 走 /api/auth/refresh 静默
+//   续期并重试一次）；GM 串/垃圾 token 原样 next() 交给 GM 层（其 401/403 语义不变）。
+const pm101Dispatch = (req: any, res: any, next: any) => {
+  const authHeader = req.headers['authorization'] || '';
+  const token = authHeader && authHeader.split(' ')[1];
+  if (token == null) return next();
+  jwt.verify(token, JWT_SECRET_USED, (err: any, payload: any) => {
+    if (err) {
+      if (err.name === 'TokenExpiredError') return res.sendStatus(401);
+      return next();
+    }
+    if (!payload || payload.type !== 'access') return next();
+    authenticateToken(req, res, (merr: any) => {
+      if (merr) return next(merr);
+      pm101Rate(req, res, () => { pm101Send(req, res); });
+    });
+  });
+};
+app.post('/api/mail/send', pm101Dispatch);
 // POST /api/mail/send — GM 发信（authenticateGM）。单发 {userId|username}，全服 {all:true}
 app.post('/api/mail/send', authenticateGM, (req: any, res: any) => {
   const { title, content, sender, lingshi, userId, username, all } = req.body || {};

@@ -340,7 +340,7 @@ from yl_r067_ext import apply as v28_r067_apply  # noqa: E402
 from yl_068_ext import apply as v28_r068_apply  # noqa: E402
 
 BASE = os.path.join(HERE, 'build', 'assets', 'index-v26m-20260927.js')
-OUT = os.path.join(HERE, 'build', 'assets', 'index-v100-20261020.js')
+OUT = os.path.join(HERE, 'build', 'assets', 'index-v101-20261021.js')
 
 # v28 模块调用顺序（锚点稳定性 + num-balance 必须最后）：
 #   saveretry → arb → version → mail → entry → sectgf → char → bond → ui
@@ -389,6 +389,12 @@ from yl_r228_ext import apply as v28_r228_apply  # noqa: E402
 from yl_r230_ext import apply as v28_r230_apply  # noqa: E402
 # ---- 2026-10-21 1.0 批（FB-100 玩家反馈，第 99 个 v28 模块；文件在 localtest/）----
 from yl_fb100_ext import apply as v28_fb100_apply  # noqa: E402
+# ---- 2026-10-21 1.1 批（PM-101 玩家私信）：**不进 V28_MODULES** —— 其 E3 锚
+#      STANDALONE_CLIENT 'r144' 的产物（R-144 注入块内切磋 push；装配实测 V28 阶段该锚
+#      count=0，直接进本表必然 PatchError fail-closed），交付说明亦「须排 r144 之后」。
+#      ⇒ 走 standalone 薄壳 localtest/yl_pm101_run.py（--src 契约 + 0 参 gates() 转接），
+#        在 STANDALONE_CLIENT 'r144' 之后接线（见下方 r144 行后），dryrun_087 的 standalone
+#        门禁名单按 R-246 自动派生规则收录。
 
 V28_MODULES = [
     ('saveretry', v28_saveretry_apply),
@@ -560,12 +566,13 @@ V28_MODULES = [
     ('r227', v28_r227_apply),              # R-227 specialAbility 死数据：保留字段 + 3 处显式标注（唯一活消费点 = R38 建号向导卡 ⭐）
     ('r228', v28_r228_apply),              # R-228 修炼效率明细行权重 0.26/0.6/0.6/0.1/0.32 → 改读 bd() 返回值（同源，杜绝双写）
     ('r230', v28_r230_apply),              # R-230 天地之髓掉落门槛 [化神,∞) → [元婴,化神]（与天地精华同构；历练/额外/黑市 + minRealm 共 4 处）
-    # ---- 2026-10-21 1.0 批（FB-100 玩家反馈，第 99 模块）----
-    #   锚点全在基线（const Q0="/yl/api" 派生点 / 底部栏容器 className / 宗门卡↔页脚之间），
+    # ---- 2026-10-21 1.0 批（FB-100 玩家反馈，第 99 模块；1.1 起入口=顶栏「角色」左侧紧邻
+    #      + ☰ 抽屉设置项前，底部栏恢复 5 卡原状（ylbar6/第 6 卡全回退）；提交链路 1.0 行为不变）----
+    #   锚点全在基线（const Q0="/yl/api" 派生点 / 顶栏 flexBasis 容器 / 抽屉「设置」项），
     #   与前置模块零交集；YlxwVersionGet/YlxwToast 全 typeof 守卫，位置不敏感。
     #   ★ 不放 numbal 之后：dryrun_087.wiring_checks 硬门禁「numbal 必须恒最后」
     #     （localtest/dryrun_087.py:196），且 numbal 的预算重算无需看到本模块的 UI/API 桥块。
-    ('fb100', v28_fb100_apply),            # FB-100 底部栏「反馈」卡 + raw fetch /yl/api/feedback
+    ('fb100', v28_fb100_apply),            # FB-100 顶栏「反馈」钮 + 抽屉入口（1.0 底栏第 6 卡已回退）+ raw fetch /yl/api/feedback
     ('numbal', v28_numbal_apply),
 ]
 
@@ -609,6 +616,12 @@ STANDALONE_CLIENT = [
     ('r143', os.path.join(HERE, 'localtest', 'yl_r143_ext.py')),   # R-143 回合制技能补吸血分支：zy() 结算后按 km 语义回血（仅玩家、取最强单条 lifeLeech；纯客户端）
     # ---- 2026-10-03 0.9.19 批（R-140/R-141 调参 + R-144 在线面板 + R-145 历练灵石 + R-146 日志合并；序=编号序）----
     ('r144', os.path.join(HERE, 'localtest', 'yl_r144_ext.py')),   # R-144 在线人数徽章 → 按钮 + 在线/好友面板（覆盖层；近似在线名单 = 最近 60 条发言去重；纯客户端）
+    # ---- 2026-10-21 1.1 批（PM-101 玩家私信；★ 必须排 r144 之后 —— E3 锚 R-144 注入块内
+    #      onlineRow 的切磋 push 全语句，V28 阶段该锚 count=0（装配实测 PatchError 实证））----
+    #      薄壳 = yl_pm101_run.py（--src 契约 + 0 参 gates() 转接 yl_pm101_ext.gates()，
+    #      67 条含 6 元组 within 限域；dryrun_087 R-246 自动派生收录）。服务端配套 =
+    #      SRV_CHAIN 第 99 环 srv_patch_pm101.py（mail.kind 列 + POST /api/mail/send）。
+    ('pm101', os.path.join(HERE, 'localtest', 'yl_pm101_run.py')),  # PM-101 私信：仙友录/在线人物「私信」+ 信箱「回信」+ raw fetch /yl/api/mail/send
     ('r145', os.path.join(HERE, 'localtest', 'yl_r145_ext.py')),   # R-145 自动历练灵石收益 ×5→×15 + 零灵石兜底 min(50,max(1,floor(修为收益×0.5)))（纯客户端）
     ('r146', os.path.join(HERE, 'localtest', 'yl_r146_ext.py')),   # R-146 自动历练结算展示合并成一行 + 去重（同帧微批 flush；纯客户端）
     ('r155', os.path.join(HERE, 'localtest', 'yl_r155_ext.py')),   # R-155 自动历练「结束汇总」7 条 → 1 条（收集 YLXW_ADV156_LINES + join(" · ") 单次 add；★ 必须排 r138/r146 之后——锚点是 R-138 的 YlxwAdvSummary 与 R-105 的 YlxwAdvSession）（纯客户端）

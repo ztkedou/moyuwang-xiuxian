@@ -2,6 +2,17 @@
 r"""
 yl_fb100_ext.py -- FB-100 玩家反馈（客户端第 99 模块；v28 契约：INJECT_JS + apply(p,ctx) -> gates）
 
+1.1 接口契约 A（反馈入口迁移，本版；1.0 = 底部栏第 6 卡形态已废弃回退）：
+    ① 底部操作栏恢复原样：5 卡（打坐/历练/秘境/炼丹·炼器/宗门），grid className 补丁、
+       第 6「反馈」卡、.ylbar6 六列 <style> 规则全部回退（=0.9.62 原状，本模块不再改写底栏）；
+    ② 顶栏（header 右侧 hidden md:flex 工具条）「角色」按钮左侧紧邻插入「反馈」按钮
+       （amber 高亮内联样式保底 + 红点角标，onClick→window.YLFB_OPEN 守卫调用）；
+    ③ 移动端（该工具条 hidden md:flex 手机不可见）：☰ 抽屉列表「设置」项之前插入等价「反馈」入口
+       （与「信箱」同款 YlxwMk("mail") 图标、amber 配色，onClick 同守卫）；
+    ④ 模态「bug 与需求反馈」+ 提交链路（raw fetch+Bearer / 401 静默续期重试恰一次 / 60s 冷却 /
+       成功·409·失败 toast）逐字节保持 1.0 行为 —— INJECT_JS 相对 1.0 唯一改动 =
+       ensureStyle() 删去 .ylbar6 一条规则（随底栏回退），其余一字不动。
+
 接口契约（与三端共同遵守，字段名一个都不能改）：
     POST <ln>/feedback（= /yl/api/feedback，authenticateToken 必须登录）
     入参 {kind, content, contact?}；kind ∈ {'bug','suggestion'}
@@ -12,14 +23,6 @@ yl_fb100_ext.py -- FB-100 玩家反馈（客户端第 99 模块；v28 契约：I
     ★ 绝不经 Xc()/YlxwPost()（其 401/403 分支会强制登出玩家）——本模块 raw fetch，
       401 时只调 pS() 静默续期后重试一次，任何失败都不触碰登录态。
 
-与任务预期的偏差（勘察结论，已在任务书中裁定）：
-    底部操作栏（grid grid-cols-3 md:grid-cols-5）的 5 张卡是 打坐/历练/秘境/炼丹·炼器/宗门，
-    **没有「角色」卡**（「角色」只在 j4 按钮行与 w4/S4 抽屉里，本模块两处都不碰）。
-    按任务书裁定的方案：往底部栏加第 6 张「反馈」卡 —— 容器 className 追加 ylbar6（原类
-    一字不动），并在 children 尾部（宗门卡之后、页脚 <p> 之前）插入新卡 JSX。
-    预构建 CSS（index-ZuV-l8Gt.css）没有 6 列类 ⇒ INJECT_JS 运行时注入 <style> 定义
-    .ylbar6（md 起生效 grid-template-columns:repeat(6,minmax(0,1fr))），IIFE 求值即注入。
-
 契约（本文件对外只导出这两个符号，同 patches/client/yl_saveretry_ext.py）：
     INJECT_JS : str        注入 JS 块（含中文，由构建侧统一 zh() 转义）
     apply(p, ctx) -> gates
@@ -29,21 +32,30 @@ yl_fb100_ext.py -- FB-100 玩家反馈（客户端第 99 模块；v28 契约：I
 
 锚点实测（基线 build/assets/index-v26m-20260927.js，1419571 chars，2026-10-21 本环实测）：
     A_Q0   'const Q0="/yl/api"'                                      count=1（ln 链式派生起点）
-    A_BAR  'md:grid-cols-5 gap-2 md:gap-4 shrink-0 fixed'            count=1（底部栏容器 className）
+    A_HDR  'style:{flexBasis:"420px"},children:[e.jsxs("button",{onClick:c,'
+                                                                     count=1（工具条容器
+        "hidden md:flex gap-1 flex-wrap items-center justify-end flex-1 min-w-0" 的 children 开头；
+        其后第一个按钮即「角色」onClick:c ⇒ 插在 children:[ 之后 = 工具条首位 =「角色」左侧紧邻）
+    A_DW   '{icon:Om,label:"设置",onClick:j,color:"text-stone-400"}'  count=1（w4 抽屉列表「设置」项）
+    A_BAR  'md:grid-cols-5 gap-2 md:gap-4 shrink-0 fixed'            count=1（底栏容器，仅作回退门禁，不改写）
     A_P    ']}),e.jsx("p",{className:"col-span-2 md:col-span-5 text-center text-[10px] md:text-xs text-stone-500 mt-1"'
-                                                                     count=1（宗门卡 ↔ 页脚之间）
-    冲突体检：'YLFB_' / 'ylbar6' / 'ylfb-' / 'children:"反馈"' / 'children:"bug · 建议"' /
-      'rgba(245,158,11,.45)' / 'rgba(239,68,68,.9)' / 'grid-template-columns:repeat(6'
-      在基线全部 count=0（无标识符/样式碰撞）。
+                                                                     count=1（底栏宗门卡↔页脚，仅作回退门禁，不改写）
+    冲突体检（基线全 count=0）：'YLFB_' / 'ylfb-' / 'children:"反馈"' / 'label:"反馈"' /
+      'rgba(245,158,11,.45)' / 'rgba(239,68,68,.9)' / 'ylbar6' / '#451a03'。
+    链上体检（2026-10-21 对 patches/client/*.py + build_v26n.py + localtest/yl_*_ext.py 全量
+      241 文件源扫描）：'flexBasis' / 'label:"设置"' / 'children:"角色"' / 'YlxwMk("mail")'
+      无任何前置模块触碰 ⇒ 第 99 位套用时锚区不受前置扰动；yl_entry_ext / yl_ui_ext 只动
+      工具条「仙途指引」之后与抽屉首部分组 / 「仙友录」之前，与本模块锚区零交集。
     冻结体检：'const Q0="/yl/api"' / 'function jo(){' / 'function Nd(t){' / 'async function pS(){' /
-      'async function Xc(' / 'const Jy=Rt.memo(N4)' / 'children:"快捷键见设置"' 全部 count=1。
+      'async function Xc(' / 'const Jy=Rt.memo(N4)' / 'Zy=Rt.memo(j4)' / 'S4=Rt.memo(w4)' /
+      'children:"快捷键见设置"' / 'children:"机缘 · 战斗"' 全部 count=1。
 
 中文纪律：
     · INJECT_JS 内的中文 → 构建侧 zh() 转 \uXXXX（apply 内再自检一遍，fail-closed）。
-    · CARD_JSX（插进 React JSX 树的卡片）用 raw UTF-8 —— 与 bundle 既有 JSX 中文同形态
+    · HDR_BTN_JSX / DW_ITEM（插进 React JSX 树）用 raw UTF-8 —— 与 bundle 既有 JSX 中文同形态
       （build_v26n.py 抽屉入口 DRAWER_ITEM 'label:"仙途指引"' 即先例），不走 zh()。
     · gates 里断言 INJECT_JS 的中文一律经本模块 _zh()（= yl_patch.zh 同实现）转义，
-      否则 count==0 假失败（SKILL §13.4）。
+      否则 count==0 假失败（SKILL §13.4）；断言 JSX 注入的中文直接数 raw UTF-8。
 """
 
 # --------------------------------------------------------------------------- 锚点（全部实测 count==1）
@@ -54,31 +66,44 @@ END_MARK = '/* == end YL_FB100_V1 == */'
 #     调用发生在点击时 —— ln/jo/pS 彼时必然已初始化；jo 是同作用域函数声明，hoisted）
 A_Q0 = 'const Q0="/yl/api"'
 
-# E2 底部栏容器：追加 ylbar6 类（原类一字不动；预构建 CSS 无 6 列类，由注入 <style> 补）
-A_BAR = 'md:grid-cols-5 gap-2 md:gap-4 shrink-0 fixed'
-N_BAR = 'md:grid-cols-5 ylbar6 gap-2 md:gap-4 shrink-0 fixed'
+# E2 顶栏工具条首位（=「角色」按钮左侧紧邻）：工具条容器 children:[ 与「角色」按钮开头之间
+A_HDR = 'style:{flexBasis:"420px"},children:[e.jsxs("button",{onClick:c,'
 
-# E3 卡片插入点：宗门卡收尾 `]})` + `,` 与页脚 <p> 之间
+# E3 抽屉「设置」项之前（w4 列表 C 的成员对象，逗号分隔）
+A_DW = '{icon:Om,label:"设置",onClick:j,color:"text-stone-400"}'
+
+# ---- 回退门禁专用（1.0 底栏形态的锚，本版不再改写，仅断言原状）----
+A_BAR = 'md:grid-cols-5 gap-2 md:gap-4 shrink-0 fixed'
 A_P = (']}),e.jsx("p",{className:"col-span-2 md:col-span-5 text-center text-[10px] '
        'md:text-xs text-stone-500 mt-1"')
 
-# --------------------------------------------------------------------------- 卡片 JSX（raw UTF-8，不走 zh()）
-# 类名全部抄自 N4 组件既有标记（flex flex-col/…/relative/hidden md:block 等已被编译进 CSS，SKILL §22.3）；
-# 高亮与红点全内联 style 保底（amber 描边+光晕，区别于 stone 色系；红点角标 absolute 右上）。
-CARD_JSX = ('e.jsxs("button",{onClick:()=>{try{typeof window.YLFB_OPEN==="function"&&window.YLFB_OPEN()}'
-            'catch(ylfbe){}},className:"relative flex flex-col items-center justify-center p-2 md:p-4 '
-            'rounded-lg border-2 transition-all duration-200 touch-manipulation min-h-[64px] '
-            'md:min-h-[100px] w-full bg-ink-800 text-stone-200",'
-            'style:{borderColor:"#f59e0b",boxShadow:"0 0 10px rgba(245,158,11,.45)"},children:['
-            'e.jsx("span",{style:{position:"absolute",top:"4px",right:"4px",width:"10px",height:"10px",'
-            'borderRadius:"50%",background:"#ef4444",boxShadow:"0 0 5px rgba(239,68,68,.9)"}}),'
-            'e.jsx("span",{className:"font-serif font-bold text-sm md:text-base",style:{color:"#fbbf24"},'
-            'children:"反馈"}),e.jsx("span",{className:"hidden md:block text-xs mt-0.5 md:mt-1",'
-            'style:{color:"#f59e0b"},children:"bug · 建议"})]})')
+# --------------------------------------------------------------------------- 顶栏按钮 JSX（raw UTF-8，不走 zh()）
+# 形态对齐工具条既有「角色」按钮（flex items-center gap-1.5 px-2 py-1.5 … min-w-[34px] min-h-[32px]
+# justify-center whitespace-nowrap，全部已被编译进 CSS，SKILL §22.3；relative 亦在预构建 CSS）；
+# 高亮全内联 style 保底（amber-950 底 + amber-500 描边 + 光晕，区别于 stone 色系）；
+# 红点角标 absolute 右上（按钮带 relative）。
+HDR_BTN_JSX = ('e.jsxs("button",{onClick:function(){try{typeof window.YLFB_OPEN==="function"&&window.YLFB_OPEN()}'
+               'catch(ylfbe){}},className:"relative flex items-center gap-1.5 px-2 py-1.5 rounded border '
+               'transition-colors text-xs min-w-[34px] min-h-[32px] justify-center whitespace-nowrap",'
+               'style:{borderColor:"#f59e0b",background:"#451a03",boxShadow:"0 0 8px rgba(245,158,11,.45)"},children:['
+               'e.jsx("span",{style:{position:"absolute",top:"3px",right:"3px",width:"8px",height:"8px",'
+               'borderRadius:"50%",background:"#ef4444",boxShadow:"0 0 4px rgba(239,68,68,.9)"}}),'
+               'e.jsx("span",{style:{color:"#fbbf24",fontWeight:"700"},children:"反馈"})]})')
 
-N_P = ']}),' + CARD_JSX + ',' + A_P[len(']}),'):]
+N_HDR = 'style:{flexBasis:"420px"},children:[' + HDR_BTN_JSX + ',e.jsxs("button",{onClick:c,'
+
+# --------------------------------------------------------------------------- 抽屉入口项（raw UTF-8，不走 zh()）
+# 与「信箱」同款 YlxwMk("mail") 图标、amber 配色（w4 列表既有项同形态）；onClick 走 window 守卫
+# 复用 FB-100 模态（YLFB_OPEN 由 E1 块暴露）；渲染走 w4 既有普通按钮分支（无 locked/group 字段），
+# 点击后经 g(q.onClick) 自动收起抽屉。
+DW_ITEM = ('{icon:YlxwMk("mail"),label:"反馈",'
+           'onClick:()=>{try{typeof window.YLFB_OPEN==="function"&&window.YLFB_OPEN()}catch(ylfbe){}},'
+           'color:"text-amber-300"},')
+
+N_DW = DW_ITEM + A_DW
 
 # --------------------------------------------------------------------------- 注入块（中文由构建侧 zh() 转义）
+# 相对 1.0 唯一改动：ensureStyle() 不再注入 .ylbar6 六列规则（随底栏回退）；其余逐字节不变。
 INJECT_JS = '''
 /* == YL_FB100_V1 (FB-100 player feedback; raw fetch + ln/jo/pS; NEVER Xc/YlxwPost) == */
 /* ---- part 1: API bridge（与 ln/jo/pS 同作用域；经 window 暴露，调用方零作用域假设，SKILL §13.4）---- */
@@ -124,8 +149,7 @@ try { window.YLFB_SUBMIT = YLFB_SUBMIT; } catch (e) {}
   function ensureStyle() {
     if (gid("ylfb-style")) return;
     var s = document.createElement("style"); s.id = "ylfb-style";
-    s.textContent = "@media(min-width:768px){.ylbar6{grid-template-columns:repeat(6,minmax(0,1fr))}}"
-      + ".ylfb-mask{position:fixed;left:0;top:0;right:0;bottom:0;background:rgba(0,0,0,.62);z-index:2147483000;display:flex;align-items:center;justify-content:center;padding:12px}"
+    s.textContent = ".ylfb-mask{position:fixed;left:0;top:0;right:0;bottom:0;background:rgba(0,0,0,.62);z-index:2147483000;display:flex;align-items:center;justify-content:center;padding:12px}"
       + ".ylfb-box{width:100%;max-width:520px;max-height:86vh;overflow:auto;background:#1c1917;color:#e7e5e4;border:1px solid #f59e0b;border-radius:12px;padding:14px 16px;font:14px/1.6 system-ui,-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;box-shadow:0 8px 40px rgba(0,0,0,.6)}"
       + ".ylfb-title{font-weight:700;font-size:16px;color:#fbbf24;margin-bottom:10px}"
       + ".ylfb-lab{font-size:12px;color:#a8a29e;margin:8px 0 4px}"
@@ -254,7 +278,7 @@ def gates():
         # ---- 注入块在位且唯一 ----
         ('FB100·幂等标记',            '/* == YL_FB100_V1', 1, '==', ''),
         ('FB100·结束标记',            '/* == end YL_FB100_V1 == */', 1, '==', ''),
-        # ---- API 桥 ----
+        # ---- API 桥（1.0 原样保留）----
         ('FB100·API 提交函数',        'async function YLFB_SUBMIT(o)', 1, '==', ''),
         ('FB100·API window 暴露',     'window.YLFB_SUBMIT = YLFB_SUBMIT;', 1, '==', ''),
         ('FB100·raw fetch 直连',      'fetch(ln + "/feedback"', 1, '==', '绝不经 Xc/YlxwPost'),
@@ -265,7 +289,7 @@ def gates():
         ('FB100·Bearer 复用 jo',      'if (a && a.Authorization) h.Authorization = a.Authorization;', 1, '==', ''),
         ('FB100·请求体 version/realm', 'version: YLFB_Version(), realm: YLFB_RealmOf(),', 1, '==', '契约字段名'),
         ('FB100·请求体 ua 字段',      'navigator.userAgent) ? navigator.userAgent : ""', 1, '==', ''),
-        # ---- UI 管线 ----
+        # ---- UI 管线（1.0 原样保留）----
         ('FB100·冷却/校验常数',       'var COOLDOWN_MS = 60000, MIN_LEN = 5, MAX_LEN = 2000, MAX_CONTACT = 100;', 1, '==', ''),
         ('FB100·冷却模块级时间戳',    'var lastOk = 0, cur = null;', 1, '==', ''),
         ('FB100·冷却拦截',            'var wait = COOLDOWN_MS - (Date.now() - lastOk);', 1, '==', ''),
@@ -286,20 +310,32 @@ def gates():
         ('FB100·测试钩子 OPEN',       'window.__YLFB_CUR = cur;', 1, '==', ''),
         ('FB100·测试钩子 CLOSE',      'window.__YLFB_CUR = null;', 1, '==', ''),
         ('FB100·关闭按钮接线',        'ghost.addEventListener("click", closeBox);', 1, '==', ''),
-        # ---- 6 列样式 ----
-        ('FB100·6 列样式注入',        '@media(min-width:768px){.ylbar6{grid-template-columns:repeat(6,minmax(0,1fr))}}', 1, '==', '预构建 CSS 无 6 列类'),
+        # ---- 样式（模态样式保留；.ylbar6 六列规则随底栏回退删除）----
+        ('FB100·模态遮罩样式',        '.ylfb-mask{position:fixed;left:0;top:0;right:0;bottom:0', 1, '==', '模态样式保留'),
         ('FB100·样式幂等',            's.id = "ylfb-style";', 1, '==', ''),
-        ('FB100·load 即注入样式',     'try { ensureStyle(); } catch (e) {}', 1, '==', '底栏首帧就要 6 列'),
-        # ---- 容器与卡片 ----
-        ('容器·ylbar6 已追加',        'md:grid-cols-5 ylbar6 gap-2 md:gap-4 shrink-0 fixed', 1, '==', '原类一字不动'),
-        ('容器·原 5 列类未删',        'grid grid-cols-3 md:grid-cols-5', 1, '==', ''),
-        ('卡片·onClick 接线 OPEN',    '&&window.YLFB_OPEN()', 1, '==', 'window 零作用域假设'),
-        ('卡片·onClick 守卫',         'typeof window.YLFB_OPEN==="function"', 1, '==', ''),
-        ('卡片·反馈主文案',           'children:"反馈"', 1, '==', '基线为 0，插入后恰 1'),
-        ('卡片·子题',                 'children:"bug · 建议"', 1, '==', ''),
-        ('卡片·红点角标',             'width:"10px",height:"10px",borderRadius:"50%",background:"#ef4444",boxShadow:"0 0 5px rgba(239,68,68,.9)"', 1, '==', ''),
-        ('卡片·amber 高亮内联',       'borderColor:"#f59e0b",boxShadow:"0 0 10px rgba(245,158,11,.45)"', 1, '==', '区别于 stone 色系'),
+        ('FB100·load 即注入样式',     'try { ensureStyle(); } catch (e) {}', 1, '==', ''),
+        ('回退·ylbar6 全文清零',      'ylbar6', 0, '==', '1.0 六列样式已回退'),
+        ('回退·6 列媒体查询清零',     '@media(min-width:768px){.ylbar6{grid-template-columns:repeat(6,minmax(0,1fr))}}', 0, '==', ''),
+        # ---- 回退：底栏原状（=0.9.62，5 卡）----
+        ('回退·底栏容器原样',         'grid grid-cols-3 md:grid-cols-5 gap-2 md:gap-4 shrink-0 fixed', 1, '==', 'md:grid-cols-5 卡片数=5'),
+        ('回退·容器未追加 ylbar6',    'md:grid-cols-5 ylbar6', 0, '==', '1.0 className 补丁已回退'),
+        ('回退·宗门卡↔页脚未插卡',    A_P, 1, '==', '1.0 第 6 卡已撤、页脚 <p> 原位'),
+        ('回退·反馈子题清零',         'children:"bug · 建议"', 0, '==', '1.0 底栏卡标记'),
+        ('回退·旧红点尺寸清零',       'width:"10px",height:"10px",borderRadius:"50%"', 0, '==', '1.0 底栏卡红点'),
         ('页脚提示未动',              'children:"快捷键见设置"', 1, '==', ''),
+        # ---- 顶栏「反馈」按钮（「角色」左侧紧邻）----
+        ('顶栏·紧邻角色左侧',         N_HDR, 1, '==', '工具条首位、「角色」按钮紧随其后'),
+        ('顶栏·角色按钮在位',         'children:[e.jsx(aa,{size:15}),e.jsx("span",{children:"角色"})]})', 1, '==', ''),
+        ('顶栏·主文案',               'children:"反馈"', 1, '==', '基线为 0，插入后恰 1'),
+        ('顶栏·红点角标',             'position:"absolute",top:"3px",right:"3px",width:"8px",height:"8px",borderRadius:"50%",background:"#ef4444"', 1, '==', ''),
+        ('顶栏·amber 高亮内联',       'borderColor:"#f59e0b",background:"#451a03",boxShadow:"0 0 8px rgba(245,158,11,.45)"', 1, '==', '内联样式保底'),
+        ('入口·OPEN 守卫共 2 处',     'typeof window.YLFB_OPEN==="function"', 2, '==', '顶栏 + 抽屉各 1'),
+        ('入口·接线 OPEN 共 2 处',    '&&window.YLFB_OPEN()', 2, '==', '顶栏 + 抽屉各 1'),
+        # ---- 抽屉「反馈」入口（「设置」项之前）----
+        ('抽屉·入口在设置项前',       N_DW, 1, '==', '移动端 ☰ 菜单等价入口'),
+        ('抽屉·设置项在位',           A_DW, 1, '==', ''),
+        ('抽屉·入口 label',           'label:"反馈"', 1, '==', '抽屉用 label、顶栏用 children'),
+        ('抽屉·信箱同款图标',         'YlxwMk("mail")', 2, '==', '信箱 1 + 反馈 1'),
         # ---- 冻结：既有路径一字未动 ----
         ('冻结·Q0 链未动',            'const Q0="/yl/api"', 1, '==', ''),
         ('冻结·jo 未动',              'function jo(){', 1, '==', ''),
@@ -307,6 +343,8 @@ def gates():
         ('冻结·pS 未动',              'async function pS(){', 1, '==', ''),
         ('冻结·Xc 未动',              'async function Xc(', 1, '==', '其 401/403 分支保持原样、绝不经由'),
         ('冻结·N4 memo 未动',         'const Jy=Rt.memo(N4)', 1, '==', ''),
+        ('冻结·j4 memo 未动',         'Zy=Rt.memo(j4)', 1, '==', ''),
+        ('冻结·w4 memo 未动',         'S4=Rt.memo(w4)', 1, '==', ''),
         ('冻结·历练卡未动',           'children:"机缘 · 战斗"', 1, '==', ''),
     ]
 
@@ -328,11 +366,11 @@ def apply(p, ctx):
     # E1 API 桥 + UI 模态（ln/jo/pS 同作用域；求值期只定义函数/挂 window/注入 <style>）
     p.insert_before('fb100-api-ui-block', A_Q0, block + '\n', expect=1,
                     note='FB100 反馈 API 桥 + 自包含模态（复用 ln/jo/pS，window 暴露）')
-    # E2 底部栏容器追加 ylbar6（原 5 列类一字不动）
-    p.replace('fb100-bar-6col', A_BAR, N_BAR, expect=1,
-              note='底部操作栏容器追加 ylbar6 类（6 列样式由注入 <style> 提供）')
-    # E3 宗门卡之后、页脚 <p> 之前插入「反馈」卡
-    p.replace('fb100-card', A_P, N_P, expect=1,
-              note='底部栏第 6 卡「反馈」（amber 高亮 + 红点角标，onClick→window.YLFB_OPEN）')
+    # E2 顶栏「反馈」：hidden md:flex 工具条首位 =「角色」按钮左侧紧邻
+    p.replace('fb100-header-btn', A_HDR, N_HDR, expect=1,
+              note='顶栏「反馈」按钮（amber 高亮 + 红点角标，紧邻「角色」左侧）')
+    # E3 移动抽屉「反馈」：列表「设置」项之前（与信箱同款图标，复用 window.YLFB_OPEN）
+    p.replace('fb100-drawer-item', A_DW, N_DW, expect=1,
+              note='移动 ☰ 抽屉「反馈」入口（设置项前；onClick→window 守卫调 YLFB_OPEN）')
 
     return gates()

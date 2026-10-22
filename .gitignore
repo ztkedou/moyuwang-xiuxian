@@ -85,5 +85,6 @@ tmp*.js
 # 如需部署请参考 docs/DEPLOYMENT.md 自行填写。
 deploy_*/
 *DEPLOY_LOG*
+!docs/DEPLOY_LOG_*.md
 EXPECT_*.env
 *.sqlite*

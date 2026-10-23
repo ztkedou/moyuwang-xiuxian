@@ -1,8 +1,9 @@
 // PM-101 语义真值表：把注入块与三处拼接从**产物**里切出来，在 Node 里直跑（仿 _fb100_sem.js）。
 // 不依赖浏览器：stub DOM/fetch/jo/ln/pS/YlxwToast + e.jsx/jsxs/YlxwRow/YlxwBtn 等，验证：
-//   校验(收件人空/内容空/太短/太长/2字下界) / 冷却拦截(仅成功记 30s) / 401 静默续期重试恰一次 /
-//   409 与 400 服务端 error 透出 / 500 兜底 / 成功 UI 全链(预填/{to,content}/toast/关闭/清空) /
-//   仙友录行「私信」钮 / 在线人物行「私信」push(切磋之后、isSelf 无) / 信箱行 kind=player 回信钮。
+//   校验(收件人空/内容空/太短/太长/2字下界) / 连发无冷却(1.2 取消限频) / 401 静默续期重试恰一次 /
+//   409 与 400 服务端 error 透出(1.2 起 409 为兼容兜底) / 500 兜底 / 成功 UI 全链(预填/{to,content}/toast/关闭/清空) /
+//   仙友录行 1.2 布局(送礼/私信同组并排、justify-between 恢复 2 子、送礼归位) /
+//   在线人物行「私信」push(切磋之后、isSelf 无) / 信箱行 kind=player 回信钮。
 // 用法：node _pm101_sem.js <补丁后产物.js>
 const fs = require('fs');
 const vm = require('vm');
@@ -97,7 +98,7 @@ async function main() {
   chk(!!styleEl && styleEl.textContent.includes('.ylpm-mask{'), '样式应含 .ylpm-mask 定义');
   ok('三个 window 导出 + 弹窗样式就绪');
 
-  // ---------- 1. 校验（全在冷却/网络之前，除「2 字探底」外 fetch 必须保持 0） ----------
+  // ---------- 1. 校验（全在网络之前，除「2 字探底」外 fetch 必须保持 0） ----------
   console.log('\n=== 1. 校验：收件人空 / 内容空 / 太短 / 太长 / 2 字下界 ===');
   const sendOnce = (to, content) => new Promise((res) => windowStub.YLPM_SEND(to, content, res));
   let r = await sendOnce('   ', '这是一个合法长度的私信内容');
@@ -110,12 +111,12 @@ async function main() {
   chk(r && !r.ok && /太长/.test(r.msg), '501 字应判太长（实际 ' + r.msg + '）');
   chk(fetchCalls === 0, '校验阶段不得触网（实际 fetch=' + fetchCalls + '）');
   SCRIPT = [{ status: 500, body: {} }];
-  r = await sendOnce('张三', '好的');                      // 2 字 = 下界合法 → 必须放行到网络（500 不记冷却）
+  r = await sendOnce('张三', '好的');                      // 2 字 = 下界合法 → 必须放行到网络（1.2 无冷却，直接触网）
   chk(r && !r.ok && r.status === 500 && fetchCalls === 1, '2 字应放行到网络（实际 fetch=' + fetchCalls + ' status=' + r.status + '）');
   ok('四类校验全拦下；2 字下界放行');
 
-  // ---------- 2. 409：显示服务端 error，不记冷却 ----------
-  console.log('\n=== 2. 409 → 显示服务端 error，不记冷却 ===');
+  // ---------- 2. 409：显示服务端 error（1.2 服务端已无限频，此为兼容兜底分支） ----------
+  console.log('\n=== 2. 409 → 显示服务端 error（兼容兜底） ===');
   SCRIPT = [{ status: 409, body: { error: '发送太频繁，请稍后再试' } }];
   const fc0 = fetchCalls;
   r = await sendOnce('张三', '这是一条会撞 409 频控的私信内容');
@@ -149,7 +150,7 @@ async function main() {
   chk(/重新登录/.test(r.msg), '401 终态只提示重新登录，不踢会话（实际 ' + r.msg + '）');
   ok('401 = 续期 1 次 + 重试 1 次 + 新 token + 不登出');
 
-  // ---------- 5. 成功（走真实 UI 路径）：预填/请求体 2 字段/toast(gain)/关闭/清空/记冷却 ----------
+  // ---------- 5. 成功（走真实 UI 路径）：预填/请求体 2 字段/toast(gain)/关闭/清空/连发无冷却 ----------
   console.log('\n=== 5. 成功路径（UI 全链）：收件人预填/请求体 {to,content}/toast/关闭/清空 ===');
   SCRIPT = [{ status: 200, body: { ok: true, id: 42 } }];
   windowStub.YLPM_OPEN('李四');
@@ -183,19 +184,16 @@ async function main() {
   chk(!!cur, '重开应是新模态');
   chk(cur.ta.value === '', '成功后内容应清空（实际 ' + JSON.stringify(cur.ta.value) + '）');
   chk(cur.inp.value === '赵六', '重开收件人应预填新目标（实际 ' + cur.inp.value + '）');
-  ok('成功 = {to,content} 上送 + toast + 关闭 + 清空内容 + 预填生效');
+  // 1.2 取消限频：成功后立即再发，必须照常触网并成功（无冷却拦截、无禁用期）
+  SCRIPT = [{ status: 200, body: { ok: true, id: 43 } }];
+  const fc4 = fetchCalls;
+  r = await sendOnce('王五', '成功后立即连发的第二条私信内容');
+  chk(r && r.ok && r.status === 200 && fetchCalls - fc4 === 1,
+      '1.2 连发：成功后立即可再发（实际 fetch=' + (fetchCalls - fc4) + ' r=' + JSON.stringify(r) + '）');
+  ok('成功 = {to,content} 上送 + toast + 关闭 + 清空内容 + 预填生效 + 连发无冷却');
 
-  // ---------- 6. 冷却拦截（模块级时间戳；fetch 不得触网） ----------
-  console.log('\n=== 6. 成功后 30s 冷却拦截 ===');
-  const fc3 = fetchCalls;
-  r = await sendOnce('张三', '冷却期内再试一条合法长度的私信');
-  chk(r && !r.ok, '冷却期内应被拒');
-  chk(/秒/.test(r.msg), '应提示剩余秒数（实际 ' + r.msg + '）');
-  chk(fetchCalls === fc3, '冷却拦截不得触网（实际 fetch=' + fetchCalls + ' 期望 ' + fc3 + '）');
-  ok('冷却拦截 = 本地拒绝 + 0 次网络');
-
-  // ---------- 7. 仙友录好友行「私信」钮（拼接 eval） ----------
-  console.log('\n=== 7. 仙友录好友行：私信钮 → YLPM_OPEN(N.name) ===');
+  // ---------- 6. 仙友录好友行「私信」钮（拼接 eval + 1.2 布局同组断言） ----------
+  console.log('\n=== 6. 仙友录好友行：送礼归位 + 私信并排同组 → YLPM_OPEN(N.name) ===');
   {
     const af = at('function YlxwTFriends() {');
     const mStart = '((t && t.friends) || []).map(function(N) {';
@@ -220,11 +218,29 @@ async function main() {
     chk(spy[1] === '李四', '第二行私信钮应收件人=李四（实际 ' + spy[1] + '）');
     const gift = nodes.filter((n) => n.comp === 'Btn' && n.props.children === '送礼');
     chk(gift.length === 1, '未送礼行仍应有「送礼」钮（实际 ' + gift.length + '）');
-    ok('好友行 = 每行「私信」钮 + 收件人正确 + 送礼钮未动');
+    // 1.2 布局修复：内层 justify-between 行恢复恰 2 子=[姓名span, 同组div]；组内恰 [送礼(或已送礼), 私信]
+    const inner = nodes.filter((n) => n.comp === 'div' && n.props.className === 'flex items-center justify-between gap-2 flex-wrap');
+    chk(inner.length === 2, '应恰有 2 个内层 justify-between 行（实际 ' + inner.length + '）');
+    inner.forEach((rw, i) => {
+      const kids = rw.props.children;
+      chk(Array.isArray(kids) && kids.length === 2,
+          '行' + i + ' 内层应恰 2 子（实际 ' + (Array.isArray(kids) ? kids.length : typeof kids) + '）');
+      chk(kids[0] && kids[0].comp === 'span', '行' + i + ' 第 1 子应为姓名 span');
+      const grp = kids[1];
+      chk(grp && grp.comp === 'div' && grp.props.className === 'flex items-center gap-1',
+          '行' + i + ' 第 2 子应为同组 div(flex items-center gap-1)（实际 ' + (grp && grp.props && grp.props.className) + '）');
+      const gkids = grp && grp.props.children;
+      chk(Array.isArray(gkids) && gkids.length === 2,
+          '行' + i + ' 组内应恰 2 子=[送礼(或今日已送礼), 私信]（实际 ' + (gkids && gkids.length) + '）');
+      chk(gkids[1] && gkids[1].comp === 'Btn' && gkids[1].props.children === '私信', '行' + i + ' 组内第 2 子应为「私信」钮');
+      chk(gkids[0].props.children === (i === 0 ? '送礼' : '今日已送礼'),
+          '行' + i + ' 组内第 1 子送礼态不符（实际 ' + gkids[0].props.children + '）');
+    });
+    ok('好友行 = 私信钮收件人正确 + 送礼归位同组并排（1.2 布局） + 未送礼行送礼钮未动');
   }
 
-  // ---------- 8. 在线人物玩家行「私信」push（R-144 DOM 栈拼接 eval） ----------
-  console.log('\n=== 8. 在线人物行：私信 push（切磋之后、isSelf 无） ===');
+  // ---------- 7. 在线人物玩家行「私信」push（R-144 DOM 栈拼接 eval） ----------
+  console.log('\n=== 7. 在线人物行：私信 push（切磋之后、isSelf 无） ===');
   {
     const p1 = at('function onlineRow(p){');
     const p2 = at('\nfunction renderBody(){', p1);
@@ -253,8 +269,8 @@ async function main() {
     ok('在线行 = 私信在切磋后 + isSelf 无 + 收件人正确');
   }
 
-  // ---------- 9. 信箱行：kind=player → 发信人 + 回信钮（拼接 eval） ----------
-  console.log('\n=== 9. 信箱行：kind=player 渲染发信人+回信，system 不渲染 ===');
+  // ---------- 8. 信箱行：kind=player → 发信人 + 回信钮（拼接 eval） ----------
+  console.log('\n=== 8. 信箱行：kind=player 渲染发信人+回信，system 不渲染 ===');
   {
     const af = at('function YlxwTMail() {');
     const mStart = 'm.map(function(g) {';

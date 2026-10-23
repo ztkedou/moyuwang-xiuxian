@@ -2,7 +2,7 @@
 r"""
 srv_patch_pm101.py -- 玩家私信服务端（第 99 环 / 新末环）
 
-唯一真相源：接口契约 2026-10-21 B 段（字段名冻结）。
+唯一真相源：接口契约 2026-10-21 B 段（字段名冻结；2026-10-23 按 1.2 需求修订限频条款）。
 本文件只按该契约实现；任何偏离必须先改契约。
 
 背景
@@ -19,8 +19,8 @@ srv_patch_pm101.py -- 玩家私信服务端（第 99 环 / 新末环）
      0 < CHRONICLE_MAIL_STONES(10000) ⇒ ≥1000 灵石「鸿函」入志副作用不触发（契约明示）。
   ② 新端点 POST /api/mail/send（authenticateToken）：
      入参 {to, content}；to=目标用户名（users 表校验存在）；to==自己 → 400；
-     content 去空格后 2~500 字 → 违规 400；同一发送者 30s 内二连发 → 409 {error}；
-     每玩家每日（UTC+8 日期口径）上限 50 条 → 409；成功 → 200 {ok:true,id}。
+     content 去空格后 2~500 字 → 违规 400；成功 → 200 {ok:true,id}。
+     （1.2 修订：30s 冷却 409 与每日 50 条 409 已删除，见下方「1.2 修订」节。）
   ③ 与既有 GM 发信路由（app.post('/api/mail/send', authenticateGM, …)，index_v28.ts:8008）
      同路径共存：本环路由先注册，pm101Dispatch 按 Bearer 是否为合法玩家 access token 分流，
      非玩家 token 原样 next() 落到 GM 路由 —— GM 端点一个字节不动（主控 2026-10-21 裁定）。
@@ -34,6 +34,16 @@ srv_patch_pm101.py -- 玩家私信服务端（第 99 环 / 新末环）
   chat_messages 行数与内容零变化」硬断言）。GM 侧如需审核私信，后续批次按
   「UNION + DELETE 分流」另行立项（防 mail.id 与 chat_messages.id 撞号误删）。
 
+1.2 修订（2026-10-23，用户原话「不要限制次数和间隔，这个就是私聊功能」）
+--------------------------------------------------------------------------
+  · 删除同一发送者 30s 冷却与每日（UTC+8）50 条上限两道限频，连同其 TS 常量（PM_COOLDOWN_MS /
+    PM_DAILY_LIMIT / PM_UTC8_OFFSET_MS）、SQL 常量（PM_LAST_SEND_SQL / PM_DAILY_COUNT_SQL）、
+    sqlite3 harness 用例 ④~⑩、门禁断言一并移除；门禁改为「旧限频写法在产物中全文清零」硬断言。
+  · 保留校验（违规一律 400）：登录（authenticateToken，过期 token 直接 401）/ 收件人非空 /
+    收件人存在（users 表）/ 非自己 / 内容去空格后 2~500 字；非好友/陌生人也允许发（与 1.1 一致）。
+  · 独立限流 pm101Rate（60s 窗 20 条，超限 429，index_v28.ts rateLimit 工厂）不在本次指令点名
+    范围内，本次原样保留：玩家每分钟第 21 条起仍会被 429 拦截；去留待主控裁定（仅上报，不替决）。
+
 插入点（勘察结论，打前 REQUIRES 逐一断言）
 --------------------------------------------------------------------------
   · ALTER：mail 表 DDL 块内 idx_mail_user_id（index_v28.ts:308）之后、块收口 `});`（:309）之前
@@ -45,8 +55,9 @@ srv_patch_pm101.py -- 玩家私信服务端（第 99 环 / 新末环）
 「新写法存在 + 旧写法清零」断言
 --------------------------------------------------------------------------
   · 打前：'[r99pm]' / "kind = 'player'" / 'pm101' 全文 0 命中（REQUIRES 硬断言，重名即退出码 2）；
-  · 打后：新端点/ALTER/SQL 常量各命中精确次数（门禁表）；"INSERT INTO mail" 总数不变（=2，
-    落库仍只经 insertMail 既有通道）；"INSERT INTO chat_messages" 总数不变（=2，绝不写世界聊天）。
+  · 打后：新端点/ALTER 各命中精确次数 + 旧限频写法（常量/SQL/409 文案）全文清零（门禁表）；
+    "INSERT INTO mail" 总数不变（=2，落库仍只经 insertMail 既有通道）；
+    "INSERT INTO chat_messages" 总数不变（=2，绝不写世界聊天）。
 
 CLI 契约（照 srv_patch_feedback.py）
 --------------------------------------------------------------------------
@@ -66,7 +77,6 @@ CLI 契约（照 srv_patch_feedback.py）
 """
 
 import argparse
-import calendar
 import io
 import json
 import os
@@ -87,13 +97,7 @@ MARK = "[r99pm]"
 # ★ 这些常量既用于 sqlite3 语义真跑（harness），也由门禁断言「必须出现在产物中」——
 #   从而保证「测的就是发出去的逻辑」，不是另一套等价实现。
 SQL_ALTER_KIND = "ALTER TABLE mail ADD COLUMN kind TEXT DEFAULT 'system'"
-SQL_LAST_SEND = "SELECT created_at FROM mail WHERE kind = 'player' AND sender = ? ORDER BY id DESC LIMIT 1"
-SQL_DAILY_COUNT = "SELECT COUNT(*) AS c FROM mail WHERE kind = 'player' AND sender = ? AND created_at >= ?"
 SQL_KIND_UPDATE = "UPDATE mail SET kind = 'player' WHERE id = ?"
-
-PM_COOLDOWN_MS = 30 * 1000
-PM_DAILY_LIMIT = 50
-PM_UTC8_OFFSET_MS = 8 * 60 * 60 * 1000
 
 # ============================================================ 改动点（全部 expect=1）
 
@@ -119,26 +123,20 @@ E2_OLD = (
 )
 
 E2_NEW = r"""// ─────────────────────────────────────────────────────────
-// [r99pm] 玩家私信（服务端第 99 环 · 接口契约 2026-10-21 B 段）
+// [r99pm] 玩家私信（服务端第 99 环 · 接口契约 2026-10-21 B 段 · 1.2 取消限频）
 //   POST /api/mail/send（authenticateToken）：入参 {to, content}
 //   · 与下方既有 GM 发信路由同路径：本环路由先注册，pm101Dispatch 按 Authorization Bearer 是否为
 //     合法玩家 access token 分流——是 → authenticateToken → pm101Send（本环业务，绝不 next）；
 //     否（GM 串/垃圾/无 Bearer）→ 原样 next() 落到下方既有 GM 路由，GM 端点一个字节不动。
-//   · 校验：to=目标用户名（users 表校验存在，不存在 400）；to==自己 400；content 去空格后 2~500 字
-//     400；同一发送者 30s 内二连发 409；每玩家每日（UTC+8 日期口径）上限 50 条 409；成功 200 {ok,id}。
+//   · 校验（1.2 起不限制次数与间隔——私信即私聊）：to=目标用户名（users 表校验存在，不存在 400）；
+//     to==自己 400；content 去空格后 2~500 字 400；成功 200 {ok,id}。
 //   · 落库走既有 insertMail（lingshi=0 ⇒ attached_lingshi=0 且 0 < CHRONICLE_MAIL_STONES(10000)，
 //     ≥1000 灵石「鸿函」入志副作用不触发），行 kind 由补写 UPDATE 置 'player'（insertMail 零改动）。
 //   · 本环绝不写 chat_messages：该表是玩家可见世界聊天（GET /api/messages 无过滤轮询），写入即泄漏
 //     私信；GM GET /api/gm/messages 依旧只读世界聊天、看不到私信行（主控 2026-10-21 裁定 A：GM 侧
 //     如需审核私信，后续批次按「UNION + DELETE 分流」另行立项）。
 // ─────────────────────────────────────────────────────────
-const PM_COOLDOWN_MS = 30 * 1000; // [r99pm] 同一发送者二连发冷却
-const PM_DAILY_LIMIT = 50; // [r99pm] 每玩家每日私信上限
-const PM_UTC8_OFFSET_MS = 8 * 60 * 60 * 1000; // [r99pm] 日限按 UTC+8 日期口径
-// [r99pm] created_at 为 SQLite CURRENT_TIMESTAMP（UTC 'YYYY-MM-DD HH:MM:SS'）；按 id DESC 取最近一封
-const PM_LAST_SEND_SQL = "SELECT created_at FROM mail WHERE kind = 'player' AND sender = ? ORDER BY id DESC LIMIT 1";
-const PM_DAILY_COUNT_SQL = "SELECT COUNT(*) AS c FROM mail WHERE kind = 'player' AND sender = ? AND created_at >= ?";
-// [r99pm] 防刷安全网：合法路径被 30s 冷却压到 ≤2 条/分钟，20 条/分钟仅拦异常轰炸（同族 mail:* 端点同风格）
+// [r99pm] 防刷安全网（1.2 保留原样，去留待主控裁定）：仅拦异常轰炸，玩家第 21 条/分钟起 429（同族 mail:* 端点同风格）
 const pm101Rate = rateLimit({ windowMs: 60 * 1000, max: 20, keyFn: (req: any) => 'pm:send:' + (req.user?.id ?? req.ip) });
 
 // [r99pm] 玩家私信落库：insertMail 零改动复用 + 补写 kind='player'（insertMail 的 INSERT 不含 kind ⇒ 默认 'system'）
@@ -148,7 +146,8 @@ async function pm101InsertPlayerMail(targetUserId: number, senderName: string, c
   return mailId;
 }
 
-// [r99pm] 玩家私信业务体（仅在 Bearer 为合法玩家 access token 时被 pm101Dispatch 调用）
+// [r99pm] 玩家私信业务体（仅在 Bearer 为合法玩家 access token 时被 pm101Dispatch 调用；
+//   1.2 起不限次数与间隔：删除 30s 冷却与每日 50 条上限，保留收件人/内容校验）
 async function pm101Send(req: any, res: any) {
   try {
     const body = req.body || {};
@@ -162,22 +161,6 @@ async function pm101Send(req: any, res: any) {
     const row: any = await dbGet('SELECT id, username FROM users WHERE username = ?', [to]);
     if (!row) return res.status(400).json({ error: '收件人不存在' });
     if (Number(row.id) === Number(req.user.id)) return res.status(400).json({ error: '不能给自己发私信' });
-    const nowMs = Date.now();
-    const last: any = await dbGet(PM_LAST_SEND_SQL, [req.user.username]);
-    if (last && last.created_at != null) {
-      const lastMs = Date.parse(String(last.created_at).replace(' ', 'T') + 'Z');
-      if (Number.isFinite(lastMs) && nowMs - lastMs < PM_COOLDOWN_MS) {
-        return res.status(409).json({ error: '发送太频繁，请稍后再试' });
-      }
-    }
-    // [r99pm] UTC+8 当日零点（折回 UTC 毫秒再格式化成 SQLite CURRENT_TIMESTAMP 同构文本）
-    const d8 = new Date(nowMs + PM_UTC8_OFFSET_MS);
-    const dayStartUtcMs = Date.UTC(d8.getUTCFullYear(), d8.getUTCMonth(), d8.getUTCDate()) - PM_UTC8_OFFSET_MS;
-    const dayStartSql = new Date(dayStartUtcMs).toISOString().slice(0, 19).replace('T', ' ');
-    const cnt: any = await dbGet(PM_DAILY_COUNT_SQL, [req.user.username, dayStartSql]);
-    if (Number(cnt && cnt.c) >= PM_DAILY_LIMIT) {
-      return res.status(409).json({ error: '今日私信已达上限（50 条）' });
-    }
     const mailId = await pm101InsertPlayerMail(Number(row.id), req.user.username, content);
     return res.json({ ok: true, id: mailId });
   } catch (e: any) {
@@ -287,7 +270,8 @@ def node_syntax_check(text):
 
 
 # ============================================================ sqlite3 语义真跑
-# 用内存库跑与注入 TS **逐字同源**的 SQL 决策逻辑（kind 列幂等/冷却/UTC+8 日限/kind 补写）。
+# 用内存库跑与注入 TS **逐字同源**的 SQL 决策逻辑（kind 列幂等/kind 补写）。
+# （1.2：冷却/UTC+8 日限及其 harness 用例 ④~⑩ 已随限频一并删除。）
 def semantic_harness():
     results = []
 
@@ -311,26 +295,6 @@ def semantic_harness():
                 "      FOREIGN KEY (user_id) REFERENCES users (id)\n"
                 "    )")
     INSERT_MAIL = "INSERT INTO mail (user_id, sender, title, content, attached_lingshi) VALUES (?, ?, ?, ?, ?)"
-
-    def utc_str(ms):
-        return time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(ms / 1000.0))
-
-    def day_start_sql(now_ms):
-        # 与 TS 逐字同源：+8h 取 UTC 日零点再 -8h，格式化成 SQLite CURRENT_TIMESTAMP 同构文本
-        d8 = time.gmtime((now_ms + PM_UTC8_OFFSET_MS) / 1000.0)
-        day_start_utc_ms = calendar.timegm((d8.tm_year, d8.tm_mon, d8.tm_mday, 0, 0, 0)) * 1000 - PM_UTC8_OFFSET_MS
-        return utc_str(day_start_utc_ms)
-
-    def cooldown_hit(con, sender, now_ms):
-        # 与 TS 逐字同源：last && created_at != null && Date.parse(...'Z') 有限 && now-last < 30000
-        row = con.execute(SQL_LAST_SEND, [sender]).fetchone()
-        if row is None or row[0] is None:
-            return False
-        try:
-            last_ms = calendar.timegm(time.strptime(str(row[0]), "%Y-%m-%d %H:%M:%S")) * 1000
-        except ValueError:
-            return False
-        return (now_ms - last_ms) < PM_COOLDOWN_MS
 
     def fresh():
         con = sqlite3.connect(":memory:")
@@ -371,110 +335,9 @@ def semantic_harness():
                           [cur.lastrowid]).fetchone()
         return row == ("player", "甲", 0, "来自 甲 的私信")
 
-    # ④ 冷却：30s 内最近一封 → 409 分支命中
-    def h4():
-        con = fresh()
-        con.execute(SQL_ALTER_KIND)
-        now = int(time.time() * 1000)
-        con.execute(INSERT_MAIL, [7, "甲", "t", "c", 0])
-        con.execute("UPDATE mail SET kind = 'player', created_at = ? WHERE id = 1", [utc_str(now - 10_000)])
-        con.commit()
-        return cooldown_hit(con, "甲", now) is True
-
-    # ⑤ 冷却：最近一封 31s 前 → 放行
-    def h5():
-        con = fresh()
-        con.execute(SQL_ALTER_KIND)
-        now = int(time.time() * 1000)
-        con.execute(INSERT_MAIL, [7, "甲", "t", "c", 0])
-        con.execute("UPDATE mail SET kind = 'player', created_at = ? WHERE id = 1", [utc_str(now - 31_000)])
-        con.commit()
-        return cooldown_hit(con, "甲", now) is False
-
-    # ⑥ 冷却按 sender 隔离 + 按 id DESC 取最近（旧时间戳但 id 更大的行才算「最近」）
-    def h6():
-        con = fresh()
-        con.execute(SQL_ALTER_KIND)
-        now = int(time.time() * 1000)
-        con.execute(INSERT_MAIL, [7, "甲", "t", "c", 0])  # id=1，-10s
-        con.execute("UPDATE mail SET kind = 'player', created_at = ? WHERE id = 1", [utc_str(now - 10_000)])
-        con.execute(INSERT_MAIL, [7, "甲", "t", "c", 0])  # id=2，-120s（时间更旧、id 更大）
-        con.execute("UPDATE mail SET kind = 'player', created_at = ? WHERE id = 2", [utc_str(now - 120_000)])
-        con.execute(INSERT_MAIL, [8, "乙", "t", "c", 0])  # 乙的一封，-3s
-        con.execute("UPDATE mail SET kind = 'player', created_at = ? WHERE id = 3", [utc_str(now - 3_000)])
-        con.commit()
-        return cooldown_hit(con, "甲", now) is False and cooldown_hit(con, "乙", now) is True
-
-    # ⑦ 日限：当日（UTC+8）50 条 → 达上限；49 条 → 未达
-    def h7():
-        con = fresh()
-        con.execute(SQL_ALTER_KIND)
-        now = int(time.time() * 1000)
-        ds = day_start_sql(now)
-        mid_day_ms = calendar.timegm(time.strptime(ds, "%Y-%m-%d %H:%M:%S")) * 1000 + PM_UTC8_OFFSET_MS + 12 * 3600 * 1000
-        for n in range(50):
-            con.execute(INSERT_MAIL, [7, "甲", "t", "c", 0])
-            con.execute("UPDATE mail SET kind = 'player', created_at = ? WHERE id = ?", [utc_str(mid_day_ms + n * 1000), n + 1])
-        con.commit()
-        c50 = con.execute(SQL_DAILY_COUNT, ["甲", ds]).fetchone()[0]
-        con.execute("DELETE FROM mail WHERE id = 50")
-        con.commit()
-        c49 = con.execute(SQL_DAILY_COUNT, ["甲", ds]).fetchone()[0]
-        return c50 == 50 and c49 == 49
-
-    # ⑧ 日限边界：恰好当日零点（UTC+8）的行计入（>=）；零点前 1s 的不计
-    def h8():
-        con = fresh()
-        con.execute(SQL_ALTER_KIND)
-        now = int(time.time() * 1000)
-        ds = day_start_sql(now)
-        ds_ms = calendar.timegm(time.strptime(ds, "%Y-%m-%d %H:%M:%S")) * 1000
-        con.execute(INSERT_MAIL, [7, "甲", "t", "c", 0])
-        con.execute("UPDATE mail SET kind = 'player', created_at = ? WHERE id = 1", [ds])
-        c1 = con.execute(SQL_DAILY_COUNT, ["甲", ds]).fetchone()[0]
-        con.execute(INSERT_MAIL, [7, "甲", "t", "c", 0])
-        con.execute("UPDATE mail SET kind = 'player', created_at = ? WHERE id = 2", [utc_str(ds_ms - 1000)])
-        c2 = con.execute(SQL_DAILY_COUNT, ["甲", ds]).fetchone()[0]
-        return c1 == 1 and c2 == 1
-
-    # ⑨ 日限只数 kind='player'：50 条 system 同 sender 同日不占额
-    def h9():
-        con = fresh()
-        con.execute(SQL_ALTER_KIND)
-        now = int(time.time() * 1000)
-        ds = day_start_sql(now)
-        for n in range(50):
-            con.execute(INSERT_MAIL, [7, "甲", "t", "c", 0])
-            con.execute("UPDATE mail SET created_at = ? WHERE id = ?", [utc_str(now - n * 1000), n + 1])
-        con.commit()
-        c = con.execute(SQL_DAILY_COUNT, ["甲", ds]).fetchone()[0]
-        return c == 0
-
-    # ⑩ 日限按 UTC+8 而非 UTC：UTC 22:00（=UTC+8 次日 06:00）发的信不计入「UTC+8 昨天」窗口
-    def h10():
-        # 构造时刻：UTC+8 的今天 06:00 = UTC 昨天 22:00
-        now = int(time.time() * 1000)
-        d8 = time.gmtime((now + PM_UTC8_OFFSET_MS) / 1000.0)
-        today8_utc_ms = calendar.timegm((d8.tm_year, d8.tm_mon, d8.tm_mday, 0, 0, 0)) * 1000 - PM_UTC8_OFFSET_MS
-        send_ms = today8_utc_ms + 6 * 3600 * 1000  # UTC+8 今天 06:00
-        con = fresh()
-        con.execute(SQL_ALTER_KIND)
-        con.execute(INSERT_MAIL, [7, "甲", "t", "c", 0])
-        con.execute("UPDATE mail SET kind = 'player', created_at = ? WHERE id = 1", [utc_str(send_ms)])
-        con.commit()
-        c_today = con.execute(SQL_DAILY_COUNT, ["甲", day_start_sql(send_ms)]).fetchone()[0]
-        return c_today == 1
-
     ck("① ALTER kind 列存在 + 默认 system 生效", h1)
     ck("② ALTER 二跑抛 duplicate column（幂等吞错依据）", h2)
     ck("③ kind 补写 'player' + 字段落库一致", h3)
-    ck("④ 冷却 30s 内 → 409 分支", h4)
-    ck("⑤ 冷却 31s 前 → 放行", h5)
-    ck("⑥ 冷却按 sender 隔离 + 按 id DESC 取最近", h6)
-    ck("⑦ 日限 50 达限 / 49 未达", h7)
-    ck("⑧ 日限边界：UTC+8 零点整计入、前 1s 不计", h8)
-    ck("⑨ 日限只数 kind='player'（system 不占额）", h9)
-    ck("⑩ 日限按 UTC+8 口径（UTC 22:00=次日 06:00）", h10)
 
     total = len(results)
     nfail = sum(1 for _, ok, _ in results if not ok)
@@ -575,13 +438,14 @@ def main() -> None:
         ("落库函数定义+调用", "pm101InsertPlayerMail(", 2),
         ("落库走 insertMail（零改动复用）", "await insertMail(targetUserId, '来自 ' + senderName + ' 的私信', content, senderName, 0);", 1),
         ("kind 补写 UPDATE", SQL_KIND_UPDATE, 1),
-        ("冷却常量 30s", "const PM_COOLDOWN_MS = 30 * 1000;", 1),
-        ("日限常量 50", "const PM_DAILY_LIMIT = 50;", 1),
-        ("UTC+8 口径常量", "const PM_UTC8_OFFSET_MS = 8 * 60 * 60 * 1000;", 1),
-        ("SQL 同源 SQL_LAST_SEND（定义恰一处，按名引用）", SQL_LAST_SEND, 1),
-        ("SQL 同源 SQL_DAILY_COUNT（定义恰一处，按名引用）", SQL_DAILY_COUNT, 1),
-        ("SQL 常量按名引用 PM_LAST_SEND_SQL", "PM_LAST_SEND_SQL", 2),
-        ("SQL 常量按名引用 PM_DAILY_COUNT_SQL", "PM_DAILY_COUNT_SQL", 2),
+        # 1.2（2026-10-23）旧限频写法全文清零：30s 冷却 + 每日 50 条已删
+        ("1.2 清零 旧冷却常量", "PM_COOLDOWN_MS", 0),
+        ("1.2 清零 旧日限常量", "PM_DAILY_LIMIT", 0),
+        ("1.2 清零 旧 UTC+8 常量", "PM_UTC8_OFFSET_MS", 0),
+        ("1.2 清零 旧最近一封 SQL", "PM_LAST_SEND_SQL", 0),
+        ("1.2 清零 旧日计数 SQL", "PM_DAILY_COUNT_SQL", 0),
+        ("1.2 清零 旧 409 频文案", "发送太频繁", 0),
+        ("1.2 清零 旧 409 日限文案", "今日私信已达上限", 0),
         ("限流安全网挂接", "pm101Rate(req, res, () => { pm101Send(req, res); });", 1),
         ("过期 token 直接 401（续期链路）", "if (err.name === 'TokenExpiredError') return res.sendStatus(401);", base_expired_line + 1),
         ("TokenExpiredError 总数 = base+1", "TokenExpiredError", base_expired + 1),
@@ -589,8 +453,6 @@ def main() -> None:
         ("400 收件人不存在", "'收件人不存在'", 1),
         ("400 不能给自己发私信", "'不能给自己发私信'", 1),
         ("400 内容 2~500", "if (stripped < 2 || stripped > 500) {", 1),
-        ("409 发送太频繁", "'发送太频繁，请稍后再试'", 1),
-        ("409 日限 50 条", "'今日私信已达上限（50 条）'", 1),
         ("200 {ok,id}", "return res.json({ ok: true, id: mailId });", 1),
         ("users 表存在性校验", "SELECT id, username FROM users WHERE username = ?", base_users_lookup + 1),
         # 落库通道不变（绝不经第二条 INSERT）

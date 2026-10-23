@@ -7,20 +7,25 @@ yl_pm101_ext.py -- PM-101 玩家私信（客户端第 102 模块；v28 契约：
     POST <ln>/mail/send（= /yl/api/mail/send，服务端 authenticateToken；入参 {to, content}）
       · to      = 目标用户名（服务端 users 表校验存在；to==自己 → 400）
       · content = 去空格后 2~500 字（服务端违规 → 400）
-    成功 200 {ok:true,id}；同一发送者 30s 内二连发 → 409；每玩家每日（UTC+8 口径）上限 50 → 409
+    成功 200 {ok:true,id}；★ 1.2 起服务端取消限频（30s 间隔与日限 50 已删，非好友/陌生人可发，
+    与 1.1 行为一致）——客户端 409 映射分支留作兼容兜底（服务端万一仍回 409 时原样透出 error）
     ★ 绝不经 Xc()/YlxwPost()（其 401/403 分支会强制登出玩家）——本模块 raw fetch，
       401 时只调 pS() 静默续期后重试恰一次，任何失败都不触碰登录态、不阻断游戏。
 
-客户端四处落位（本文件 4 个补丁操作）：
+客户端四处落位（本文件 5 个补丁操作；E2 拆「开组」+「私信钮」两步，1.2 布局修复）：
     E1 API 桥 + 写信弹窗（insert_before `const Q0="/yl/api"`，与 fb100 同锚；求值期只定义函数/
        挂 window/注入 <style>，ln/jo/pS 调用发生在点击时）：
          window.YLPM_SUBMIT   raw fetch + Bearer（jo()），401 → pS() → 重试恰一次
-         window.YLPM_SEND     headless 管线：冷却(30s，仅成功记) → 校验(收件人非空/内容 2~500)
-                              → YLPM_SUBMIT → 分支映射（成功/409/400/401/其它/网络）
+         window.YLPM_SEND     headless 管线：校验(收件人非空/内容 2~500) → YLPM_SUBMIT →
+                              分支映射（成功/409/400/401/其它/网络）；1.2 起无冷却，
+                              连发不限次数与间隔（用户原话：这个就是私聊功能）
          window.YLPM_OPEN(to) 自包含 DOM 写信弹窗（收件人预填、内容 textarea、发送/关闭；
                               已开则只改收件人）；测试钩子 window.__YLPM_CUR
-    E2 「仙友录」好友行（YlxwTFriends）：内层 flex 行（姓名·境界 / 送礼）尾追加「私信」
-       e.jsx(YlxwBtn) → YLPM_OPEN(N.name)
+    E2 「仙友录」好友行（YlxwTFriends）两步（1.2 布局修复，恢复 1.1 前原始结构）：
+       ① 内层 flex 行（justify-between）children 在姓名 span 收口后开同组 div
+          `flex items-center gap-1`，把 [送礼钮(或今日已送礼 span), 私信钮] 装进去——
+          justify-between 恢复 2 子 ⇒ 姓名居左、[送礼][私信] 并排贴右（送礼归位）；
+       ② 送礼钮收口后追加「私信」e.jsx(YlxwBtn) → YLPM_OPEN(N.name)（组内第 2 子）
     E3 「在线人物」玩家行（R-144 注入块 onlineRow 的 if(!p.isSelf) 内、切磋 push 之后）追加
        acts.push(btn("私信",…)) → YLPM_OPEN(u)（R-144 是 DOM 栈，用其模块内 btn 工厂，非 e.jsx）
     E4 「信箱」行（YlxwTMail m.map 行头右栏、时间 span 之后）：kind='player' 的信件渲染
@@ -62,6 +67,11 @@ kind 判定口径（★与任务书的偏差裁定，已按最小惊原则处理
           ');}));'                                                 count=1（@2199288；R-144 raw UTF-8 态）
     A_MA  'g.lingshi > 0 && !g.claimed && e.jsx(YlxwBtn, { disabled: !!u, onClick: function() {'
           ' f("c" + g.id, "/mail/claim"'                            count=1（内含 count=1 的 A_CLAIM）
+    1.2 布局锚（2026-10-23 本环实测，对 v100 同文件 md5=09c4ace10fc7eaab22550cc550dfd668 逐字核对）：
+      A_FR_GROUP ': ""] }), N.giftedToday ? e.jsx("span"'         count=1（姓名 span 收口 → 送礼条件）
+      新文本（N_FR_GROUP 开组 / N_FR 三层收口）与两新门禁 needle    count=0（插入后各恰 1）
+      裸子串 'flex items-center gap-1' v100=129（tailwind 类名大量复用，无锚意义）——
+      新门禁 needle 带 'e.jsxs("div", { className…children: [N.giftedToday ?' 前缀保唯一。
     冲突体检：'YLPM_' / 'ylpm-' / '私信' / '回信' / '/mail/send' 在 v100 全部 count=0（无碰撞）。
     冻结体检：'const Q0="/yl/api"' / 'function jo(){' / 'async function pS(){' / 'function YlxwTMail() {'
       / 'function YlxwTFriends() {' / 'function YlxwPanelModal(p)' / 'var YLXW_COMP = { mail: YlxwTMail'
@@ -85,6 +95,9 @@ A_Q0 = 'const Q0="/yl/api"'
 # E2 好友行尾（内层 flex 行 children 收尾 → 内层 div 收尾 → YlxwRow children/props 收尾 → 行键）
 A_FR = r'children: "\u9001\u793c" })] })] }, "f" + N.id); })'
 
+# E2 布局修复锚（1.2）：内层行 children 中「姓名 span 收口 → 送礼条件」衔接处（v100 count=1）
+A_FR_GROUP = ': ""] }), N.giftedToday ? e.jsx("span"'
+
 # E3 切磋 push 全语句（R-144 注入块内，raw UTF-8、无空格紧凑态）
 A_ON = ('acts.push(btn("切磋",null,function(){YlxwPost("/arena/challenge",{name:u}).then(function(){'
         'st("已向 "+u+" 下战书");}).catch(function(e){st(e&&e.message||"下战书失败");});}));')
@@ -94,10 +107,14 @@ A_MA = ('g.lingshi > 0 && !g.claimed && e.jsx(YlxwBtn, { disabled: !!u, onClick:
         'f("c" + g.id, "/mail/claim"')
 
 # --------------------------------------------------------------------------- 拼接文本（raw 直插，不走 zh()）
-# E2「私信」钮：插成内层 flex 行第 3 个子元素（姓名/送礼 之后），点击 → YLPM_OPEN(N.name)
+# E2① 开组（1.2 布局修复）：姓名 span 收口后、送礼条件之前，开「送礼+私信」同组 div——
+#      内层 justify-between 行恢复 2 子 ⇒ 姓名居左、[送礼][私信] 并排贴右（送礼归位）。
+N_FR_GROUP = ': ""] }), e.jsxs("div", { className: "flex items-center gap-1", children: [N.giftedToday ? e.jsx("span"'
+# E2② 「私信」钮：同组 div 内第 2 子（紧邻送礼钮），点击 → YLPM_OPEN(N.name)
 PM_FRIENDS_BTN = (r'e.jsx(YlxwBtn, { onClick: function() { try { typeof window.YLPM_OPEN === "function" '
                   r'&& window.YLPM_OPEN(N.name); } catch (ylpme) {} }, children: "\u79c1\u4fe1" })')
-N_FR = r'children: "\u9001\u793c" }),' + PM_FRIENDS_BTN + r'] })] }, "f" + N.id); })'
+# 组 div 收口（多一层 `] })`）+ 内层 div/YlxwRow 收尾 + 行键（行键零改动）
+N_FR = r'children: "\u9001\u793c" }),' + PM_FRIENDS_BTN + r'] })] })] }, "f" + N.id); })'
 
 # E3「私信」push：切磋 push 之后、if(!p.isSelf) 收尾之前（R-144 btn 工厂自带 try/catch + st()）
 PM_ONLINE_PUSH = ('acts.push(btn("私信",null,function(){if(typeof window.YLPM_OPEN==="function")'
@@ -142,8 +159,8 @@ async function YLPM_SUBMIT(o) {
 try { window.YLPM_SUBMIT = YLPM_SUBMIT; } catch (e) {}
 /* ---- part 2: UI（自包含 DOM 写信弹窗；全链 try/catch —— 本游戏无 app 级 ErrorBoundary，抛异常=全站白屏）---- */
 (function () {
-  var COOLDOWN_MS = 30000, MIN_LEN = 2, MAX_LEN = 500;
-  var lastOk = 0, cur = null;
+  var MIN_LEN = 2, MAX_LEN = 500;
+  var cur = null;
   function gid(id) { try { return document.getElementById(id); } catch (e) { return null; } }
   function mk(tag, cls, css) { var n = document.createElement(tag); if (cls) n.className = cls; if (css) n.style.cssText = css; return n; }
   function ensureStyle() {
@@ -193,11 +210,9 @@ try { window.YLPM_SUBMIT = YLPM_SUBMIT; } catch (e) {}
       showInfo("发送失败，请稍后再试", !0);
     }
   }
-  /* 发送管线（headless，供按钮与测试共用）：冷却 → 校验 → YLPM_SUBMIT → 分支映射 */
+  /* 发送管线（headless，供按钮与测试共用）：校验 → YLPM_SUBMIT → 分支映射（1.2 起无冷却） */
   window.YLPM_SEND = function (to, content, onDone) {
     var done = function (r) { try { if (typeof onDone === "function") onDone(r); } catch (e) {} };
-    var wait = COOLDOWN_MS - (Date.now() - lastOk);
-    if (wait > 0) return done({ ok: !1, status: -1, msg: "发送太频繁，请 " + Math.ceil(wait / 1000) + " 秒后再试" });
     var tt = String(to == null ? "" : to).trim();
     if (!tt) return done({ ok: !1, status: -1, msg: "请填写收件人" });
     var c = String(content == null ? "" : content).trim();
@@ -206,7 +221,7 @@ try { window.YLPM_SUBMIT = YLPM_SUBMIT; } catch (e) {}
     if (c.length > MAX_LEN) return done({ ok: !1, status: -1, msg: "内容太长，最多 " + MAX_LEN + " 个字" });
     if (typeof window.YLPM_SUBMIT !== "function") return done({ ok: !1, status: -1, msg: "私信通道未就绪，请稍后再试" });
     window.YLPM_SUBMIT({ to: tt, content: c }).then(function (r) {
-      if (r && r.ok) { lastOk = Date.now(); return done({ ok: !0, status: 200, msg: "私信已发送" }); }
+      if (r && r.ok) return done({ ok: !0, status: 200, msg: "私信已发送" });
       if (r && r.status === 409) return done({ ok: !1, status: 409, msg: r.error || "发送太频繁，请稍后再试" });
       if (r && r.status === 400) return done({ ok: !1, status: 400, msg: r.error || "内容不合规" });
       if (r && r.status === 401) return done({ ok: !1, status: 401, msg: "登录状态已过期，请重新登录后再试" });
@@ -281,17 +296,17 @@ def gates():
         ('PM·pS 静默续期',         'try { if (typeof pS === "function") await pS(); } catch (e) {}', 1, '==', '续期后重试恰一次', W),
         ('PM·Bearer 复用 jo',      'if (a && a.Authorization) h.Authorization = a.Authorization;', 1, '==', '', W),
         ('PM·请求体恰 2 字段',     'to: String(o.to || ""), content: String(o.content || "")', 1, '==', '契约字段名', W),
-        # ---- UI 管线（限域：块内）----
-        ('PM·冷却/校验常数',       'var COOLDOWN_MS = 30000, MIN_LEN = 2, MAX_LEN = 500;', 1, '==', '30s 冷却 + 2~500 字', W),
-        ('PM·冷却模块级时间戳',    'var lastOk = 0, cur = null;', 1, '==', '', W),
-        ('PM·冷却拦截',            'var wait = COOLDOWN_MS - (Date.now() - lastOk);', 1, '==', '', W),
-        ('PM·成功才记冷却',        'lastOk = Date.now();', 1, '==', '仅 200 记冷却', W),
+        # ---- UI 管线（限域：块内；1.2 起无冷却，清零断言必须限域——fb100 块内有同名 COOLDOWN_MS/lastOk）----
+        ('PM·校验常数',            'var MIN_LEN = 2, MAX_LEN = 500;', 1, '==', '1.2 删冷却，仅存 2~500 字校验', W),
+        ('PM·冷却常数清零',        'COOLDOWN_MS', 0, '==', '1.2 取消限频；fb100 同名 → 必须限域', W),
+        ('PM·冷却时间戳清零',      'lastOk', 0, '==', '1.2 取消限频', W),
+        ('PM·冷却拦截清零',        'Math.ceil(wait / 1000)', 0, '==', '1.2 取消限频（fb100 块内有同款）', W),
         ('PM·校验·收件人空',       'if (!tt) return done({ ok: !1, status: -1, msg: "' + _zh('请填写收件人') + '" });', 1, '==', '', W),
         ('PM·校验·内容空',         'if (!c) return done({ ok: !1, status: -1, msg: "' + _zh('请填写私信内容') + '" });', 1, '==', '', W),
         ('PM·校验·太短',           'if (c.length < MIN_LEN)', 1, '==', '', W),
         ('PM·校验·太长',           'if (c.length > MAX_LEN)', 1, '==', '', W),
         ('PM·409 显示服务端 error', 'if (r && r.status === 409) return done({ ok: !1, status: 409, msg: r.error || "'
-                                   + _zh('发送太频繁，请稍后再试') + '" });', 1, '==', '30s 频控/日限 50 都走此分支', W),
+                                   + _zh('发送太频繁，请稍后再试') + '" });', 1, '==', '1.2 服务端已无限频，留作兼容兜底', W),
         ('PM·400 显示服务端 error', 'if (r && r.status === 400) return done({ ok: !1, status: 400, msg: r.error || "'
                                    + _zh('内容不合规') + '" });', 1, '==', '', W),
         ('PM·401 不踢登录文案',    _zh('登录状态已过期，请重新登录后再试'), 1, '==', '401 终态只提示不登出', W),
@@ -308,7 +323,11 @@ def gates():
         ('PM·关闭按钮接线',        'ghost.addEventListener("click", closeBox);', 1, '==', '', W),
         ('PM·样式幂等',            's.id = "ylpm-style";', 1, '==', '', W),
         ('PM·load 即注入样式',     'try { ensureStyle(); } catch (e) {}', 1, '==', '', W),
-        # ---- E2 仙友录好友行 ----
+        # ---- E2 仙友录好友行（1.2 布局修复：送礼归位 + 私信并排同组）----
+        ('好友行·送礼私信同组',    'e.jsxs("div", { className: "flex items-center gap-1", children: [N.giftedToday ?',
+                                    1, '==', '组 div 开在姓名 span 后，justify-between 恢复 2 子'),
+        ('好友行·三组收口',        r'children: "\u79c1\u4fe1" })] })] })] }, "f" + N.id); })', 1, '==',
+                                    '私信钮后恰 3 层 ] })（组 div/内层 div/YlxwRow），行键零改动'),
         ('好友行·私信钮整钉',      PM_FRIENDS_BTN, 1, '==', '基线为 0，插入后恰 1'),
         ('好友行·私信主文案',      r'children: "\u79c1\u4fe1"', 1, '==', ''),
         ('好友行·onClick 接线',    'window.YLPM_OPEN(N.name)', 1, '==', 'window 零作用域假设'),
@@ -363,9 +382,13 @@ def apply(p, ctx):
     # E1 API 桥 + 写信弹窗（ln/jo/pS 同作用域；求值期只定义函数/挂 window/注入 <style>）
     p.insert_before('pm101-api-ui-block', A_Q0, block + '\n', expect=1,
                     note='PM-101 私信 API 桥 + 自包含写信弹窗（复用 ln/jo/pS，window 暴露）')
-    # E2 仙友录好友行尾追加「私信」钮
+    # E2① 仙友录好友行布局修复（1.2）：姓名 span 收口后开「送礼+私信」同组 div（flex items-center
+    #     gap-1）——内层 justify-between 行恢复 2 子，送礼归右缘原位、私信并排同组
+    p.replace('pm101-friends-group', A_FR_GROUP, N_FR_GROUP, expect=1,
+              note='1.2 布局：好友行内层开组 div（送礼/私信同组，justify-between 恢复 2 子）')
+    # E2② 仙友录好友行送礼钮收口后追加「私信」钮（同组 div 内第 2 子）
     p.replace('pm101-friends-btn', A_FR, N_FR, expect=1,
-              note='「仙友录」好友行「私信」钮（内层 flex 行第 3 子，onClick→window.YLPM_OPEN(N.name)）')
+              note='「仙友录」好友行「私信」钮（与送礼同组并排，onClick→window.YLPM_OPEN(N.name)）')
     # E3 在线人物玩家行：切磋 push 之后追加「私信」push（R-144 DOM 栈）
     p.replace('pm101-online-btn', A_ON, N_ON, expect=1,
               note='「在线人物」玩家行「私信」push（if(!p.isSelf) 内、切磋之后，btn 工厂直呼 window.YLPM_OPEN(u)）')

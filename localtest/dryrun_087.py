@@ -153,8 +153,8 @@ NEW_MODULES = ['grotto087', 'farm087', 'xinfa087', 't6chardex',
                'r227', 'r228', 'r230',  # 2026-10-09 0.9.50 R-227 死数据标注 / R-228 明细同源 / R-230 天地之髓门槛
                'fb100']  # 2026-10-21 1.0 批 FB-100 玩家反馈（第 99 v28 模块，numbal 之前；PM-101 走 standalone，见上）
 
-VERSION = '1.1'
-BUNDLE_BASENAME = 'index-v101-20261021.js'   # 与 build_v26n.OUT / chain_build.CLIENT_OUT / build/index.html 逐字一致
+VERSION = '1.2'
+BUNDLE_BASENAME = 'index-v102-20261022.js'   # 与 build_v26n.OUT / chain_build.CLIENT_OUT / build/index.html 逐字一致
 # ★ 升版四件套之外的第 5 处：本文件的 VERSION 必须同步（下方 wiring_checks 用它交叉校验
 #   yl_version_ext.DEFAULT_VERSION 与 CHANGELOG 最新条目，两者都对上才算过）。
 

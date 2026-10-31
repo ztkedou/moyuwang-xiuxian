@@ -748,7 +748,8 @@ SRV_CHAIN = [
                               #   · 配套客户端半边 = V28_MODULES 'fb100'（raw fetch，不走 Xc/YlxwPost）；
                               #     GM 页半边 = gm-pro.html「反馈」页（api('/gm/feedback…')）。
     # ---- 2026-10-21 1.1 批（PM-101 玩家私信，第 99 环 / 新末环）----
-    'srv_patch_pm101.py',  # PM-101 mail 表加 kind 列（复用 safeAddColumn 幂等 ALTER，默认 'system'）
+    'srv_patch_pm101.py',
+    'srv_patch_sectsalary.py',  # PM-101 mail 表加 kind 列（复用 safeAddColumn 幂等 ALTER，默认 'system'）
                            #   + 新端点 POST /api/mail/send（插在 GM 发信路由之前注册，先注册者先匹配）：
                            #   pm101Dispatch 按 Bearer 分流——合法玩家 access token → authenticateToken
                            #   → pm101Send（to 存在性 /
@@ -932,14 +933,25 @@ def main():
     if '--check' in args or not args:
         return 0
 
-    if '--client' in args or '--all' in args:
-        c = build_client()
-        if c is None:
-            return 3
-    if '--srv' in args or '--all' in args:
-        s = build_srv()
-        if s is None:
-            return 4
+    # ---- 并发互斥（2026-10-31 实测踩到的真实缺陷；lead 批准）----
+    #   chain_build 与 build_v26n 都会写共享产物（CLIENT_OUT / SRV_OUT），且
+    #   build_client 内部会调 build_v26n.py（它自己也拿锁）。两把锁**不同名** ⇒
+    #   同一进程先拿 chain 锁、子进程再拿 client 锁，不会自锁。
+    #   ⇒ 整个「客户端 + 服务端」重建段用独占锁串行化；拿不到锁最多等 300s。
+    #   ★ 零侵入：不改 build_client/build_srv 签名与流程，只在 main 里包一层。
+    if ROOT not in sys.path:
+        sys.path.insert(0, ROOT)
+    from yl_lock import build_lock
+    with build_lock(os.path.join(ROOT, 'build', '.yl_chain_build.lock'),
+                    timeout=300, label='yl 链式构建'):
+        if '--client' in args or '--all' in args:
+            c = build_client()
+            if c is None:
+                return 3
+        if '--srv' in args or '--all' in args:
+            s = build_srv()
+            if s is None:
+                return 4
 
     hr('汇总')
     print('  前端 bundle   md5=%s' % md5f(CLIENT_OUT))

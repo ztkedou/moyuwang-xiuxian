@@ -16130,6 +16130,16 @@ app.post('/api/sect/salary', authenticateToken, sectWriteLimit, async (req: any,
     const rank = String(pl.sectRank || '');
     const sal = sectSalaryOf(rank);
     const date = bjDate(Date.now());
+    /* [sectsalary] 与 /api/sect/welfare/claim kind='salary' 互斥：
+       两套俸禄此前 kind 不同（'salary' vs 'rank_salary'）⇒ 同一天可各领一次
+       （宗主在 5 级宗门可领 5x500 + 25000 = 27500）。现要求先领宗门福利俸禄，
+       才能领职衔俸禄 —— 一天只发一次俸禄。 */
+    const salClaimed: any = await dbGet(
+      "SELECT 1 AS c FROM sect_welfare_claims WHERE user_id = ? AND date = ? AND kind = 'salary'",
+      [req.user.id, date]);
+    if (!salClaimed) {
+      return res.status(409).json({ error: '\u8bf7\u5148\u9886\u53d6\u5b97\u95e8\u798f\u5229\u4e2d\u7684\u300c\u4ff8\u7984\u300d\uff0c\u804c\u8854\u4ff8\u7984\u4e0e\u5b83\u540c\u4e00\u5929\u53ea\u53d1\u4e00\u6b21', code: 'CLAIM_SALARY_FIRST' });
+    }
     try {
       await dbRun('INSERT INTO sect_welfare_claims (user_id, date, kind, claimed_at) VALUES (?, ?, ?, ?)', [req.user.id, date, 'rank_salary', nowIso()]);
     } catch (e: any) {

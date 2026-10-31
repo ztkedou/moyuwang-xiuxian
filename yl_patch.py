@@ -143,7 +143,8 @@ class Gates:
                 return self
             hay = hay[i:j]
             scope = ' [%s..%s]' % (a[:24], bnd[:24])
-        n = hay.count(s)
+        n = (sum(hay.count(x) for x in s) if isinstance(s, (tuple, list))
+             else hay.count(s))
         ok = {
             '==': n == expect,
             '>=': n >= expect,
@@ -151,7 +152,9 @@ class Gates:
             '>':  n > expect,
             '<':  n < expect,
         }[cmp]
-        self.results.append((name, s[:60] + scope, n, '%s%d' % (cmp, expect), ok, note))
+        # ★ 兼容 tuple/list needle（多形态合计计数）：显示时用首个形态，完整形态见 note
+        _shown = s[0] if isinstance(s, (tuple, list)) else s
+        self.results.append((name, _shown[:60] + scope, n, '%s%d' % (cmp, expect), ok, note))
         return self
 
     def forbid_in_block(self, name, block, pattern_list):

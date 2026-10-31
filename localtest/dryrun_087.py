@@ -125,6 +125,15 @@ EXPECTED_ORDER = [
     #     localtest/yl_pm101_run.py 在 'r144' 之后套用；其 67 条门禁（6 元组 within）由
     #     下方 standalone 门禁段按 R-246 自动派生规则收录重跑。
     'fb100',
+    # 2026-10-31 R-258 数值缺陷三连（第 100 模块；纯客户端零服务端改动）
+    #   ① `_ylrn` 穿戴门正则去串首锚 ② 仙剑·诛仙卖价 6e4→6e5
+    #   ★ numbal 恒最后 ⇒ 必须排其前
+    'numfix258',
+    # 2026-10-31 P0 修炼效率双修（第 101 模块；纯客户端零服务端改动）
+    #   ① 天赋 K 常量 1/0.26 → 1 ② bd() 加同名薄包装做 +350% 软上限（原函数体改名 bd0 一字不动）
+    #   ★ numbal 恒最后 ⇒ 必须排其前
+    'p0tal',
+    'p2misc',
     'numbal',
 ]
 NEW_MODULES = ['grotto087', 'farm087', 'xinfa087', 't6chardex',
@@ -151,9 +160,11 @@ NEW_MODULES = ['grotto087', 'farm087', 'xinfa087', 't6chardex',
                'r111', 'r113', 'r114', 'r115',  # 2026-10-02 0.9.12 R-111 签到 / R-113 万妖五boss / R-114 历练收获 / R-115 洞府灵田
                'r124',
                'r227', 'r228', 'r230',  # 2026-10-09 0.9.50 R-227 死数据标注 / R-228 明细同源 / R-230 天地之髓门槛
-               'fb100']  # 2026-10-21 1.0 批 FB-100 玩家反馈（第 99 v28 模块，numbal 之前；PM-101 走 standalone，见上）
+               'fb100',  # 2026-10-21 1.0 批 FB-100 玩家反馈（第 99 v28 模块，numbal 之前；PM-101 走 standalone，见上）
+               'numfix258',  # 2026-10-31 R-258 数值缺陷三连（第 100 v28 模块：_ylrn 穿戴门正则 + 仙剑·诛仙卖价；恒在 numbal 之前）
+               'p0tal']  # 2026-10-31 P0 修炼效率双修（第 101 v28 模块：天赋 K 1/0.26→1 + bd() +350% 软上限 wrapper；恒在 numbal 之前）
 
-VERSION = '1.2'
+VERSION = '1.3'
 BUNDLE_BASENAME = 'index-v102-20261022.js'   # 与 build_v26n.OUT / chain_build.CLIENT_OUT / build/index.html 逐字一致
 # ★ 升版四件套之外的第 5 处：本文件的 VERSION 必须同步（下方 wiring_checks 用它交叉校验
 #   yl_version_ext.DEFAULT_VERSION 与 CHANGELOG 最新条目，两者都对上才算过）。

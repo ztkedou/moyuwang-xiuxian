@@ -387,8 +387,28 @@ OUT = os.path.join(HERE, 'build', 'assets', 'index-v102-20261022.js')
 from yl_r227_ext import apply as v28_r227_apply  # noqa: E402
 from yl_r228_ext import apply as v28_r228_apply  # noqa: E402
 from yl_r230_ext import apply as v28_r230_apply  # noqa: E402
+# ---- 2026-10-31 R-258 数值缺陷三连（第 100 个 v28 模块；文件在 patches/client/）----
+#   · 只做 2 处原地替换、零注入块（INJECT_JS 有意留空）：
+#     ① `_ylrn` 穿戴门正则去 `^`（`【普通】[合道期]xxx` 形态也能取到境界，堵住越阶装备放行）
+#     ② 仙剑·诛仙 sellPrice 6e4 → 6e5（买 2e6 / 卖 6e5 = 3.33，落入全场正常区间）
+#   · 锚区与其它模块零交集（`_ylrn` 穿戴门 @859584 / 商店仙品武器条目 @480387），
+#     全仓无第二个模块引用这两处 ⇒ 位置不敏感；**必须排在 numbal 之前**
+#     （dryrun_087.py:196 硬门禁「numbal 恒最后」）。
+from yl_numfix_r258_ext import apply as v28_numfix_r258_apply  # noqa: E402
 # ---- 2026-10-21 1.0 批（FB-100 玩家反馈，第 99 个 v28 模块；文件在 localtest/）----
 from yl_fb100_ext import apply as v28_fb100_apply  # noqa: E402
+# ---- 2026-10-31 P0 修炼效率双修（第 101 个 v28 模块；文件在 patches/client/）----
+#   · 只做 2 处原地替换、零注入块（INJECT_JS 有意留空）：
+#     ① 天赋 K 常量 `1 / 0.26` → `1`（不再抵消 0.26 降幅 ⇒ _ta 由 +846% 降到 +220%）
+#     ② `bd()` 加同名薄包装做 +350% 软上限（raw>3.5 ⇒ 3.5+(raw-3.5)*0.25），
+#        原函数体**改名 bd0、一字不动** —— 下游 r238/r248/r250 三个 standalone 环
+#        逐字锚定 `return{total:_ar+_ta+_ti+_gr+_sy+_np` 并在其上追加 __wud/__nixiu/__xw，
+#        若直接改写 total 表达式会让三环在 standalone 阶段 count=0 ⇒ PatchError。
+#   · 改动 1 的锚点在 talent097 注入块内 ⇒ 必须排 talent097 之后（本表位置天然满足）。
+#   · 恒在 numbal 之前：dryrun_087.wiring_checks 硬门禁「numbal 必须恒最后」。
+#   · 新模块键名 `p0tal` 刻意避开已占用的 `r258` / `numfix258` / `p0cmb`。
+from yl_p0tal_ext import apply as v28_p0tal_apply  # noqa: E402
+from yl_p2misc_ext import apply as v28_p2misc_apply  # noqa: E402
 # ---- 2026-10-21 1.1 批（PM-101 玩家私信）：**不进 V28_MODULES** —— 其 E3 锚
 #      STANDALONE_CLIENT 'r144' 的产物（R-144 注入块内切磋 push；装配实测 V28 阶段该锚
 #      count=0，直接进本表必然 PatchError fail-closed），交付说明亦「须排 r144 之后」。
@@ -573,6 +593,23 @@ V28_MODULES = [
     #   ★ 不放 numbal 之后：dryrun_087.wiring_checks 硬门禁「numbal 必须恒最后」
     #     （localtest/dryrun_087.py:196），且 numbal 的预算重算无需看到本模块的 UI/API 桥块。
     ('fb100', v28_fb100_apply),            # FB-100 顶栏「反馈」钮 + 抽屉入口（1.0 底栏第 6 卡已回退）+ raw fetch /yl/api/feedback
+    # ---- 2026-10-31 R-258 数值缺陷三连（第 100 模块；纯客户端，零服务端改动）----
+    #   ① `_ylrn` 穿戴门正则 `/^\[(.+?)\]/` → `/\[([^\[\]]+)\]/`（去串首锚，与 _ylfb/_ylf 对齐）
+    #   ② 仙剑·诛仙 sellPrice 6e4 → 6e5（2e6/6e5 = 3.33）
+    #   ★ 恒在 numbal 之前：dryrun_087.wiring_checks 硬门禁「numbal 必须恒最后」
+    #     （localtest/dryrun_087.py:196）。锚区与 numbal 零交集，位置仅受该硬门禁约束。
+    #   ★ 新正则全文 3 → 4（不是任务书写的 3）：第 4 份是 @1547064 R-176 抽奖越阶权重，
+    #     它本来就用新正则、**不是过滤器**，本模块 3 条独立门禁把它钉死为不动。
+    ('numfix258', v28_numfix_r258_apply),  # R-258 _ylrn 穿戴门正则去串首锚 + 仙剑·诛仙卖价 6e4→6e5
+    # ---- 2026-10-31 P0 修炼效率双修（第 101 模块；纯客户端，零服务端改动）----
+    #   ① 天赋 K 常量 `1 / 0.26` → `1`：天赋 expRate 真实承受 0.26 降幅（_ta +846% → +220%）
+    #   ② `bd()` 同名薄包装做 +350% 软上限（3.5+(raw-3.5)*0.25），原函数体改名 bd0 一字不动
+    #   ★ 为何用 wrapper 而不是改 total 表达式：r238/r248/r250 三个 standalone 环逐字锚定
+    #     `return{total:_ar+_ta+_ti+_gr+_sy+_np` 并追加 __wud/__nixiu/__xw；
+    #     直接改 total 会让三环 count=0 ⇒ PatchError fail-closed。
+    #   ★ 恒在 numbal 之前：dryrun_087.wiring_checks 硬门禁「numbal 必须恒最后」。
+    ('p0tal', v28_p0tal_apply),
+    ('p2misc', v28_p2misc_apply),        # P2：灵宠成长软上限 + 洞府L9/L10成本 + 通天塔扫荡保底
     ('numbal', v28_numbal_apply),
 ]
 
@@ -828,6 +865,19 @@ STANDALONE_CLIENT = [
     #      最外层、r258 锚 r256 注入块 ⇒ 必须排 r256 之后；fb100 锚基线、已在 V28_MODULES 落位）----
     ('r257', os.path.join(HERE, 'localtest', 'yl_r257_ext.py')),  # R-254 历练年龄/危险度行独立成条（最外层旁路；服务端零改动）
     ('r258', os.path.join(HERE, 'localtest', 'yl_r258_ext.py')),  # R-255 真关页面不盗跑（boot 分流 + store 回填守卫；★ 必须排 r256 之后）
+    # ---- 2026-10-31 P0CMB 批（P0 战斗缺陷双修；纯客户端，零服务端改动）----
+    #   ★★ 为什么走 standalone 而不是 V28_MODULES（装配实测 2026-10-31）：
+    #     缺陷 1 的锚点 `if(G&&YlxwPB.executeRate>0&&m.maxHp>0&&m.hp<=.3*m.maxHp)v=...`
+    #     **由本表的 r245 注入**（E5 fast 斩杀）。三阶段实测计数：
+    #       基线 index-v26m（B.BASE）= 0 / V28 阶段产物 = 0 / 终态 = 1
+    #     ⇒ 按任务书字面接进 V28_MODULES（numbal 前）必然 PatchError fail-closed 中止。
+    #   ★★ 顺序铁律：**必须排在 r245 之后**（本环锚点是 r245 的产物）。
+    #     实际落位 = 表尾（r258 之后）⇒ r245/r247/r248/r254/r255/r256/r257/r258 全已套用。
+    #     若顺序被调乱，yl_p0cmb_ext.gates() 的「前置依赖·r245 注入块在位」一条会 fail-closed。
+    #   ★ 缺陷 2（功法阁流派面板文案）锚点在 V28 阶段本可命中（count=1），但两处改动同属一个
+    #     模块 ⇒ 统一走 standalone 便于回滚（lead 2026-10-31 裁定）。
+    #   先例：'pm101'（同一情况，E3 锚在 r144 产物里）同样走 standalone 薄壳。
+    ('p0cmb', os.path.join(HERE, 'localtest', 'yl_p0cmb_run.py')),  # P0：斩杀 m.hp→h + 流派面板「仅展示倾向」标注
 ]
 
 
@@ -1638,21 +1688,31 @@ if __name__ == '__main__':
                 self._raw.flush()
 
         sys.stdout = _QuietGateStdout(sys.stdout)
-    from yl_patch import run
-    _rc = run(sys.modules[__name__])
-    if _rc != 0:
-        sys.exit(_rc)
-    # ---- 0.9.13 成员新契约：standalone 客户端补丁（R-116/R-118）装配后套用 ----
-    #   run() 已把 V28_MODULES 产物二进制落盘 OUT；此处对 OUT 按序套用 standalone 脚本。
-    #   任何失败都以非零码退出（chain_build.build_client 靠 rc 中止；「预演==交付」
-    #   由 dryrun_087 对同一套 standalone 套用保证两侧 md5 逐位一致）。
-    #   ★ --check 模式不落盘 ⇒ 也不能对盘上旧产物套用 standalone（防误补旧包）。
-    if '--check' in sys.argv:
-        print('(--check 模式：不套用 standalone 补丁)')
-        sys.exit(0)
-    _errs = apply_standalone(OUT)
-    if _errs:
-        for _e in _errs:
-            print('[ABORT] %s' % _e)
-        sys.exit(1)
+
+    # ---- 并发互斥（2026-10-31 实测踩到的真实缺陷；lead 批准）----
+    #   两个 build_v26n 进程同时跑时都写同一个 OUT，且 apply_standalone() 对该文件
+    #   做「读 → 改 → 原子写回」；并发下后启动者会读到半写中间态 ⇒ standalone 环
+    #   rc=1/rc=2 级联 ABORT（实测 10:05:04 那次：中断现场比正常少 6313 字符）。
+    #   ⇒ 整个「V28 装配 + standalone 套用」段用独占锁串行化；拿不到锁最多等 300s。
+    #   ★ 零侵入：不改任何函数签名/流程，只在入口包一层；异常路径由 with 保证释放。
+    from yl_lock import build_lock
+    _lock_path = os.path.join(HERE, 'build', '.yl_client_build.lock')
+    with build_lock(_lock_path, timeout=300, label='yl 客户端构建'):
+        from yl_patch import run
+        _rc = run(sys.modules[__name__])
+        if _rc != 0:
+            sys.exit(_rc)
+        # ---- 0.9.13 成员新契约：standalone 客户端补丁（R-116/R-118）装配后套用 ----
+        #   run() 已把 V28_MODULES 产物二进制落盘 OUT；此处对 OUT 按序套用 standalone 脚本。
+        #   任何失败都以非零码退出（chain_build.build_client 靠 rc 中止；「预演==交付」
+        #   由 dryrun_087 对同一套 standalone 套用保证两侧 md5 逐位一致）。
+        #   ★ --check 模式不落盘 ⇒ 也不能对盘上旧产物套用 standalone（防误补旧包）。
+        if '--check' in sys.argv:
+            print('(--check 模式：不套用 standalone 补丁)')
+            sys.exit(0)
+        _errs = apply_standalone(OUT)
+        if _errs:
+            for _e in _errs:
+                print('[ABORT] %s' % _e)
+            sys.exit(1)
     sys.exit(0)

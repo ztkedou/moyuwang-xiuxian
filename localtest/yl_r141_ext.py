@@ -260,7 +260,10 @@ FRZ_IY = ('if(N==="spirit"||N==="speed"){const PK={\u666e\u901a:1,\u7a00\u6709:1
           'SK={\u6b66\u5668:.5,\u62a4\u7532:.5,\u6212\u6307:2.5,\u9996\u9970:2.5,\u6cd5\u5b9d:2.5}[ty]||1,'
           'BV=(([2,4,8,16,30,55,100][$]||2)*PK*SK)*(N==="speed"?2/3:1);')
 # 冻结：封顶表 / 封顶函数 / 战斗核心暴击公式 / 吸血分支 / 洗炼既有函数
-FRZ_CAPCFG = 'var YlxwBattleCapCfg = { critRate: 0.35, critDamage: 0.8, dodgeRate: 0.35, lifeLeech: 0.25, damageReduction: 0.5 };'
+# [p1cmb 2026-10-31] P1② 合法下调 lifeLeech .25→.10 / damageReduction .5→.25
+# ⇒ 改为 tuple 多形态合计（旧形态原文保留，绝不放宽语义：封顶表必须恰好存在一份）
+FRZ_CAPCFG = ('var YlxwBattleCapCfg = { critRate: 0.35, critDamage: 0.8, dodgeRate: 0.35, lifeLeech: 0.25, damageReduction: 0.5 };',
+              'var YlxwBattleCapCfg = { critRate: 0.35, critDamage: 0.8, dodgeRate: 0.35, lifeLeech: 0.10, damageReduction: 0.25 };/*[p1cmb]*/')
 FRZ_CAPFN = 'function YlxwBattleCap(o) {'
 FRZ_CRITFORM = 'F=.1+(G?te:ee)/ne*.1+(G?YlxwPB.critRate:0),W=Math.max(0,Math.min(.35,F))'
 FRZ_LEECH = 'YlxwPB.lifeLeech>0'
@@ -389,7 +392,9 @@ def main() -> int:
     ok = True
     text = out.decode('utf-8', errors='replace')
     for label, needle, exp, op, note in gates():
-        act = text.count(needle)
+        # [p1cmb 2026-10-31] 支持 tuple 多形态合计（下游合法改写上游锚点时用）：
+        # needle 为 tuple 时按各形态计数求和（语义 = 「合计恰好 N 份」，不放宽）
+        act = sum(text.count(n) for n in needle) if isinstance(needle, tuple) else text.count(needle)
         good = (act == exp)
         ok = ok and good
         print('  [%s] %-34s actual=%d expect==%d' % ('OK' if good else 'FAIL', label, act, exp))

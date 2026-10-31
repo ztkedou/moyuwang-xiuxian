@@ -409,6 +409,7 @@ from yl_fb100_ext import apply as v28_fb100_apply  # noqa: E402
 #   · 新模块键名 `p0tal` 刻意避开已占用的 `r258` / `numfix258` / `p0cmb`。
 from yl_p0tal_ext import apply as v28_p0tal_apply  # noqa: E402
 from yl_p2misc_ext import apply as v28_p2misc_apply  # noqa: E402
+from yl_p1combat_ext import apply as v28_p1combat_apply  # noqa: E402
 # ---- 2026-10-21 1.1 批（PM-101 玩家私信）：**不进 V28_MODULES** —— 其 E3 锚
 #      STANDALONE_CLIENT 'r144' 的产物（R-144 注入块内切磋 push；装配实测 V28 阶段该锚
 #      count=0，直接进本表必然 PatchError fail-closed），交付说明亦「须排 r144 之后」。
@@ -609,7 +610,8 @@ V28_MODULES = [
     #     直接改 total 会让三环 count=0 ⇒ PatchError fail-closed。
     #   ★ 恒在 numbal 之前：dryrun_087.wiring_checks 硬门禁「numbal 必须恒最后」。
     ('p0tal', v28_p0tal_apply),
-    ('p2misc', v28_p2misc_apply),        # P2：灵宠成长软上限 + 洞府L9/L10成本 + 通天塔扫荡保底
+    ('p2misc', v28_p2misc_apply),
+    ('p1cmb', v28_p1combat_apply),          # P1：炼气期必败 + 战斗无失败 + 封顶撞顶        # P2：灵宠成长软上限 + 洞府L9/L10成本 + 通天塔扫荡保底
     ('numbal', v28_numbal_apply),
 ]
 
@@ -877,7 +879,8 @@ STANDALONE_CLIENT = [
     #   ★ 缺陷 2（功法阁流派面板文案）锚点在 V28 阶段本可命中（count=1），但两处改动同属一个
     #     模块 ⇒ 统一走 standalone 便于回滚（lead 2026-10-31 裁定）。
     #   先例：'pm101'（同一情况，E3 锚在 r144 产物里）同样走 standalone 薄壳。
-    ('p0cmb', os.path.join(HERE, 'localtest', 'yl_p0cmb_run.py')),  # P0：斩杀 m.hp→h + 流派面板「仅展示倾向」标注
+    ('p0cmb', os.path.join(HERE, 'localtest', 'yl_p0cmb_run.py')),
+    ('p1cmb', os.path.join(HERE, 'localtest', 'yl_p1combat_run.py')),  # P1：战斗封顶下调 + 非装备封顶  # P0：斩杀 m.hp→h + 流派面板「仅展示倾向」标注
 ]
 
 

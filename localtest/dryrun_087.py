@@ -134,6 +134,7 @@ EXPECTED_ORDER = [
     #   ★ numbal 恒最后 ⇒ 必须排其前
     'p0tal',
     'p2misc',
+    'p1cmb',
     'numbal',
 ]
 NEW_MODULES = ['grotto087', 'farm087', 'xinfa087', 't6chardex',

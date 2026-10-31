@@ -408,7 +408,7 @@ python localtest/chain_build.py --check
 
 | 产物 | 文件 | md5 |
 |---|---|---|
-| 前端（1.3 定版） | `build/assets/index-v102-20261022.js` | `175c64d60fc2e07c059556e264fbb837` |
+| 前端（1.3 定版） | `build/assets/index-v102-20261022.js` | `2541ef2108e47674b09b7f1047c9e014` |
 | 服务端（1.3 定版） | `srv/index_v28.ts` | `51270cba95846bb75da818d99b012e5c` |
 | 前端冻结基座（装配**输入**） | `build/assets/index-v26m-20260927.js` | `b315eb1a04e967a66c128861b3a3dadd` |
 | 服务端冻结基座（装配**输入**） | `_v281_base/index_v28.base.ts` | `f6ecc82e72d8425d5064f765d7de0684` |
@@ -493,7 +493,7 @@ node --experimental-strip-types srv/index_v28.ts
 > **另外两点必须确认：**
 >
 > 1. **`build/assets/index-v102-20261022.js` 是「定版产物」，不是可随意重生成的中间物。**
->    它是本仓库「可复现」承诺的**校验基准**（md5 `175c64d60fc2e07c059556e264fbb837`）。
+>    它是本仓库「可复现」承诺的**校验基准**（md5 `2541ef2108e47674b09b7f1047c9e014`）。
 >    一旦被覆盖，除非你手上还留着原文件，否则**这份基准就永久丢失了** —— 备份是唯一保险。
 > 2. **`srv/index_v28.ts` 必须是「冻结基座 + 全链补丁」的可重建物，不能是手工改过的孤本。**
 >    如果线上某次热修是直接编辑该文件而未回写到 `srv_patch_*.py`，那么重跑 `chain_build.py --srv`

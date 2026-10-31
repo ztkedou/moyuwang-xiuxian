@@ -116,9 +116,13 @@ M_C3 = 'if (typeof p.lifeLeech === "number" && p.lifeLeech > 0) o.lifeLeech += p
 M_ANCHOR = 'YlxwR18bRuneBattle(o, p);'
 
 # 冻结：封顶表 / 封顶函数 / 灵纹战斗层调用点 / 装备层循环 / hitRate 无消费点
-FRZ_CAPCFG = 'var YlxwBattleCapCfg = { critRate: 0.35, critDamage: 0.8, dodgeRate: 0.35, lifeLeech: 0.25, damageReduction: 0.5 };'
+# [p1cmb 2026-10-31] P1② 合法下调 ⇒ tuple 多形态合计（旧形态原文保留）
+FRZ_CAPCFG = ('var YlxwBattleCapCfg = { critRate: 0.35, critDamage: 0.8, dodgeRate: 0.35, lifeLeech: 0.25, damageReduction: 0.5 };',
+              'var YlxwBattleCapCfg = { critRate: 0.35, critDamage: 0.8, dodgeRate: 0.35, lifeLeech: 0.10, damageReduction: 0.25 };/*[p1cmb]*/')
 FRZ_CAPFN = 'function YlxwBattleCap(o) {'
-FRZ_EQ = 'var eq = YlxwEqItems(p), i, j, af;'
+# [p1cmb 2026-10-31] P1③b 合法改写装备循环（加临时桶）⇒ tuple 多形态合计
+FRZ_EQ = ('var eq = YlxwEqItems(p), i, j, af;',
+          'var eq = YlxwEqItems(p), i, j, af, eqAdd = { critRate: 0, critDamage: 0, dodgeRate: 0, lifeLeech: 0 }, ek;/*[p1cmb]*/')
 FRZ_R18B = 'YlxwR18bRuneBattle(o, p);'
 FRZ_HITRATE = 'hitRate'  # 客户端无消费点：补丁前后均应为 0 次
 
@@ -161,6 +165,10 @@ def _precheck():
 
 
 def _count(txt, needle):
+    # [p1cmb 2026-10-31] 支持 tuple 多形态合计（下游合法改写上游锚点时用）：
+    # tuple 时按各形态计数求和（语义 = 「合计恰好 N 份」，不放宽）
+    if isinstance(needle, tuple):
+        return sum(_count(txt, _n) for _n in needle)
     n, i = 0, 0
     while True:
         i = txt.find(needle, i)
